@@ -4,6 +4,9 @@ use warnings;
 use JSON::PP;
 use B;
 use Sub::Util qw(subname);
+use File::Spec;
+use File::Basename qw(dirname);
+use Cwd;
 use lib './lib';
 require SD_ProtocolData;
 require SD_Protocols;
@@ -13,23 +16,38 @@ sub perl_to_python {
     my ($func) = $full =~ /SD_Protocols::(.+)$/;
     return $full unless $func;   # Fallback, falls kein Match
 
-    my $fname = lcfirst($func);  # Funktionsname mit kleinem Anfangsbuchstaben
-
-    # decode_/encode_-Fälle → Modul = Teil nach dem Unterstrich
-    if ($fname =~ /^(decode|encode)_(\w+)$/) {
-        return "$2.$fname";      # z.B. rsl.decode_rsl
+    # Direkte Umwandlung zu Python-Klassenmethoden
+    # Diese Namen entsprechen den Methoden in ManchesterMixin, PostdemodulationMixin, RSLMixin
+    
+    # mcBit2* → manchester.mcBit2*  (z.B. mcBit2Grothe bleibt mcBit2Grothe)
+    if ($func =~ /^mcBit2(.+)$/) {
+        return "manchester.$func";  # z.B. manchester.mcBit2Grothe
     }
 
-    # mcBit2-Fälle → Modul = Rest, Funktion = mc_bit2<rest>
-    if ($fname =~ /^mcBit2(\w+)$/) {
-        my $module = lc($1);
-        my $funcname = "mc_bit2" . lc($1);
-        return "$module.$funcname";  # z.B. grothe.mc_bit2grothe
+    # postDemo_* → postdemodulation.postDemo_*
+    if ($func =~ /^postDemo_(.+)$/) {
+        return "postdemodulation.$func";  # z.B. postdemodulation.postDemo_EM
     }
 
-    # Standard-Fallback: Modul = gesamter Funktionsname
-    return "$fname.$fname";
+    # decode_/encode_* → rsl_handler.<function>  (RSL Protocol)
+    if ($func =~ /^(decode|encode)_(\w+)$/) {
+        return "rsl_handler.$func";  # z.B. rsl_handler.decode_rsl
+    }
+
+    # Helper-Funktionen → helpers.<function>
+    if ($func =~ /^(mc2dmc|bin_str_2_hex_str|dec_2_bin_ppari|mcraw|length_in_range)$/i) {
+        return "helpers." . lc($func);  # Konvertiere zu lowercase für Python
+    }
+
+    # Konverter-Funktionen → helpers.<function> (ConvBresser_*, ConvLaCrosse, etc.)
+    if ($func =~ /^Conv/) {
+        return "helpers." . $func;
+    }
+
+    # Standard-Fallback für unbekannte Funktionen
+    return "sd_protocols.$func";
 }
+
 
 
 sub sanitize {
@@ -87,7 +105,13 @@ my $json = JSON::PP->new
         protocols => \%cleaned
     });
 
-open my $fh, '>', 'protocols.json' or die "Kann Datei nicht schreiben: $!";
+use File::Spec;
+use Cwd;
+
+my $script_dir = dirname(Cwd::abs_path(__FILE__));
+my $output_file = File::Spec->catfile($script_dir, '..', 'sd_protocols', 'protocols.json');
+
+open my $fh, '>', $output_file or die "Kann Datei nicht schreiben: $!";
 print $fh $json;
 close $fh;
 

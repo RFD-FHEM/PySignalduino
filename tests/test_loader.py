@@ -1,18 +1,11 @@
 import pytest
-import json
-from sd_protocols.loader import resolve_method, run_method
+from sd_protocols.loader import resolve_method, protocols
 
-# JSON laden
-with open("protocols.json", "r", encoding="utf-8") as f:
-    data = json.load(f)
-
-protocols = data["protocols"]
-
-# Nur die IDs oder Namen, die wir testen wollen
+# Test-Protokolle die wir validieren wollen
+# Die Method-Strings sind jetzt direkt die Python-Klassenmethoden
 TEST_PROTOCOLS = {
-    "grothe": ["mc_bit2grothe"],   # Methoden in grothe.py
-    "somfy": ["mc_bit2somfy"],     # Methoden in somfy.py
-    "rsl": ["decode_rsl", "encode_rsl"],  # Methoden in rsl.py
+    "manchester": ["mcBit2Grothe", "mcBit2SomfyRTS"],  # ManchesterMixin
+    "rsl_handler": ["decode_rsl", "encode_rsl"],      # RSLMixin
 }
 
 def test_selected_protocols_exist():
@@ -22,13 +15,14 @@ def test_selected_protocols_exist():
         if "method" in proto:
             method_str = proto["method"]
             for module, funcs in TEST_PROTOCOLS.items():
-                if any(method_str.endswith(func) for func in funcs):
-                    found.append(method_str)
+                for func in funcs:
+                    if method_str == f"{module}.{func}":
+                        found.append(method_str)
     assert found, "Keine der gewünschten Methoden gefunden"
 
 @pytest.mark.parametrize("module, funcs", TEST_PROTOCOLS.items())
 def test_methods_resolvable(module, funcs):
-    """Prüft, ob die gewünschten Methoden importierbar sind."""
+    """Prüft, ob die gewünschten Methoden aufgelöst werden können."""
     for func in funcs:
         method_str = f"{module}.{func}"
         resolved = resolve_method(method_str)
@@ -36,12 +30,24 @@ def test_methods_resolvable(module, funcs):
 
 @pytest.mark.parametrize("module, funcs", TEST_PROTOCOLS.items())
 def test_run_methods(module, funcs):
-    """Führt jede gewünschte Methode einmal aus (Dummy-Argumente)."""
+    """Führt jede gewünschte Methode einmal aus mit korrekten Argumenten."""
     for func in funcs:
         method_str = f"{module}.{func}"
         # Wir suchen das erste Protokoll, das diese Methode nutzt
-        for pid, proto in protocols.items():
-            if proto.get("method") == method_str:
-                result = run_method(pid, "1010101010")
+        for pid, proto_data in protocols.items():
+            if proto_data.get("method") == method_str:
+                # Call resolved method with proper arguments
+                method = resolve_method(method_str)
+                
+                # Different calling conventions for different methods
+                if func in ['decode_rsl', 'encode_rsl']:
+                    # RSL methods take different arguments
+                    result = method("1010101010")
+                else:
+                    # Manchester methods: name, bit_data, protocol_id, mcbitnum
+                    result = method(name="test", bit_data="1010101010", protocol_id=pid, mcbitnum=10)
+                
                 assert result is not None
                 break
+
+
