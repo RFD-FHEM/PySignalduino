@@ -316,24 +316,30 @@ class PostdemodulationMixin:
 
     def postDemo_FHT80TF(self, name, bit_msg_array):
         """Process FHT80TF window sensor post-demodulation signal.
-        
-        FHT80TF sensors transmit window contact/tilt sensor data in
-        a similar format to FHT80 with 8-bit data payload.
-        
+
+        FHT80TF sensors transmit door/window contact sensor data with
+        checksum and parity validation.
+
         Args:
             name: Device/message name for logging
             bit_msg_array: Array/list of individual bits from demodulation
-            
+
         Returns:
             Tuple: (1, processed_bit_list) on success or (0, None) on failure
-            
+
         Format:
-            - Similar to FHT80 with 8-bit sensor data
-            - Contact state and tilt angle encoded in bits
+            - 45 bits after preamble removal
+            - Checksum over first 4 bytes
+            - Parity per 9-bit group
+            - Specific bit validation
         """
         bit_msg = bit_msg_array[:]  # Copy
         protolength = len(bit_msg)
-        
+
+        if protolength < 46:  # min 5 bytes + 6 bits
+            self._logging("lib/postDemo_FHT80TF, ERROR lenght of message < 46", 4)
+            return (0, None)
+
         # Find start (first '1' bit)
         datastart = 0
         for i, bit in enumerate(bit_msg):
@@ -341,37 +347,55 @@ class PostdemodulationMixin:
                 datastart = i
                 break
         else:
-            self._logging("lib/postDemo_FHT80TF, ERROR all bits are zeros", 3)
+            # All bits are 0
+            self._logging("lib/postDemo_FHT80TF, ERROR message all bit are zeros", 3)
             return (0, None)
-        
+
         # Remove preamble + 1 bit
         bit_msg = bit_msg[datastart + 1:]
         protolength = len(bit_msg)
-        
-        self._logging(f"lib/postDemo_FHT80TF, pos={datastart} length={protolength}", 5)
-        
-        # Remove EOT bit if present
-        if protolength == 28:
-            bit_msg.pop()
-            protolength -= 1
-        
-        if protolength != 27:
-            return (0, None)
-        
-        # Verify parity for FHT80TF (3 bytes of data)
-        for b in range(0, 27, 9):
-            parity = 0
-            for i in range(b, min(b + 9, 27)):
-                parity += bit_msg[i]
-            
-            if parity % 2 != 0:
-                return (0, None)
-        
-        # Remove parity bits
-        for b in range(26, 0, -9):
-            bit_msg.pop(b)
-        
-        return (1, bit_msg)
+
+        if protolength == 45:  # FHT80TF fixed length
+            # Build sum over first 4 bytes
+            sum_val = 12
+            for b in range(0, 36, 9):
+                byte_bits = bit_msg[b:b + 8]
+                byte_val = int(''.join(str(bit) for bit in byte_bits), 2)
+                sum_val += byte_val
+
+            # Checksum Byte 5
+            checksum_bits = bit_msg[36:44]
+            checksum = int(''.join(str(bit) for bit in checksum_bits), 2)
+
+            if (sum_val & 0xFF) == checksum:  # FHT80TF door/window contact
+                # Check parity over 5 bytes
+                for b in range(0, 45, 9):
+                    parity = 0  # Parity even
+                    for i in range(b, min(b + 9, 45)):
+                        parity += bit_msg[i]
+
+                    if parity % 2 != 0:
+                        self._logging("lib/postDemo_FHT80TF, ERROR Parity not even", 4)
+                        return (0, None)
+
+                # Parity ok, remove 5 parity bits
+                for b in range(44, 0, -9):
+                    bit_msg.pop(b)
+
+                # Bit 5 Byte 3 must 0
+                if bit_msg[26] != 0:
+                    self._logging("lib/postDemo_FHT80TF, ERROR - byte 3 bit 5 not 0", 3)
+                    return (0, None)
+
+                # Delete checksum
+                del bit_msg[32:40]
+
+                msg_hex = self.bin_str_2_hex_str(''.join(str(b) for b in bit_msg))
+                self._logging(f"lib/postDemo_FHT80TF, door/window switch post demodulation {msg_hex}", 4)
+
+                return (1, bit_msg)
+
+        return (0, None)
 
     def postDemo_WS2000(self, name, bit_msg_array):
         """Process WS2000 weather station post-demodulation signal.
