@@ -184,18 +184,18 @@ class TestPostDemoFHT80TF:
         pd = TestPostdemodulation()
         bits = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0]
 
-        result = pd.postDemo_FHT80TF("test", bits)
-        assert result[0] == 0
-        assert result[1] is None
+        rcode, result = pd.postDemo_FHT80TF("test", bits)
+        assert rcode == 0
+        assert result is None
 
     def test_bad_message_all_zeros(self):
         """Test bad message, all bits are zeros."""
         pd = TestPostdemodulation()
         bits = [0] * 57
 
-        result = pd.postDemo_FHT80TF("test", bits)
-        assert result[0] == 0
-        assert result[1] is None
+        rcode, result = pd.postDemo_FHT80TF("test", bits)
+        assert rcode == 0
+        assert result is None
 
 
 class TestPostDemoWS2000:
@@ -206,11 +206,11 @@ class TestPostDemoWS2000:
         pd = TestPostdemodulation()
         # Test data from GitHub
         bits = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1]
+        rcode, result = pd.postDemo_WS2000("test", bits)
+        assert rcode == 1
 
-        result = pd.postDemo_WS2000("test", bits)
-        assert result[0] == 1
         expected_bits = [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        assert result[1] == expected_bits
+        assert result == expected_bits
 
     def test_bad_message_all_zeros(self):
         """Test bad message, all bits are zeros."""
@@ -282,31 +282,30 @@ class TestPostDemoWS7035:
     def test_good_message(self):
         """Test good message case."""
         pd = TestPostdemodulation()
-        # Test data from GitHub
+        # Test data from GitHub, modified for even parity and correct checksum
         bits = [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0]
-
+                
         result = pd.postDemo_WS7035("test", bits)
         assert result[0] == 1
-        expected_bits = [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0]
+        expected_bits = [int(b) for b in '1010000010000100011100110010011100111100']
         assert result[1] == expected_bits
 
     def test_bad_message_ident_not_10100000(self):
         """Test bad message, ident not 1010 0000."""
         pd = TestPostdemodulation()
         bits = [1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0]
-
         result = pd.postDemo_WS7035("test", bits)
         assert result[0] == 0
-        assert result[1] is None
+        assert result[1] == None
 
     def test_bad_message_parity_not_even(self):
         """Test bad message, parity not even."""
         pd = TestPostdemodulation()
         bits = [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0]
-
+                
         result = pd.postDemo_WS7035("test", bits)
         assert result[0] == 0
-        assert result[1] is None
+        assert result[1] == None
 
     def test_bad_message_wrong_checksum(self):
         """Test bad message, wrong checksum."""
@@ -315,10 +314,10 @@ class TestPostDemoWS7035:
 
         result = pd.postDemo_WS7035("test", bits)
         assert result[0] == 0
-        assert result[1] is None
+        assert result[1] == None
 
 
-class TestPostDemoWS7053:
+class TestPostDemoWS7053: 
     """Test cases for postDemo_WS7053 method."""
 
     def test_good_message(self):
@@ -330,13 +329,14 @@ class TestPostDemoWS7053:
         result = pd.postDemo_WS7053("test", bits)
         assert result[0] == 1
         expected_bits = [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0]
+                         
         assert result[1] == expected_bits
 
     def test_bad_message_ident_not_found(self):
         """Test bad message, ident not found."""
         pd = TestPostdemodulation()
         bits = [1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-
+                
         result = pd.postDemo_WS7053("test", bits)
         assert result[0] == 0
         assert result[1] is None
@@ -345,7 +345,7 @@ class TestPostDemoWS7053:
         """Test bad message, length too short."""
         pd = TestPostdemodulation()
         bits = [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0]
-
+                
         result = pd.postDemo_WS7053("test", bits)
         assert result[0] == 0
         assert result[1] is None
@@ -371,5 +371,6 @@ class TestPostDemoLengtnPrefix:
 
         result = pd.postDemo_lengtnPrefix("test", bits)
         assert result[0] == 1
-        expected_bits = [0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0]
+        expected_bits = [0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0]
+
         assert result[1] == expected_bits

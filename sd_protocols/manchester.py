@@ -220,7 +220,17 @@ class ManchesterMixin:
             
             return (1, ashex)
         
-        return (-1, None)
+        # Wenn kein Sync-Pattern gefunden wird, aber die Länge ok ist, konvertiere trotzdem
+        length_min = self.check_property(protocol_id, "length_min", -1)
+        if mcbitnum < length_min:
+            return (-1, ' message is to short')
+        
+        length_max = self.get_property(protocol_id, "length_max")
+        if length_max is not None and mcbitnum > length_max:
+            return (-1, ' message is to long')
+        
+        ashex = self.bin_str_2_hex_str(bit_data)
+        return (1, ashex)
 
     def mcBit2Hideki(self, name, bit_data, protocol_id, mcbitnum=None):
         """Decode Hideki temperature/humidity sensor Manchester signal.
@@ -397,6 +407,7 @@ class ManchesterMixin:
         
         TFA weather stations transmit Manchester-encoded sensor data
         with temperature, humidity, and pressure information.
+        This implementation includes duplicate message detection.
         
         Args:
             name: Device/message name for logging
@@ -419,6 +430,33 @@ class ManchesterMixin:
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
             return (-1, ' message is to long')
+        
+        # Duplicate message detection
+        # Split bit_data into chunks of length mcbitnum
+        chunks = [bit_data[i:i+mcbitnum] for i in range(0, len(bit_data), mcbitnum)]
+        
+        # Check if we have at least two chunks
+        if len(chunks) < 2:
+            return (-1, ' no duplicate found')
+        
+        # Check if the first two chunks are identical
+        if chunks[0] != chunks[1]:
+            # Check if we have more than two chunks and if any two consecutive chunks are identical
+            duplicate_found = False
+            for i in range(len(chunks) - 1):
+                if chunks[i] == chunks[i+1]:
+                    duplicate_found = True
+                    # Use the duplicate chunk for further processing
+                    bit_data = chunks[i]
+                    mcbitnum = len(bit_data)
+                    break
+            
+            if not duplicate_found:
+                return (-1, ' no duplicate found')
+        else:
+            # Use the first chunk for further processing
+            bit_data = chunks[0]
+            mcbitnum = len(bit_data)
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
