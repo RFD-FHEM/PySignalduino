@@ -150,3 +150,24 @@ class ProtocolHelpersMixin:
         
         return (1, '')
 
+    def hex_to_bin_str(self, hex_string):
+        """
+        Convert hex string to binary string.
+        
+        Args:
+            hex_string: Hexadecimal string (e.g., '1A3F')
+        
+        Returns:
+            Binary string (e.g., '0001101000111111') or None if input is invalid
+        """
+        if hex_string is None:
+            return None
+        
+        try:
+            # Convert hex to integer, then format as binary
+            bin_string = bin(int(hex_string, 16))[2:]  # Remove '0b' prefix
+            # Pad with leading zeros to make length a multiple of 4
+            padded_length = ((len(bin_string) + 3) // 4) * 4
+            return bin_string.zfill(padded_length)
+        except ValueError:
+            return None

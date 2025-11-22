@@ -84,6 +84,7 @@ class TestMcBit2Funkbus:
         # Test zu lang (wird in mcBit2* geprüft, aber wir prüfen hier nur die erste Stufe)
         proto._protocols[pid]["length_min"] = 10
         proto._protocols[pid]["length_max"] = 40 # Zu kurz für 48 Bits
+        proto._protocols[pid]["method"] = "manchester.mcRaw"
         
         result = proto._demodulate_mc_data(
             name="TestLen",
@@ -270,7 +271,7 @@ class TestMcBit2TFAPerl:
                   "11111111111010100010111001000010000000"
         rc, msg = proto.mcBit2TFA("some_name", bitdata, pid, len(bitdata))
         assert rc == -1
-        assert "message is to short" in str(msg)
+        assert "message is too short" in str(msg)
 
     def test_mctfa_double_too_long(self, proto):
         pid = "5058"
@@ -291,7 +292,7 @@ class TestMcBit2TFAPerl:
         )
         rc, msg = proto.mcBit2TFA("some_name", bitdata, pid, len(bitdata))
         assert rc == -1
-        assert "message is to long" in str(msg)
+        assert "message is too long" in str(msg)
 
 
 class TestMcBit2ASPerl:
@@ -336,7 +337,7 @@ class TestMcBit2ASPerl:
         bitdata = "000000000000000011001010101010101010101010101010"
         rc, msg = proto.mcBit2AS(None, bitdata, pid, len(bitdata))
         assert rc == -1
-        assert "message is to short" in msg
+        assert "message is too short" in msg
 
     def test_message_too_long(self, proto):
         pid = "5011"
@@ -346,7 +347,7 @@ class TestMcBit2ASPerl:
         bitdata = "000000000000000011000000000000001010101010101010101010101010101000001010101010100000100001101111111110100000000000001010"
         rc, msg = proto.mcBit2AS(None, bitdata, pid, len(bitdata))
         assert rc == -1
-        assert "message is to long" in msg
+        assert "message is too long" in msg
 
 
 class TestMcBit2HidekiPerl:
@@ -383,7 +384,7 @@ class TestMcBit2HidekiPerl:
         bitdata = "010001100001000110011101101010011101000111110000010100000011110000011"
         rc, res = proto.mcBit2Hideki(None, bitdata, pid, len(bitdata))
         assert rc == -1
-        assert "message is to short" in str(res)
+        assert "message is too short" in str(res)
 
     def test_message_too_short(self, proto):
         pid = self._mock_len_constraints(proto)
@@ -391,7 +392,7 @@ class TestMcBit2HidekiPerl:
         bitdata = "10101000110000100011001110110101001110100011111000001"
         rc, msg = proto.mcBit2Hideki(None, bitdata, pid, len(bitdata))
         assert rc == -1
-        assert "message is to short" in msg
+        assert "message is too short" in msg
 
     def test_message_too_long(self, proto):
         pid = self._mock_len_constraints(proto)
@@ -405,7 +406,7 @@ class TestMcBit2HidekiPerl:
         )
         rc, msg = proto.mcBit2Hideki(None, bitdata, pid, len(bitdata))
         assert rc == -1
-        assert "message is to long" in msg
+        assert "message is too long" in msg
 
     def test_message_inverted(self, proto):
         pid = self._mock_len_constraints(proto)

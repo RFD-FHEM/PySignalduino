@@ -55,7 +55,7 @@ class ManchesterMixin:
             
         # Perl: unpack("B$blen", pack("H$hlen", $rawData))
         try:
-            bit_data = self.hex_to_bin_str(raw_hex_to_use, blen)
+            bit_data = self.hex_to_bin_str(raw_hex_to_use)
             self._logging(f"{name}: extracted data {bit_data} (bin)", 5)
             return (1, bit_data)
         except Exception as e:
@@ -176,11 +176,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         self._logging(f"lib/mcBitFunkbus, {name} Funkbus: raw={bit_data}", 5)
         
@@ -276,7 +276,7 @@ class ManchesterMixin:
 
         length_max = self.check_property(protocol_id, "length_max", 0)
         if mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
 
         if mcbitnum < 128:
             start = bit_data.find('010100')
@@ -299,7 +299,7 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", 0)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         return (1, self.bin_str_2_hex_str(bit_data))
 
@@ -340,11 +340,11 @@ class ManchesterMixin:
             
             length_min = self.check_property(protocol_id, "length_min", -1)
             if message_length < length_min:
-                return (-1, ' message is to short')
+                return (-1, 'message is too short')
             
             length_max = self.get_property(protocol_id, "length_max")
             if length_max is not None and message_length > length_max:
-                return (-1, ' message is to long')
+                return (-1, 'message is too long')
             
             msgbits = bit_data[start_pos:]
             ashex = self.bin_str_2_hex_str(msgbits)
@@ -356,11 +356,11 @@ class ManchesterMixin:
         # Wenn kein Sync-Pattern gefunden wird, aber die Länge ok ist, konvertiere trotzdem
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         ashex = self.bin_str_2_hex_str(bit_data)
         return (1, ashex)
@@ -387,11 +387,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
@@ -421,11 +421,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
@@ -455,11 +455,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
@@ -489,11 +489,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
@@ -523,11 +523,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
@@ -535,6 +535,33 @@ class ManchesterMixin:
         
         return (1, hex_msg)
 
+    def mcRaw(self, name: str, bit_data: str, protocol_id: int, mcbitnum: int, other_arg: Any = None) -> tuple[int, str | None]:
+        """
+        Default output helper for Manchester signals.
+        Checks for length_max and returns a hex string.
+        
+        Args:
+            name: Device/message name for logging.
+            bit_data: Raw Manchester-encoded bitstring.
+            protocol_id: Protocol identifier (ID).
+            mcbitnum: Bit length (from L=).
+            other_arg: Dummy argument to match the 6 positional arguments from _demodulate_mc_data.
+            
+        Returns:
+            Tuple: (1, hex_string) on success or (-1, error_message) on failure.
+        """
+        # mcbitnum is directly provided by the caller in this case
+        # if mcbitnum is None:
+        #     mcbitnum = len(bit_data)
+            
+        length_max = self.check_property(protocol_id, "length_max", 0)
+        mcbitnum_int = int(mcbitnum)
+        if mcbitnum_int > length_max:
+            return (-1, "message is too long")
+            
+        # binStr2hexStr in Perl -> self.bin_str_2_hex_str in Python
+        return (1, self.bin_str_2_hex_str(bit_data))
+        
     def mcBit2TFA(self, name, bit_data, protocol_id, mcbitnum=None):
         """Decode TFA (Dostmann) weather station Manchester signal.
         
@@ -673,11 +700,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         self._logging(f"lib/mcBitFunkbus, {name} Funkbus: raw={bit_data}", 5)
         
@@ -773,7 +800,7 @@ class ManchesterMixin:
 
         length_max = self.check_property(protocol_id, "length_max", 0)
         if mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
 
         if mcbitnum < 128:
             start = bit_data.find('010100')
@@ -796,7 +823,7 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", 0)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         return (1, self.bin_str_2_hex_str(bit_data))
 
@@ -837,11 +864,11 @@ class ManchesterMixin:
             
             length_min = self.check_property(protocol_id, "length_min", -1)
             if message_length < length_min:
-                return (-1, ' message is to short')
+                return (-1, 'message is too short')
             
             length_max = self.get_property(protocol_id, "length_max")
             if length_max is not None and message_length > length_max:
-                return (-1, ' message is to long')
+                return (-1, 'message is too long')
             
             msgbits = bit_data[start_pos:]
             ashex = self.bin_str_2_hex_str(msgbits)
@@ -853,11 +880,11 @@ class ManchesterMixin:
         # Wenn kein Sync-Pattern gefunden wird, aber die Länge ok ist, konvertiere trotzdem
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         ashex = self.bin_str_2_hex_str(bit_data)
         return (1, ashex)
@@ -884,11 +911,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
@@ -918,11 +945,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
@@ -952,11 +979,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
@@ -986,11 +1013,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
@@ -1020,11 +1047,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
@@ -1131,11 +1158,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         self._logging(f"lib/mcBitFunkbus, {name} Funkbus: raw={bit_data}", 5)
         
@@ -1231,7 +1258,7 @@ class ManchesterMixin:
 
         length_max = self.check_property(protocol_id, "length_max", 0)
         if mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
 
         if mcbitnum < 128:
             start = bit_data.find('010100')
@@ -1254,7 +1281,7 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", 0)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         return (1, self.bin_str_2_hex_str(bit_data))
 
@@ -1295,11 +1322,11 @@ class ManchesterMixin:
             
             length_min = self.check_property(protocol_id, "length_min", -1)
             if message_length < length_min:
-                return (-1, ' message is to short')
+                return (-1, 'message is too short')
             
             length_max = self.get_property(protocol_id, "length_max")
             if length_max is not None and message_length > length_max:
-                return (-1, ' message is to long')
+                return (-1, 'message is too long')
             
             msgbits = bit_data[start_pos:]
             ashex = self.bin_str_2_hex_str(msgbits)
@@ -1311,11 +1338,11 @@ class ManchesterMixin:
         # Wenn kein Sync-Pattern gefunden wird, aber die Länge ok ist, konvertiere trotzdem
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         ashex = self.bin_str_2_hex_str(bit_data)
         return (1, ashex)
@@ -1342,11 +1369,11 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
@@ -1376,13 +1403,64 @@ class ManchesterMixin:
         
         length_min = self.check_property(protocol_id, "length_min", -1)
         if mcbitnum < length_min:
-            return (-1, ' message is to short')
+            return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
         if length_max is not None and mcbitnum > length_max:
-            return (-1, ' message is to long')
+            return (-1, 'message is too long')
         
         hex_msg = self.bin_str_2_hex_str(bit_data)
         
         self._logging(f"{name}: Maverick converted to hex: {hex_msg}", 5)
         
+    def mcRaw2TFA(self, name, bit_data, protocol_id, mcbitnum=None):
+        """Decode TFA (ID 96) Manchester signal with duplicate message detection.
+        
+        TFA protocol uses Manchester-encoded signals with specific sync patterns.
+        This handler extracts messages between sync patterns and checks for duplicates.
+        
+        Args:
+            name: Device/message name for logging
+            bit_data: Raw Manchester-encoded bitstring
+            protocol_id: Protocol identifier (typically 96 for TFA)
+            mcbitnum: Bit length (defaults to length of bit_data)
+            
+        Returns:
+            Tuple: (1, hex_string) if duplicate message found
+                   (-1, error_message) if no duplicate or error
+        """
+        if mcbitnum is None:
+            mcbitnum = len(bit_data)
+        
+        self._logging(f"{name}: lib/mcBit2TFA, protocol {protocol_id}, length {mcbitnum}", 5)
+        self._logging(f"{name}: lib/mcBit2TFA, {bit_data}", 5)
+        
+        length_min = self.check_property(protocol_id, "length_min", -1)
+        if mcbitnum < length_min:
+            return (-1, 'message is too short')
+        
+        length_max = self.get_property(protocol_id, "length_max")
+        if length_max is not None and mcbitnum > length_max:
+            return (-1, 'message is too long')
+        
+        messages = []
+        retmsg = ''
+        
+        preamble_pos = bit_data.find('1101')
+        i = 0
+        
+        while preamble_pos != -1 and preamble_pos < mcbitnum - 4 and i < 10:
+            # Perl: my $message_end=index($bitData,'mcbitnum',$preamble_pos);
+            message_end = bit_data.find('mcbitnum', preamble_pos)
+            if message_end == -1:
+                message_end = mcbitnum
+            
+            # Perl: $message_end = $mcbitnum if ($message_end == -1);
+            # Already handled above
+            
+            # Perl: my $message_length=$message_end - $preamble_pos;
+            # Perl: my $part_str=substr($bitData,$preamble_pos,$message_length);
+            # Already handled above with message_end and preamble_pos
+            
+            # Extract message part
+            # part_str = bit_data[preamble_pos:
