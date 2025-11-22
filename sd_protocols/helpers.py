@@ -141,12 +141,12 @@ class ProtocolHelpersMixin:
         # Check minimum length
         min_len = self.check_property(protocol_id, 'length_min', -1)
         if message_length < min_len:
-            return (0, 'message is to short')
+            return (0, 'message is too short')
         
         # Check maximum length
         max_len = self.get_property(protocol_id, 'length_max')
         if max_len is not None and message_length > max_len:
-            return (0, 'message is to long')
+            return (0, 'message is too long')
         
         return (1, '')
 

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import re
+
 from typing import Any, Dict, Iterable
 
 from sd_protocols import SDProtocols
@@ -47,6 +49,11 @@ class MCParser:
         msg_data["mcbitnum"] = msg_data["L"]
         msg_data["messagetype"] = msg_data.get("M", "MC")  # M or MC from header M[cC]
 
+        raw_hex = msg_data["raw_hex"]
+        if not re.fullmatch(r"[0-9a-fA-F]+", raw_hex):
+            self.logger.warning("Ignoring MC message with non-hexadecimal raw_hex: %s", raw_hex)
+            return
+            
         self._extract_metadata(frame, msg_data)
 
         try:
