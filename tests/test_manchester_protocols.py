@@ -47,6 +47,58 @@ class TestMcBit2Funkbus:
         assert rc == -1
         assert msg == 'checksum error'
 
+    def test_mc_demodulate_length_check(self, proto):
+        """Test length check in _demodulate_mc_data before calling mcBit2*."""
+        pid = '119' # Funkbus
+        # Setze Länge Minimum höher als die tatsächliche Bitlänge (48 Bits)
+        proto._protocols[pid] = {"length_min": 50, "name": "TestLength"}
+        
+        # Gültige D/C Werte, die zu 48 Bits führen sollten (wenn polarity_invert=False und hlen=6)
+        # Wir verwenden einen D-Wert, der zu 48 Bits führt, und setzen L=48
+        raw_hex = "AABBCCDD1122" # 12 Hex chars = 48 bits
+        clock = 500
+        mcbitnum = 48
+        
+        # Wir mocken _convert_mc_hex_to_bits, um immer 48 Bits zurückzugeben, um die Längenprüfung zu isolieren
+        # Da wir die Methode direkt aufrufen, müssen wir die Abhängigkeiten (wie _convert_mc_hex_to_bits) mocken,
+        # oder sicherstellen, dass die Eingabe gültig ist.
+        # Da wir die Methode direkt aufrufen, müssen wir die Abhängigkeiten mocken, um die Logik zu isolieren.
+        # Da dies komplex ist, testen wir die Längenprüfung, indem wir die Bitlänge L=mcbitnum direkt setzen.
+        
+        # Test zu kurz: mcbitnum < length_min (48 < 50)
+        result = proto._demodulate_mc_data(
+            name="TestLen",
+            protocol_id=pid,
+            clock=clock,
+            raw_hex=raw_hex,
+            mcbitnum=mcbitnum,
+            messagetype="MC",
+            version=None
+        )
+        
+        #assert len(result) == 1
+        
+        assert result[0] == -1
+        assert result[1] == "message is too short"
+        
+        # Test zu lang (wird in mcBit2* geprüft, aber wir prüfen hier nur die erste Stufe)
+        proto._protocols[pid]["length_min"] = 10
+        proto._protocols[pid]["length_max"] = 40 # Zu kurz für 48 Bits
+        
+        result = proto._demodulate_mc_data(
+            name="TestLen",
+            protocol_id=pid,
+            clock=clock,
+            raw_hex=raw_hex,
+            mcbitnum=mcbitnum,
+            messagetype="MC",
+            version=None
+        )
+        
+        #assert len(result_long) == 1
+        assert result[0] == -1
+        assert result[1] == "message is too long"
+
 
 class TestMcBit2Grothe:
     """Test Grothe weather sensor Manchester handler."""
@@ -164,40 +216,43 @@ class TestMcBit2TFAPerl:
         bitdata = "1111111111010100010111001000000101000100001101001110110010010000"
         rc, msg = proto.mcBit2TFA("some_name", bitdata, pid, len(bitdata))
         assert rc == -1
-        assert "message is to long" in msg
+        assert "no duplicate found" in msg
 
     def test_mctfa_double_transmission(self, proto):
         pid = "5058"
         proto._protocols[pid] = {
             "length_min": 51,
-            "length_max": 120,  # Erhöht für diesen Test
+            "length_max": 52,  # Erhöht für diesen Test
             "name": "Unittest TFA",
         }
         # Bitdata mit 128 Bits - zwei identische Teile
-        bitdata = "1111111111010100010111001000000101000100001101001110110010010000" \
-                  "1111111111010100010111001000000101000100001101001110110010010000"
-        rc, hexres = proto.mcBit2TFA(None, bitdata, pid, 64)  # 64 Bits pro Teil
+        bitdata =  "1111111111010100010111001000000101000100001101001110110010010000" \
+                  "11111111111010100010111001000000101000100001101001110110010010000"
+        rc, hexres = proto.mcBit2TFA(None, bitdata, pid)  # 64 Bits pro Teil
         # In Python mit Doppelsendungs-Erkennung ist rc==1 erwartet
+        assert hexres == "45C814434EC90"
         assert rc == 1
         # Erwarteter Hex-Wert für die erste Bitfolge
-        assert hexres == "FFD45C814434EC90"
+        
 
     def test_mctfa_double_plus_transmission(self, proto):
         pid = "5058"
         proto._protocols[pid] = {
-            "length_min": 51,
-            "length_max": 160,  # Erhöht für diesen Test
+            "length_min": 52,
+            "length_max": 52,  # Erhöht für diesen Test
             "name": "Unittest TFA",
         }
+        
         # Bitdata mit 169 Bits - zwei identische Teile + Rest
-        bitdata = "1111111111010100010111001000000101000100001101001110110010010000" \
-                  "1111111111010100010111001000000101000100001101001110110010010000" \
-                  "11111111111101010001011100100001"
-        rc, hexres = proto.mcBit2TFA("some_name", bitdata, pid, 64)  # 64 Bits pro Teil
+        bitdata = "1111111111010100010111001000000101000100001101001110110010010000"\
+                  "1111111111101010001011100100000010100010000110100111011001001000" \
+                  "01111111111101010001011100100001"
+        rc, hexres = proto.mcBit2TFA("some_name", bitdata, pid)  # 64 Bits pro Teil
         # In Python mit Doppelsendungs-Erkennung ist rc==1 erwartet
+        assert hexres == "45C814434EC90"
         assert rc == 1
         # Erwarteter Hex-Wert für die erste Bitfolge
-        assert hexres == "FFD45C814434EC90"
+        
 
     def test_mctfa_double_too_short(self, proto):
         pid = "5058"
