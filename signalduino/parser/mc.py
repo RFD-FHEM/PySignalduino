@@ -32,18 +32,27 @@ class MCParser:
             self.logger.debug("Not an MC message: %s", e)
             return
 
-        # Example: MC;P0=450;D=AAAA9555555AA9555;R=48;
+        # Example: MC;LL=-10;LH=10;SL=-10;SH=10;D=AAAA9555555AA9555;C=450;L=128;(?:R=48;)?
         msg_data = self._parse_to_dict(frame.line)
 
-        if "D" not in msg_data:
-            self.logger.debug("Ignoring MC message without data (D): %s", frame.line)
+        if "D" not in msg_data or "C" not in msg_data or "L" not in msg_data:
+            self.logger.debug(
+                "Ignoring MC message missing required fields (D, C, or L): %s", frame.line
+            )
             return
 
-        msg_data["data"] = msg_data["D"]
+        # Extract required fields based on Perl parsing logic (lines 2818-2823 in 00_SIGNALduino.pm)
+        msg_data["raw_hex"] = msg_data["D"]
+        msg_data["clock"] = msg_data["C"]
+        msg_data["mcbitnum"] = msg_data["L"]
+        msg_data["messagetype"] = msg_data.get("M", "MC")  # M or MC from header M[cC]
+
         self._extract_metadata(frame, msg_data)
 
         try:
-            demodulated_list = self.protocols.demodulate(msg_data, "MC")
+            # Replace generic demodulate with MC-specific processing in the protocol layer
+            # This call should now encapsulate the logic from SIGNALduino_Parse_MC (lines 2840-2919)
+            demodulated_list = self.protocols.demodulate_mc(msg_data, frame)
         except Exception:
             self.logger.exception("Error during MC demodulation for line: %s", frame.line)
             return
