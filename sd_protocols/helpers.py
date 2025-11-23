@@ -140,13 +140,26 @@ class ProtocolHelpersMixin:
         
         # Check minimum length
         min_len = self.check_property(protocol_id, 'length_min', -1)
-        if message_length < min_len:
+        if min_len is not None:
+             try:
+                 min_len = int(min_len)
+             except (ValueError, TypeError):
+                 # Log warning? For now, treat as no limit or skip check?
+                 # Assuming data integrity, but let's be safe.
+                 pass
+
+        if min_len != -1 and message_length < min_len:
             return (0, 'message is too short')
         
         # Check maximum length
         max_len = self.get_property(protocol_id, 'length_max')
-        if max_len is not None and message_length > max_len:
-            return (0, 'message is too long')
+        if max_len is not None:
+            try:
+                max_len = int(max_len)
+                if message_length > max_len:
+                    return (0, 'message is too long')
+            except (ValueError, TypeError):
+                pass
         
         return (1, '')
 
@@ -171,3 +184,95 @@ class ProtocolHelpersMixin:
             return bin_string.zfill(padded_length)
         except ValueError:
             return None
+
+    def lfsr_digest16(self, bytes_count, gen, key, raw_data):
+        """
+        Calculates 16-bit LFSR digest.
+        
+        Args:
+            bytes_count: Number of bytes to process
+            gen: Generator polynomial
+            key: Initial key
+            raw_data: Hex string of data
+            
+        Returns:
+            int: Calculated LFSR value
+        """
+        if len(raw_data) < bytes_count * 2:
+             return 0
+
+        lfsr = 0
+        for k in range(bytes_count):
+            try:
+                data = int(raw_data[k * 2 : k * 2 + 2], 16)
+            except ValueError:
+                return 0
+                
+            for i in range(7, -1, -1):
+                if (data >> i) & 0x01:
+                    lfsr ^= key
+                
+                if key & 0x01:
+                    key = (key >> 1) ^ gen
+                else:
+                    key = (key >> 1)
+        return lfsr
+
+    def ConvBresser_lightning(self, msg_data, msg_type='MN'):
+        """
+        Process Bresser Lightning protocol data.
+        
+        Args:
+            msg_data: Dictionary with 'data' (hex string)
+            msg_type: 'MN'
+            
+        Returns:
+            List containing decoded message dict or empty list on error.
+        """
+        hex_data = msg_data.get('data')
+        if not hex_data:
+            return []
+            
+        hex_length = len(hex_data)
+        if hex_length < 20:
+            self._logging("ConvBresser_lightning, hexData is too short", 3)
+            return []
+
+        hex_data_xor_a = ""
+        for i in range(hex_length):
+            try:
+                xor = int(hex_data[i], 16) ^ 0xA
+                hex_data_xor_a += f"{xor:X}"
+            except ValueError:
+                return []
+            
+        self._logging(f"ConvBresser_lightning, msg={hex_data}", 5)
+        self._logging(f"ConvBresser_lightning, xor={hex_data_xor_a}", 5)
+        
+        # LFSR-16 gen 8810 key abf9 final xor 899e
+        # Substr(hexDataXorA, 4, 16) means starting from index 4, take 16 chars (8 bytes)
+        checksum = self.lfsr_digest16(8, 0x8810, 0xABF9, hex_data_xor_a[4:20])
+        
+        try:
+            # substr(hexDataXorA, 0, 4) -> first 2 bytes (4 hex chars)
+            first_2_bytes_xor = int(hex_data_xor_a[0:4], 16)
+        except ValueError:
+            return []
+        
+        checksum_calc = checksum ^ first_2_bytes_xor
+        checksum_calc_hex = f"{checksum_calc:04X}"
+        
+        self._logging(f"ConvBresser_lightning, checksumCalc:0x{checksum_calc_hex}, must be 0x899E", 5)
+        
+        if checksum_calc_hex != '899E':
+             self._logging(f"ConvBresser_lightning, checksumCalc:0x{checksum_calc_hex} != checksum:0x899E", 3)
+             return []
+             
+        # Return first 20 chars (10 bytes)
+        payload = hex_data_xor_a[:20]
+        
+        return [{
+            "protocol_id": msg_data.get('protocol_id'),
+            "payload": payload,
+            "meta": {}
+        }]
