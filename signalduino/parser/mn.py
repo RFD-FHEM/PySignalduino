@@ -86,8 +86,11 @@ class MNParser:
                 self.logger.debug("MN Parse: Protocol %s has no rfmode defined", pid)
                 continue
             
-            # Perl implementation checks if rfmode is active in some way, but here we just check if it matches
-            # or if we have generic processing. For now, we assume if the protocol has an rfmode, we check it.
+            # Perl implementation checks if rfmode is active in some way, but here we just check if it matches.
+            # If rfmode is set on parser, only try this specific protocol
+            if self.rfmode and proto_rfmode != self.rfmode:
+                self.logger.debug("MN Parse: Skipping protocol %s. Expected rfmode: %s, Protocol rfmode: %s", pid, self.rfmode, proto_rfmode)
+                continue
             
             # 2. Check Length
             # Note: raw_data is hex string here. LengthInRange in Perl checks char length of this string.

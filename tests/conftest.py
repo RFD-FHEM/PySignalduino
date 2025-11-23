@@ -3,13 +3,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sd_protocols import SDProtocols
+from signalduino.types import DecodedMessage
 
-@pytest.fixture
-def mock_protocols():
-    """Fixture for a mocked SDProtocols."""
-    protocols = MagicMock()
-    protocols.demodulate = MagicMock(return_value=[])
-    return protocols
+
 
 
 @pytest.fixture
@@ -21,5 +18,4 @@ def logger():
 @pytest.fixture
 def proto():
     """Fixture for a real SDProtocols instance."""
-    from sd_protocols import SDProtocols
     return SDProtocols()
