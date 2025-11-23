@@ -1,23 +1,7 @@
-
-"""
-Manchester encoding/decoding and protocol-specific signal handlers.
-
-This module contains a mixin class with Manchester-format signal processing
-methods. Manchester encoding is used by various radio frequency protocols
-for robust signal transmission.
-
-The mcBit2* methods are output handlers that convert Manchester-encoded
-bit data into protocol-specific message formats.
-"""
-
-
 from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Iterable
-
-
-# from signalduino.types import DecodedMessage, RawFrame
 
 
 class ManchesterMixin:
@@ -154,23 +138,83 @@ class ManchesterMixin:
         return (1, dmsg, metadata)
 
 
-    def mcBit2Funkbus(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode Funkbus (ID 119) Manchester signal with parity & checksum validation.
-        
-        Funkbus protocol uses Manchester-encoded signals with parity bits
-        and CRC-like checksum validation. The demodulated signal must pass
-        both parity and checksum verification.
+    def _demodulate_mn_data(self, name: str, protocol_id: str, msg_data: Dict[str, Any]) -> list[dict[str, Any]]:
+        """
+        Performs checks and delegates decoding for MN messages.
         
         Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (typically 119 for Funkbus)
-            mcbitnum: Bit length (defaults to length of bit_data)
+            name: Device name for logging.
+            protocol_id: The ID of the protocol being tested.
+            msg_data: Dictionary containing message data, including 'data' (raw hex).
             
         Returns:
-            Tuple: (1, hex_string) on success
-                   (-1, error_message) on parity/checksum error
+            List of dicts: [{protocol_id: str, payload: str, meta: dict}] where rcode is 1 on success.
         """
+        # MN messages do not use Manchester decoding, only protocol specific decoding
+        
+        # 1. Call protocol-specific method (Perl lines SIGNALduino_Parse_MN)
+        method_name_full = self.get_property(protocol_id, 'method')
+        
+        if not method_name_full:
+            self._logging(f"{name}: Parse_MN, Error: Unknown method referenced by '{protocol_id}'", 5)
+            return []
+            
+        # Extract method name part, assuming format 'module.method_name' or just 'method_name'
+        method_name = method_name_full.split('.')[-1]
+        
+        if hasattr(self, method_name) and callable(getattr(self, method_name)):
+            method_func = getattr(self, method_name)
+            # Python call: method_func(msg_data, msg_type) where msg_type is 'MN'
+            try:
+                # The result should be a list of dicts like in _demodulate_mc_data or a direct result
+                demodulated_list = method_func(msg_data, 'MN')
+            except TypeError:
+                self._logging(f"{name}: Parse_MN, Method {method_name} failed due to wrong signature/arguments.", 3)
+                return []
+        else:
+            self._logging(f"{name}: Parse_MN, Error: Unknown method {method_name} referenced by '{method_name_full}'. Please define it or check protocol configuration.", 5)
+            return []
+        
+        if not isinstance(demodulated_list, list) or not demodulated_list:
+            self._logging(f"{name}: Parse_MN, protocol does not match return from method.", 5)
+            return []
+        
+        # For MN, we usually only expect one result and the preamble is not used.
+        for decoded in demodulated_list:
+            if not isinstance(decoded, dict) or "protocol_id" not in decoded:
+                self._logging(f"{name}: Parse_MN, Invalid result from demodulator: {decoded}", 3)
+                continue
+            
+            self._logging(f"{name}: Parse_MN, successfully decoded MN protocol id {protocol_id}", 4)
+            # Return a list containing a single dictionary in the expected format
+            return [
+                {
+                    "protocol_id": str(decoded["protocol_id"]),
+                    "payload": str(decoded.get("payload", "")),
+                    "meta": decoded.get("meta", {}),
+                }
+            ]
+        
+        return []
+
+
+    def mcBit2Funkbus(self, name, bit_data, protocol_id, mcbitnum=None):
+        """Decode Funkbus (ID 119) Manchester signal with parity & checksum validation.
+    
+    Funkbus protocol uses Manchester-encoded signals with parity bits
+    and CRC-like checksum validation. The demodulated signal must pass
+    both parity and checksum verification.
+    
+    Args:
+        name: Device/message name for logging
+        bit_data: Raw Manchester-encoded bitstring
+        protocol_id: Protocol identifier (typically 119 for Funkbus)
+        mcbitnum: Bit length (defaults to length of bit_data)
+        
+    Returns:
+        Tuple: (1, hex_string) on success
+               (-1, error_message) on parity/checksum error
+    """
         if mcbitnum is None:
             mcbitnum = len(bit_data)
         
@@ -251,23 +295,23 @@ class ManchesterMixin:
 
     def mcBit2Sainlogic(self, name, bit_data, protocol_id, mcbitnum=None):
         """Decode Sainlogic weather sensor Manchester signal.
+    
+    Sainlogic sensors transmit 128-bit Manchester-encoded messages.
+    This handler synchronizes the bitstream if needed and extracts
+    the message portion.
+    
+    Args:
+        name: Device/message name for logging
+        bit_data: Raw Manchester-encoded bitstring
+        protocol_id: Protocol identifier (string or int)
+        mcbitnum: Bit length (defaults to length of bit_data)
         
-        Sainlogic sensors transmit 128-bit Manchester-encoded messages.
-        This handler synchronizes the bitstream if needed and extracts
-        the message portion.
+    Returns:
+        Tuple: (1, hex_string) on success or (-1, error_message) on failure
         
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-            
-        Raises:
-            Returns error tuple if message is too short/long or sync pattern not found
-        """
+    Raises:
+        Returns error tuple if message is too short/long or sync pattern not found
+    """
         if mcbitnum is None:
             mcbitnum = len(bit_data)
         
@@ -305,22 +349,22 @@ class ManchesterMixin:
 
     def mcBit2AS(self, name, bit_data, protocol_id, mcbitnum=None):
         """Decode AS (ambient sound / weather sensor) Manchester signal.
+    
+    AS protocol uses a "1100" sync pattern (repeated high values).
+    The message is extracted between two sync patterns.
+    
+    Args:
+        name: Device/message name for logging
+        bit_data: Raw Manchester-encoded bitstring
+        protocol_id: Protocol identifier (string or int)
+        mcbitnum: Bit length (defaults to length of bit_data)
         
-        AS protocol uses a "1100" sync pattern (repeated high values).
-        The message is extracted between two sync patterns.
+    Returns:
+        Tuple: (1, hex_string) on success or (-1, error_message) on failure
         
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-            
-        Raises:
-            Returns (-1, None) if valid AS message pattern not detected
-        """
+    Raises:
+        Returns (-1, None) if valid AS message pattern not detected
+    """
         if mcbitnum is None:
             mcbitnum = len(bit_data)
         
@@ -367,19 +411,19 @@ class ManchesterMixin:
 
     def mcBit2Hideki(self, name, bit_data, protocol_id, mcbitnum=None):
         """Decode Hideki temperature/humidity sensor Manchester signal.
+    
+    Hideki sensors transmit variable-length Manchester messages.
+    This handler extracts and converts the message to hex.
+    
+    Args:
+        name: Device/message name for logging
+        bit_data: Raw Manchester-encoded bitstring
+        protocol_id: Protocol identifier (string or int)
+        mcbitnum: Bit length (defaults to length of bit_data)
         
-        Hideki sensors transmit variable-length Manchester messages.
-        This handler extracts and converts the message to hex.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
+    Returns:
+        Tuple: (1, hex_string) on success or (-1, error_message) on failure
+    """
         if mcbitnum is None:
             mcbitnum = len(bit_data)
         
@@ -401,19 +445,19 @@ class ManchesterMixin:
 
     def mcBit2Maverick(self, name, bit_data, protocol_id, mcbitnum=None):
         """Decode Maverick (BBQ thermometer) Manchester signal.
+    
+    Maverick sensors transmit Manchester-encoded temperature and
+    identification data in a fixed-length message format.
+    
+    Args:
+        name: Device/message name for logging
+        bit_data: Raw Manchester-encoded bitstring
+        protocol_id: Protocol identifier (string or int)
+        mcbitnum: Bit length (defaults to length of bit_data)
         
-        Maverick sensors transmit Manchester-encoded temperature and
-        identification data in a fixed-length message format.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
+    Returns:
+        Tuple: (1, hex_string) on success or (-1, error_message) on failure
+    """
         if mcbitnum is None:
             mcbitnum = len(bit_data)
         
@@ -435,19 +479,19 @@ class ManchesterMixin:
 
     def mcBit2OSV1(self, name, bit_data, protocol_id, mcbitnum=None):
         """Decode Oregon Scientific V1 weather sensor Manchester signal.
+    
+    Oregon Scientific V1 sensors use Manchester encoding for weather
+    station data transmission. This handler processes V1 protocol format.
+    
+    Args:
+        name: Device/message name for logging
+        bit_data: Raw Manchester-encoded bitstring
+        protocol_id: Protocol identifier (string or int)
+        mcbitnum: Bit length (defaults to length of bit_data)
         
-        Oregon Scientific V1 sensors use Manchester encoding for weather
-        station data transmission. This handler processes V1 protocol format.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
+    Returns:
+        Tuple: (1, hex_string) on success or (-1, error_message) on failure
+    """
         if mcbitnum is None:
             mcbitnum = len(bit_data)
         
@@ -469,19 +513,19 @@ class ManchesterMixin:
 
     def mcBit2OSV2o3(self, name, bit_data, protocol_id, mcbitnum=None):
         """Decode Oregon Scientific V2/V3 weather sensor Manchester signal.
+    
+    Oregon Scientific V2 and V3 sensors use enhanced Manchester encoding
+    with parity/checksum validation for improved reliability.
+    
+    Args:
+        name: Device/message name for logging
+        bit_data: Raw Manchester-encoded bitstring
+        protocol_id: Protocol identifier (string or int)
+        mcbitnum: Bit length (defaults to length of bit_data)
         
-        Oregon Scientific V2 and V3 sensors use enhanced Manchester encoding
-        with parity/checksum validation for improved reliability.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
+    Returns:
+        Tuple: (1, hex_string) on success or (-1, error_message) on failure
+    """
         if mcbitnum is None:
             mcbitnum = len(bit_data)
         
@@ -503,19 +547,19 @@ class ManchesterMixin:
 
     def mcBit2OSPIR(self, name, bit_data, protocol_id, mcbitnum=None):
         """Decode Oregon Scientific PIR (motion) sensor Manchester signal.
+    
+    Oregon Scientific PIR sensors transmit motion detection data in
+    Manchester-encoded format with specific protocol structure.
+    
+    Args:
+        name: Device/message name for logging
+        bit_data: Raw Manchester-encoded bitstring
+        protocol_id: Protocol identifier (string or int)
+        mcbitnum: Bit length (defaults to length of bit_data)
         
-        Oregon Scientific PIR sensors transmit motion detection data in
-        Manchester-encoded format with specific protocol structure.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
+    Returns:
+        Tuple: (1, hex_string) on success or (-1, error_message) on failure
+    """
         if mcbitnum is None:
             mcbitnum = len(bit_data)
         
@@ -564,20 +608,20 @@ class ManchesterMixin:
         
     def mcBit2TFA(self, name, bit_data, protocol_id, mcbitnum=None):
         """Decode TFA (Dostmann) weather station Manchester signal.
+    
+    TFA weather stations transmit Manchester-encoded sensor data
+    with temperature, humidity, and pressure information.
+    This implementation includes duplicate message detection based on Perl logic.
+    
+    Args:
+        name: Device/message name for logging
+        bit_data: Raw Manchester-encoded bitstring
+        protocol_id: Protocol identifier (string or int)
+        mcbitnum: Bit length (defaults to length of bit_data)
         
-        TFA weather stations transmit Manchester-encoded sensor data
-        with temperature, humidity, and pressure information.
-        This implementation includes duplicate message detection based on Perl logic.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
+    Returns:
+        Tuple: (1, hex_string) on success or (-1, error_message) on failure
+    """
 
         if mcbitnum is None:
             mcbitnum = len(bit_data)
@@ -591,26 +635,16 @@ class ManchesterMixin:
         i = 1
         
         # Perl pattern for initial sync: if ($bitData =~ m/(1{9}101)/xms )
-        # Python equivalent for the start pattern is hard to use directly with index()
-        # Using string search for the known start sequence, similar to Perl's $+ offset:
+        # Python equivalent for the start pattern is hard to use directly with index():
         # We look for '111111111101' which is the end pattern in Perl's loop,
         # but the logic seems to start *after* the preamble '1{9}101' which is 10 bits long.
         # Since the Perl code starts searching from $preamble_pos, we need to find that start first.
-        # Let's assume the initial sync is 10 bits: '1111111111' or similar, followed by '101'.
-        # Perl uses: if ($bitData =~ m/(1{9}101)/xms ) -> $preamble_pos=$+; which is the position *after* the match.
-        # The match is 10 bits long.
         # Let's search for the end pattern '1111111111101' (13 bits) as a message separator in a do-while loop,
         # starting the search from a point determined by the first pattern match.
         
         # In Perl, the first check finds the start: $preamble_pos = index($bitData,'1111111111101',$preamble_pos);
         # It seems the first '1{9}101' is used to *initialize* $preamble_pos, but the loop logic is critical.
-        # The loop starts by *finding* the end pattern '1111111111101' starting from the current $preamble_pos.
         # A simpler interpretation matching the Python structure is to look for the first valid *message* start.
-        # Given the Python structure, the direct port of the Perl do-while loop structure is needed.
-        
-        # Find first occurrence of the end pattern, which acts as a message separator/end marker in the loop.
-        # The initial $preamble_pos is set by the regex match (which is not directly copied here for simplicity,
-        # using the Perl logic's reliance on index() inside the loop).
         
         # Replicating Perl's setup: find the first '1{9}101' to set the starting point.
         # In Perl: if ($bitData =~ m/(1{9}101)/xms ) { $preamble_pos=$+; ... }
@@ -622,7 +656,7 @@ class ManchesterMixin:
         # Replicating the do-while loop logic
         # Perl: do { ... } while ($message_end < $mcbitnum);
         # The loop iterates as long as the found end ($message_end) is before the total length ($mcbitnum).
-
+        
         while message_end < mcbitnum:
             # Perl: $message_end = index($bitData,'1111111111101',$preamble_pos);
             message_end = bit_data.find('1111111111101', preamble_pos)
@@ -672,413 +706,31 @@ class ManchesterMixin:
             
         # Perl: if (scalar(@dupmessages) > 0 ) { return (1,$dupmessages); } else { return (-1,qq[ no duplicate found$retmsg]); }
         if len(dupmessages) > 0:
-            hex_msg = dupmessages[0] # Return the first duplicate found
+            hex_msg = dupmessages # Return the first duplicate found
             self._logging(f"{name}: TFA converted to hex (duplicate found): {hex_msg}", 4)
             return (1, hex_msg)
         else:
             return (-1, f' no duplicate found{retmsg}')
             
-    def mcBit2Funkbus(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode Funkbus (ID 119) Manchester signal with parity & checksum validation.
-        
-        Funkbus protocol uses Manchester-encoded signals with parity bits
-        and CRC-like checksum validation. The demodulated signal must pass
-        both parity and checksum verification.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (typically 119 for Funkbus)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success
-                   (-1, error_message) on parity/checksum error
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        length_min = self.check_property(protocol_id, "length_min", -1)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
-            return (-1, 'message is too long')
-        
-        self._logging(f"lib/mcBitFunkbus, {name} Funkbus: raw={bit_data}", 5)
-        
-        # Convert Manchester: 1->lh, 0->hl, then decode to differential manchester
-        converted = bit_data.replace('1', 'lh').replace('0', 'hl')
-        s_bitmsg = self.mc2dmc(converted)
-        
-        # Protocol-specific bit arrangement
-        protocol_id_int = int(protocol_id) if isinstance(protocol_id, str) else protocol_id
-        
-        if protocol_id_int == 119:
-            # Funkbus specific: look for sync pattern '01100'
-            pos = s_bitmsg.find('01100')
-            if pos >= 0 and pos < 5:
-                s_bitmsg = '001' + s_bitmsg[pos:]
-                if len(s_bitmsg) < 48:
-                    return (-1, 'wrong bits at begin')
-            else:
-                return (-1, 'wrong bits at begin')
-        else:
-            s_bitmsg = '0' + s_bitmsg
-        
-        # Calculate parity and checksum
-        hex_data = ""
-        xor_val = 0
-        chk = 0
-        parity = 0
-        
-        for i in range(6):  # 6 bytes
-            byte_str = s_bitmsg[i*8:(i+1)*8]
-            data = int(byte_str, 2)
-            hex_data += f"{data:02X}"
-            
-            if i < 5:
-                xor_val ^= data
-            else:
-                chk = data & 0x0F
-                xor_val ^= data & 0xE0
-                data &= 0xF0
-            
-            # Parity calculation
-            temp = data
-            while temp:
-                parity ^= (temp & 1)
-                temp >>= 1
-        
-        if parity == 1:
-            return (-1, 'parity error')
-        
-        # Checksum validation
-        xor_nibble = ((xor_val & 0xF0) >> 4) ^ (xor_val & 0x0F)
-        result = 0
-        if xor_nibble & 0x8:
-            result ^= 0xC
-        if xor_nibble & 0x4:
-            result ^= 0x2
-        if xor_nibble & 0x2:
-            result ^= 0x8
-        if xor_nibble & 0x1:
-            result ^= 0x3
-        
-        if result != chk:
-            return (-1, 'checksum error')
-        
-        self._logging(f"lib/mcBitFunkbus, {name} Funkbus: len={len(s_bitmsg)} parity={parity} result={result} chk={hex_data}", 4)
-        
-        return (1, hex_data)
-
-    def mcBit2Sainlogic(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode Sainlogic weather sensor Manchester signal.
-        
-        Sainlogic sensors transmit 128-bit Manchester-encoded messages.
-        This handler synchronizes the bitstream if needed and extracts
-        the message portion.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-            
-        Raises:
-            Returns error tuple if message is too short/long or sync pattern not found
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        self._logging(f"{name}: lib/mcBit2Sainlogic, protocol {protocol_id}, length {mcbitnum}", 5)
-        self._logging(f"{name}: lib/mcBit2Sainlogic, {bit_data}", 5)
-
-        length_max = self.check_property(protocol_id, "length_max", 0)
-        if mcbitnum > length_max:
-            return (-1, 'message is too long')
-
-        if mcbitnum < 128:
-            start = bit_data.find('010100')
-            self._logging(f"{name}: lib/mcBit2Sainlogic, protocol {protocol_id}, start found at pos {start}", 5)
-            
-            if start < 0 or start > 10:
-                self._logging(f"{name}: lib/mcBit2Sainlogic, protocol {protocol_id}, start 010100 not found", 4)
-                return (-1, f"{name}: lib/mcBit2Sainlogic, start 010100 not found")
-            
-            # Prepend '1' bits until we have 10+ bits before the sync pattern
-            while start < 10:
-                bit_data = '1' + bit_data
-                start = bit_data.find('010100')
-            
-            # Trim to 128 bits
-            bit_data = bit_data[:128]
-            mcbitnum = len(bit_data)
-
-        self._logging(f"{name}: lib/mcBit2Sainlogic, {bit_data}", 5)
-        
-        length_min = self.check_property(protocol_id, "length_min", 0)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        return (1, self.bin_str_2_hex_str(bit_data))
-
-    def mcBit2AS(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode AS (ambient sound / weather sensor) Manchester signal.
-        
-        AS protocol uses a "1100" sync pattern (repeated high values).
-        The message is extracted between two sync patterns.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-            
-        Raises:
-            Returns (-1, None) if valid AS message pattern not detected
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        # Look for AS sync pattern "1100" starting at position 16+
-        start_pos = bit_data.find('1100', 16)
-        
-        if start_pos >= 0:
-            # Valid AS detected!
-            self._logging("lib/mcBit2AS, AS protocol detected", 5)
-            
-            # Find next sync pattern (message end)
-            end_pos = bit_data.find('1100', start_pos + 16)
-            if end_pos == -1:
-                end_pos = len(bit_data)
-            
-            message_length = end_pos - start_pos
-            
-            length_min = self.check_property(protocol_id, "length_min", -1)
-            if message_length < length_min:
-                return (-1, 'message is too short')
-            
-            length_max = self.get_property(protocol_id, "length_max")
-            if length_max is not None and message_length > length_max:
-                return (-1, 'message is too long')
-            
-            msgbits = bit_data[start_pos:]
-            ashex = self.bin_str_2_hex_str(msgbits)
-            
-            self._logging(f"{name}: AS, protocol converted to hex: ({ashex}) with length ({message_length}) bits", 5)
-            
-            return (1, ashex)
-        
-        # Wenn kein Sync-Pattern gefunden wird, aber die Länge ok ist, konvertiere trotzdem
-        length_min = self.check_property(protocol_id, "length_min", -1)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
-            return (-1, 'message is too long')
-        
-        ashex = self.bin_str_2_hex_str(bit_data)
-        return (1, ashex)
-
-    def mcBit2Hideki(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode Hideki temperature/humidity sensor Manchester signal.
-        
-        Hideki sensors transmit variable-length Manchester messages.
-        This handler extracts and converts the message to hex.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        self._logging(f"{name}: lib/mcBit2Hideki, protocol {protocol_id}, length {mcbitnum}", 5)
-        
-        length_min = self.check_property(protocol_id, "length_min", -1)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
-            return (-1, 'message is too long')
-        
-        hex_msg = self.bin_str_2_hex_str(bit_data)
-        
-        self._logging(f"{name}: Hideki converted to hex: {hex_msg}", 5)
-        
-        return (1, hex_msg)
-
-    def mcBit2Maverick(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode Maverick (BBQ thermometer) Manchester signal.
-        
-        Maverick sensors transmit Manchester-encoded temperature and
-        identification data in a fixed-length message format.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        self._logging(f"{name}: lib/mcBit2Maverick, protocol {protocol_id}, length {mcbitnum}", 5)
-        
-        length_min = self.check_property(protocol_id, "length_min", -1)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
-            return (-1, 'message is too long')
-        
-        hex_msg = self.bin_str_2_hex_str(bit_data)
-        
-        self._logging(f"{name}: Maverick converted to hex: {hex_msg}", 5)
-        
-        return (1, hex_msg)
-
-    def mcBit2OSV1(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode Oregon Scientific V1 weather sensor Manchester signal.
-        
-        Oregon Scientific V1 sensors use Manchester encoding for weather
-        station data transmission. This handler processes V1 protocol format.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        self._logging(f"{name}: lib/mcBit2OSV1, protocol {protocol_id}, length {mcbitnum}", 5)
-        
-        length_min = self.check_property(protocol_id, "length_min", -1)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
-            return (-1, 'message is too long')
-        
-        hex_msg = self.bin_str_2_hex_str(bit_data)
-        
-        self._logging(f"{name}: OSV1 converted to hex: {hex_msg}", 5)
-        
-        return (1, hex_msg)
-
-    def mcBit2OSV2o3(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode Oregon Scientific V2/V3 weather sensor Manchester signal.
-        
-        Oregon Scientific V2 and V3 sensors use enhanced Manchester encoding
-        with parity/checksum validation for improved reliability.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        self._logging(f"{name}: lib/mcBit2OSV2o3, protocol {protocol_id}, length {mcbitnum}", 5)
-        
-        length_min = self.check_property(protocol_id, "length_min", -1)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
-            return (-1, 'message is too long')
-        
-        hex_msg = self.bin_str_2_hex_str(bit_data)
-        
-        self._logging(f"{name}: OSV2o3 converted to hex: {hex_msg}", 5)
-        
-        return (1, hex_msg)
-
-    def mcBit2OSPIR(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode Oregon Scientific PIR (motion) sensor Manchester signal.
-        
-        Oregon Scientific PIR sensors transmit motion detection data in
-        Manchester-encoded format with specific protocol structure.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        self._logging(f"{name}: lib/mcBit2OSPIR, protocol {protocol_id}, length {mcbitnum}", 5)
-        
-        length_min = self.check_property(protocol_id, "length_min", -1)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
-            return (-1, 'message is too long')
-        
-        hex_msg = self.bin_str_2_hex_str(bit_data)
-        
-        self._logging(f"{name}: OSPIR converted to hex: {hex_msg}", 5)
-        
-        return (1, hex_msg)
-
-           
     def mcBit2Grothe(self, name, bit_data, protocol_id, mcbitnum=None):
         """Decode Grothe weather sensor Manchester signal.
+    
+    Grothe sensors transmit fixed 32-bit Manchester-encoded messages.
+    This handler validates the message length and converts to hex.
+    
+    Args:
+        name: Device/message name for logging
+        bit_data: Raw Manchester-encoded bitstring (must be 32 bits)
+        protocol_id: Protocol identifier (string or int)
+        mcbitnum: Bit length (defaults to length of bit_data)
         
-        Grothe sensors transmit fixed 32-bit Manchester-encoded messages.
-        This handler validates the message length and converts to hex.
+    Returns:
+        Tuple: (1, hex_string) on success or (-1, error_message) on failure
         
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring (must be 32 bits)
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-            
-        Note:
-            Grothe protocol requires exactly 32 bits. Messages with different
-            lengths are rejected.
-        """
+    Note:
+        Grothe protocol requires exactly 32 bits. Messages with different
+        lengths are rejected.
+    """
         if mcbitnum is None:
             mcbitnum = len(bit_data)
         
@@ -1097,24 +749,24 @@ class ManchesterMixin:
 
     def mcBit2SomfyRTS(self, name, bit_data, protocol_id, mcbitnum=None):
         """Decode Somfy RTS roller shutter/blind control Manchester signal.
+    
+    Somfy RTS devices transmit 56-bit or 57-bit Manchester-encoded messages.
+    If 57 bits are received, the first bit is skipped (index 1-56).
+    This handler validates the message length and converts to hex.
+    
+    Args:
+        name: Device/message name for logging
+        bit_data: Raw Manchester-encoded bitstring (56 or 57 bits)
+        protocol_id: Protocol identifier (string or int)
+        mcbitnum: Bit length (defaults to length of bit_data)
         
-        Somfy RTS devices transmit 56-bit or 57-bit Manchester-encoded messages.
-        If 57 bits are received, the first bit is skipped (index 1-56).
-        This handler validates the message length and converts to hex.
+    Returns:
+        Tuple: (1, hex_string) on success or (-1, error_message) on failure
         
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring (56 or 57 bits)
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-            
-        Note:
-            If message is 57 bits, the first bit is discarded, keeping bits 1-56.
-            Final message must be exactly 56 bits.
-        """
+    Note:
+        If message is 57 bits, the first bit is discarded, keeping bits 1-56.
+        Final message must be exactly 56 bits.
+    """
         if mcbitnum is None:
             mcbitnum = len(bit_data)
         
@@ -1135,332 +787,3 @@ class ManchesterMixin:
         self._logging(f"{name}: SomfyRTS converted to hex: {hex_msg}", 5)
         
         return (1, hex_msg)
-
-    def mcBit2Funkbus(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode Funkbus (ID 119) Manchester signal with parity & checksum validation.
-        
-        Funkbus protocol uses Manchester-encoded signals with parity bits
-        and CRC-like checksum validation. The demodulated signal must pass
-        both parity and checksum verification.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (typically 119 for Funkbus)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success
-                   (-1, error_message) on parity/checksum error
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        length_min = self.check_property(protocol_id, "length_min", -1)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
-            return (-1, 'message is too long')
-        
-        self._logging(f"lib/mcBitFunkbus, {name} Funkbus: raw={bit_data}", 5)
-        
-        # Convert Manchester: 1->lh, 0->hl, then decode to differential manchester
-        converted = bit_data.replace('1', 'lh').replace('0', 'hl')
-        s_bitmsg = self.mc2dmc(converted)
-        
-        # Protocol-specific bit arrangement
-        protocol_id_int = int(protocol_id) if isinstance(protocol_id, str) else protocol_id
-        
-        if protocol_id_int == 119:
-            # Funkbus specific: look for sync pattern '01100'
-            pos = s_bitmsg.find('01100')
-            if pos >= 0 and pos < 5:
-                s_bitmsg = '001' + s_bitmsg[pos:]
-                if len(s_bitmsg) < 48:
-                    return (-1, 'wrong bits at begin')
-            else:
-                return (-1, 'wrong bits at begin')
-        else:
-            s_bitmsg = '0' + s_bitmsg
-        
-        # Calculate parity and checksum
-        hex_data = ""
-        xor_val = 0
-        chk = 0
-        parity = 0
-        
-        for i in range(6):  # 6 bytes
-            byte_str = s_bitmsg[i*8:(i+1)*8]
-            data = int(byte_str, 2)
-            hex_data += f"{data:02X}"
-            
-            if i < 5:
-                xor_val ^= data
-            else:
-                chk = data & 0x0F
-                xor_val ^= data & 0xE0
-                data &= 0xF0
-            
-            # Parity calculation
-            temp = data
-            while temp:
-                parity ^= (temp & 1)
-                temp >>= 1
-        
-        if parity == 1:
-            return (-1, 'parity error')
-        
-        # Checksum validation
-        xor_nibble = ((xor_val & 0xF0) >> 4) ^ (xor_val & 0x0F)
-        result = 0
-        if xor_nibble & 0x8:
-            result ^= 0xC
-        if xor_nibble & 0x4:
-            result ^= 0x2
-        if xor_nibble & 0x2:
-            result ^= 0x8
-        if xor_nibble & 0x1:
-            result ^= 0x3
-        
-        if result != chk:
-            return (-1, 'checksum error')
-        
-        self._logging(f"lib/mcBitFunkbus, {name} Funkbus: len={len(s_bitmsg)} parity={parity} result={result} chk={hex_data}", 4)
-        
-        return (1, hex_data)
-
-    def mcBit2Sainlogic(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode Sainlogic weather sensor Manchester signal.
-        
-        Sainlogic sensors transmit 128-bit Manchester-encoded messages.
-        This handler synchronizes the bitstream if needed and extracts
-        the message portion.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-            
-        Raises:
-            Returns error tuple if message is too short/long or sync pattern not found
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        self._logging(f"{name}: lib/mcBit2Sainlogic, protocol {protocol_id}, length {mcbitnum}", 5)
-        self._logging(f"{name}: lib/mcBit2Sainlogic, {bit_data}", 5)
-
-        length_max = self.check_property(protocol_id, "length_max", 0)
-        if mcbitnum > length_max:
-            return (-1, 'message is too long')
-
-        if mcbitnum < 128:
-            start = bit_data.find('010100')
-            self._logging(f"{name}: lib/mcBit2Sainlogic, protocol {protocol_id}, start found at pos {start}", 5)
-            
-            if start < 0 or start > 10:
-                self._logging(f"{name}: lib/mcBit2Sainlogic, protocol {protocol_id}, start 010100 not found", 4)
-                return (-1, f"{name}: lib/mcBit2Sainlogic, start 010100 not found")
-            
-            # Prepend '1' bits until we have 10+ bits before the sync pattern
-            while start < 10:
-                bit_data = '1' + bit_data
-                start = bit_data.find('010100')
-            
-            # Trim to 128 bits
-            bit_data = bit_data[:128]
-            mcbitnum = len(bit_data)
-
-        self._logging(f"{name}: lib/mcBit2Sainlogic, {bit_data}", 5)
-        
-        length_min = self.check_property(protocol_id, "length_min", 0)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        return (1, self.bin_str_2_hex_str(bit_data))
-
-    def mcBit2AS(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode AS (ambient sound / weather sensor) Manchester signal.
-        
-        AS protocol uses a "1100" sync pattern (repeated high values).
-        The message is extracted between two sync patterns.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-            
-        Raises:
-            Returns (-1, None) if valid AS message pattern not detected
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        # Look for AS sync pattern "1100" starting at position 16+
-        start_pos = bit_data.find('1100', 16)
-        
-        if start_pos >= 0:
-            # Valid AS detected!
-            self._logging("lib/mcBit2AS, AS protocol detected", 5)
-            
-            # Find next sync pattern (message end)
-            end_pos = bit_data.find('1100', start_pos + 16)
-            if end_pos == -1:
-                end_pos = len(bit_data)
-            
-            message_length = end_pos - start_pos
-            
-            length_min = self.check_property(protocol_id, "length_min", -1)
-            if message_length < length_min:
-                return (-1, 'message is too short')
-            
-            length_max = self.get_property(protocol_id, "length_max")
-            if length_max is not None and message_length > length_max:
-                return (-1, 'message is too long')
-            
-            msgbits = bit_data[start_pos:]
-            ashex = self.bin_str_2_hex_str(msgbits)
-            
-            self._logging(f"{name}: AS, protocol converted to hex: ({ashex}) with length ({message_length}) bits", 5)
-            
-            return (1, ashex)
-        
-        # Wenn kein Sync-Pattern gefunden wird, aber die Länge ok ist, konvertiere trotzdem
-        length_min = self.check_property(protocol_id, "length_min", -1)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
-            return (-1, 'message is too long')
-        
-        ashex = self.bin_str_2_hex_str(bit_data)
-        return (1, ashex)
-
-    def mcBit2Hideki(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode Hideki temperature/humidity sensor Manchester signal.
-        
-        Hideki sensors transmit variable-length Manchester messages.
-        This handler extracts and converts the message to hex.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (string or int)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        self._logging(f"{name}: lib/mcBit2Hideki, protocol {protocol_id}, length {mcbitnum}", 5)
-        
-        length_min = self.check_property(protocol_id, "length_min", -1)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
-            return (-1, 'message is too long')
-        
-        hex_msg = self.bin_str_2_hex_str(bit_data)
-        
-        self._logging(f"{name}: Hideki converted to hex: {hex_msg}", 5)
-        
-        return (1, hex_msg)
-
-    def mcBit2Maverick(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode Maverick (BBQ thermometer) Manchester signal.
-        
-        Maverick sensors transmit Manchester-encoded temperature and
-        identification data in a fixed-length message format.
-        
-            Args:
-                name: Device/message name for logging
-                bit_data: Raw Manchester-encoded bitstring
-                protocol_id: Protocol identifier (string or int)
-                mcbitnum: Bit length (defaults to length of bit_data)
-                
-        Returns:
-            Tuple: (1, hex_string) on success or (-1, error_message) on failure
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        self._logging(f"{name}: lib/mcBit2Maverick, protocol {protocol_id}, length {mcbitnum}", 5)
-        
-        length_min = self.check_property(protocol_id, "length_min", -1)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
-            return (-1, 'message is too long')
-        
-        hex_msg = self.bin_str_2_hex_str(bit_data)
-        
-        self._logging(f"{name}: Maverick converted to hex: {hex_msg}", 5)
-        
-    def mcRaw2TFA(self, name, bit_data, protocol_id, mcbitnum=None):
-        """Decode TFA (ID 96) Manchester signal with duplicate message detection.
-        
-        TFA protocol uses Manchester-encoded signals with specific sync patterns.
-        This handler extracts messages between sync patterns and checks for duplicates.
-        
-        Args:
-            name: Device/message name for logging
-            bit_data: Raw Manchester-encoded bitstring
-            protocol_id: Protocol identifier (typically 96 for TFA)
-            mcbitnum: Bit length (defaults to length of bit_data)
-            
-        Returns:
-            Tuple: (1, hex_string) if duplicate message found
-                   (-1, error_message) if no duplicate or error
-        """
-        if mcbitnum is None:
-            mcbitnum = len(bit_data)
-        
-        self._logging(f"{name}: lib/mcBit2TFA, protocol {protocol_id}, length {mcbitnum}", 5)
-        self._logging(f"{name}: lib/mcBit2TFA, {bit_data}", 5)
-        
-        length_min = self.check_property(protocol_id, "length_min", -1)
-        if mcbitnum < length_min:
-            return (-1, 'message is too short')
-        
-        length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
-            return (-1, 'message is too long')
-        
-        messages = []
-        retmsg = ''
-        
-        preamble_pos = bit_data.find('1101')
-        i = 0
-        
-        while preamble_pos != -1 and preamble_pos < mcbitnum - 4 and i < 10:
-            # Perl: my $message_end=index($bitData,'mcbitnum',$preamble_pos);
-            message_end = bit_data.find('mcbitnum', preamble_pos)
-            if message_end == -1:
-                message_end = mcbitnum
-            
-            # Perl: $message_end = $mcbitnum if ($message_end == -1);
-            # Already handled above
-            
-            # Perl: my $message_length=$message_end - $preamble_pos;
-            # Perl: my $part_str=substr($bitData,$preamble_pos,$message_length);
-            # Already handled above with message_end and preamble_pos
-            
-            # Extract message part
-            # part_str = bit_data[preamble_pos:
