@@ -1,940 +1,54 @@
 {
-   "version" : "unknown",
    "protocols" : {
-      "54" : {
-         "reconstructBit" : "1",
-         "zero" : [
-            1,
-            -2
-         ],
-         "clockabs" : 250,
-         "knownFreqs" : "433.92",
-         "length_min" : "64",
-         "preamble" : "W54#",
-         "comment" : "Rain sensor",
-         "start" : [
-            3,
-            -3
-         ],
-         "id" : "54",
-         "length_max" : "68",
-         "name" : "TFA 30.3233.01",
-         "clientmodule" : "SD_WS",
-         "format" : "twostate",
-         "one" : [
-            2,
-            -1
-         ]
-      },
-      "122" : {
-         "one" : [
-            1,
-            -3
-         ],
-         "format" : "twostate",
-         "modulematch" : "^W122#",
-         "clientmodule" : "SD_WS",
-         "name" : "TM40",
-         "length_max" : "108",
-         "id" : "122",
-         "start" : [
-            2,
-            -1,
-            2,
-            -1,
-            9,
-            -6
-         ],
-         "comment" : "Roasting Thermometer with 4 Temperature Sensors",
-         "clockabs" : 520,
-         "zero" : [
-            1,
-            -1
-         ],
-         "preamble" : "W122#",
-         "length_min" : "104",
-         "knownFreqs" : "433.92"
-      },
-      "0.1" : {
-         "paddingbits" : "8",
-         "one" : [
-            1,
-            -12
-         ],
-         "format" : "twostate",
-         "name" : "weather (v2)",
-         "clientmodule" : "CUL_TCM97001",
-         "sync" : [
-            1,
-            -26
-         ],
-         "length_max" : "32",
-         "id" : "0.1",
-         "comment" : "temperature / humidity or other sensors",
-         "postamble" : "00",
-         "clockabs" : -1,
-         "zero" : [
-            1,
-            -6
-         ],
-         "length_min" : "24",
-         "preamble" : "s",
-         "knownFreqs" : "433.92"
-      },
-      "74.1" : {
-         "length_max" : "67",
-         "sync" : [
-            -25
-         ],
-         "clientmodule" : "FS20",
-         "name" : "FS20",
-         "format" : "twostate",
-         "postDemodulation" : "postdemodulation.postDemo_FS20",
-         "paddingbits" : "1",
-         "one" : [
-            1.5,
-            -1.5
-         ],
-         "zero" : [
-            1,
-            -1
-         ],
-         "clockabs" : 400,
-         "knownFreqs" : "868.35",
-         "preamble" : "810b04f70101a001",
-         "length_min" : "50",
-         "comment" : "remote control (decode as MS)",
-         "id" : "74.1"
-      },
-      "91" : {
-         "start" : [
-            -10,
-            1
-         ],
-         "comment" : "example sensor MD-210R | MD-2018R | MD-2003R (MU decode)",
-         "id" : "91",
-         "length_min" : "35",
-         "preamble" : "P91#",
-         "knownFreqs" : "433.92 | 868.35",
-         "clockabs" : 400,
-         "reconstructBit" : "1",
-         "zero" : [
-            -1,
-            2
-         ],
-         "format" : "twostate",
-         "one" : [
-            -2,
-            1
-         ],
-         "length_max" : "36",
-         "clientmodule" : "SD_UT",
-         "name" : "Atlantic security"
-      },
-      "79" : {
-         "length_max" : "12",
-         "clientmodule" : "SD_BELL",
-         "modulematch" : "^P79#.*",
-         "name" : "wireless doorbell",
-         "format" : "twostate",
-         "one" : [
-            -1,
-            2
-         ],
-         "knownFreqs" : "",
-         "preamble" : "P79#",
-         "length_min" : "12",
-         "zero" : [
-            -2,
-            1
-         ],
-         "clockabs" : 330,
-         "start" : [
-            -15,
-            1
-         ],
-         "comment" : "Heidemann | Heidemann HX | VTX-BELL",
-         "id" : "79"
-      },
-      "108" : {
-         "name" : "Bresser 5in1",
-         "clientmodule" : "SD_WS",
-         "sync" : "2DD4",
-         "datarate" : "8.232",
-         "regexMatch" : "(?^:^[a-fA-F0-9])",
-         "modulation" : "2-FSK",
-         "method" : "helpers.ConvBresser_5in1",
-         "rfmode" : "Bresser_5in1",
-         "register" : [
-            "0001",
-            "022E",
-            "0346",
-            "042D",
-            "05D4",
-            "061A",
-            "07C0",
-            "0800",
-            "0D21",
-            "0E65",
-            "0F6A",
-            "1088",
-            "114C",
-            "1202",
-            "1322",
-            "14F8",
-            "1551",
-            "1916",
-            "1B43",
-            "1C68"
-         ],
-         "preamble" : "W108#",
-         "length_min" : "52",
-         "knownFreqs" : "868.300",
-         "id" : "108",
-         "comment" : "BRESSER 5-in-1 weather center, rain gauge, Fody E42, Fody E43"
-      },
-      "88" : {
-         "length_max" : "78",
-         "clientmodule" : "SD_Keeloq",
-         "name" : "HCS300/HCS301",
-         "sync" : [
-            1,
-            -10
-         ],
-         "format" : "twostate",
-         "one" : [
-            1,
-            -2
-         ],
-         "pause" : [
-            -39
-         ],
-         "clockabs" : 400,
-         "reconstructBit" : "1",
-         "zero" : [
-            2,
-            -1
-         ],
-         "preamble" : "P88#",
-         "preSync" : [
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1
-         ],
-         "length_min" : "65",
-         "knownFreqs" : "433.92 | 868.35",
-         "comment" : "remote controls Aurel TX-nM-HCS, enjoy motors HS, Normstahl ,Rademacher RP-S1-HS-RF11, SCS Sentinel PR3-4207-002, Waeco MA650_TX",
-         "id" : "88"
-      },
-      "20" : {
-         "zero" : [
-            1,
-            -3
-         ],
-         "clockabs" : 240,
-         "knownFreqs" : "433.92",
-         "preamble" : "P20#",
-         "length_min" : "31",
-         "comment" : "Remote control with 4, 9, 10, 12 or 14 buttons",
-         "id" : "20",
-         "length_max" : "32",
-         "sync" : [
-            1,
-            -33
-         ],
-         "modulematch" : "^P20#.{8}",
-         "clientmodule" : "SD_UT",
-         "name" : "RCnoName20",
-         "format" : "twostate",
-         "one" : [
-            3,
-            -1
-         ]
-      },
-      "30" : {
-         "id" : "30",
-         "start" : [
-            -30,
-            1
-         ],
-         "comment" : "remote control unitec | door reed switch 47031",
-         "zero" : [
-            -1,
-            2
-         ],
-         "clockabs" : 330,
-         "knownFreqs" : "",
-         "preamble" : "P30#",
-         "length_min" : "12",
-         "one" : [
-            -2,
-            1
-         ],
-         "format" : "twostate",
-         "modulematch" : "^P30#.{3}",
-         "clientmodule" : "SD_UT",
-         "name" : "diverse",
-         "length_max" : "12"
-      },
-      "133" : {
-         "clientmodule" : "WMBUS",
-         "name" : "WMBus_S",
-         "datarate" : "32.720",
-         "sync" : "7696",
-         "register" : [
-            "0006",
-            "0200",
-            "0340",
-            "0476",
-            "0596",
-            "06FF",
-            "0704",
-            "0802",
-            "0B08",
-            "0D21",
-            "0E65",
-            "0F6A",
-            "106A",
-            "114A",
-            "1206",
-            "1322",
-            "14F8",
-            "1547",
-            "192E",
-            "1A6D",
-            "1B04",
-            "1C09",
-            "1DB2"
-         ],
-         "length_min" : "56",
-         "preamble" : "b",
-         "knownFreqs" : "868.300",
-         "modulation" : "2-FSK",
-         "id" : "133",
-         "comment" : "WMBus mode S",
-         "rfmode" : "WMBus_S"
-      },
-      "44.1" : {
-         "id" : "44",
-         "comment" : "temperature / humidity sensor",
-         "start" : [
-            8,
-            -12
-         ],
-         "knownFreqs" : "433.92",
-         "preamble" : "W44x#",
-         "length_min" : "64",
-         "zero" : [
-            4,
-            -4
-         ],
-         "clockabs" : 500,
-         "one" : [
-            4,
-            -8
-         ],
-         "name" : "BresserTemeo",
-         "modulematch" : "^W44x#[A-F0-9]{18}",
-         "clientmodule" : "SD_WS",
-         "length_max" : "72"
-      },
-      "49" : {
-         "preamble" : "P49#",
-         "length_min" : "24",
-         "knownFreqs" : "433.92",
-         "clockabs" : 383,
-         "zero" : [
-            1,
-            -3
-         ],
-         "id" : "49",
-         "comment" : "Remote control EASY HOME RCT DS1 CR-A",
-         "clientmodule" : "SD_GT",
-         "modulematch" : "^P49.*",
-         "name" : "GT-9000",
-         "sync" : [
-            1,
-            -6
-         ],
-         "length_max" : "24",
-         "one" : [
-            3,
-            -1
-         ],
-         "format" : "twostate"
-      },
-      "105" : {
-         "start" : [
-            17,
-            -7,
-            5,
-            -1
-         ],
-         "comment" : "Remote control",
-         "id" : "105",
-         "clockabs" : 330,
-         "zero" : [
-            1,
-            -2
-         ],
-         "preamble" : "P105#",
-         "length_min" : "40",
-         "knownFreqs" : "433.92",
-         "format" : "twostate",
-         "one" : [
-            2,
-            -1
-         ],
-         "length_max" : "40",
-         "clientmodule" : "SD_UT",
-         "name" : "BF-301",
-         "modulematch" : "^P105#"
-      },
-      "62" : {
-         "length_max" : "24",
-         "zero" : [
-            1,
-            -3
-         ],
-         "clockabs" : 189,
-         "knownFreqs" : "",
-         "length_min" : "24",
-         "preamble" : "i",
-         "name" : "Clarus_Switch",
-         "clientmodule" : "IT",
-         "start" : [
-            1,
-            -35
-         ],
-         "id" : "62",
-         "one" : [
-            3,
-            -1
-         ]
-      },
-      "68" : {
-         "length_min" : "20",
-         "preamble" : "P68#",
-         "knownFreqs" : "433.92",
-         "clockabs" : 550,
-         "zero" : [
-            1,
-            -1
-         ],
-         "comment" : "Medion OR28V RF Vista Remote Control",
-         "id" : "68",
-         "length_max" : "20",
-         "name" : "OR28V",
-         "modulematch" : "^P68#.{5}",
-         "clientmodule" : "SD_UT",
-         "sync" : [
-            1,
-            -8,
-            5,
-            -3
-         ],
-         "format" : "twostate",
-         "one" : [
-            1,
-            -3
-         ]
-      },
-      "34" : {
-         "format" : "twostate",
-         "pause" : [
-            -15
-         ],
-         "one" : [
-            -1,
-            2
-         ],
-         "length_max" : "20",
-         "name" : "QUIGG | LIBRA | Mandolyn | Pollin ISOTRONIC",
-         "clientmodule" : "SD_UT",
-         "start" : [
-            1
-         ],
-         "comment" : "remote control DMV-7000, TR-502MSV, 58608",
-         "id" : "34",
-         "knownFreqs" : "433.92",
-         "preamble" : "P34#",
-         "length_min" : "19",
-         "zero" : [
-            -2,
-            1
-         ],
-         "reconstructBit" : "1",
-         "clockabs" : "635"
-      },
-      "13.2" : {
-         "id" : "13",
-         "comment" : "Unitec smoke detector (message decode as MS)",
-         "knownFreqs" : "433.92",
-         "length_min" : "24",
-         "preamble" : "P13#",
-         "zero" : [
-            1,
-            -1.8
-         ],
-         "clockabs" : 790,
-         "one" : [
-            1,
-            -3.5
-         ],
-         "format" : "twostate",
-         "sync" : [
-            1,
-            -11,
-            10,
-            -1.2
-         ],
-         "clientmodule" : "FLAMINGO",
-         "name" : "LM-101LD",
-         "length_max" : "24"
-      },
-      "76" : {
-         "comment" : "remote with 2-buttons for LED X-MAS light string",
-         "start" : [
-            4.5,
-            -2,
-            4.5,
-            -2,
-            4.5,
-            -2,
-            4.5,
-            -2
-         ],
-         "id" : "76",
-         "clockabs" : 100,
-         "length_min" : 58,
-         "preamble" : "P76#",
-         "knownFreqs" : "433.92",
-         "format" : "twostate",
-         "one" : [
-            1.2,
-            -2
-         ],
-         "length_max" : 64,
-         "clientmodule" : "SD_UT",
-         "name" : "LED XM21"
-      },
-      "24" : {
-         "zero" : [
-            1,
-            -4
-         ],
-         "reconstructBit" : "1",
-         "clockabs" : 182,
-         "knownFreqs" : "315",
-         "preamble" : "P24#",
-         "length_min" : "55",
-         "id" : "24",
-         "start" : [
-            25,
-            -4
-         ],
-         "comment" : "Remote control for motorized screen",
-         "modulematch" : "^P24#",
-         "clientmodule" : "SD_UT",
-         "name" : "Visivo remote",
-         "length_max" : "56",
-         "one" : [
-            3,
-            -1
-         ],
-         "format" : "twostate"
-      },
-      "82" : {
-         "dispatchBin" : "1",
-         "preamble" : "P82#",
-         "length_min" : "100",
-         "knownFreqs" : "",
-         "clockabs" : 400,
-         "zero" : [
-            2,
-            -1
-         ],
-         "float" : [
-            1,
-            -8
-         ],
-         "id" : "82",
-         "comment" : "shutters and light switches",
-         "developId" : "m",
-         "name" : "Fernotron",
-         "clientmodule" : "Fernotron",
-         "length_max" : "3360",
-         "one" : [
-            1,
-            -2
-         ],
-         "pause" : [
-            1,
-            -1
-         ],
-         "paddingbits" : "1",
-         "format" : "twostate"
-      },
-      "46" : {
-         "format" : "tristate",
-         "one" : [
-            7,
-            -1
-         ],
-         "length_max" : "18",
-         "clientmodule" : "SD_UT",
-         "modulematch" : "^P46#.*",
-         "name" : "SKXxxx, GF0x0x",
-         "comment" : "remote controls Tedsen SKXxxx, GEIGER GF0x0x",
-         "start" : [
-            -55
-         ],
-         "id" : "46",
-         "knownFreqs" : "433.92",
-         "preamble" : "P46#",
-         "length_min" : "17",
-         "zero" : [
-            1,
-            -7
-         ],
-         "reconstructBit" : "1",
-         "clockabs" : 290
-      },
-      "50" : {
-         "one" : [
-            1,
-            -2
-         ],
-         "format" : "twostate",
-         "clientmodule" : "SD_WS",
-         "modulematch" : "^W50#.*",
-         "name" : "Opus_XT300",
-         "length_max" : "48",
-         "id" : "50",
-         "comment" : "sensor for ground humidity",
-         "zero" : [
-            3,
-            -2
-         ],
-         "reconstructBit" : "1",
-         "clockabs" : 500,
-         "knownFreqs" : "433.92",
-         "preamble" : "W50#",
-         "length_min" : "47"
-      },
-      "15" : {
-         "id" : "15",
-         "comment" : "wireless doorbell TCM 234759 Tchibo",
-         "clockabs" : 700,
-         "zero" : [
-            1,
-            -2
-         ],
-         "preamble" : "P15#",
-         "length_min" : "10",
-         "knownFreqs" : "",
-         "one" : [
-            1,
-            -1
-         ],
-         "format" : "twostate",
-         "name" : "TCM 234759 Bell",
-         "clientmodule" : "SD_BELL",
-         "modulematch" : "^P15#.*",
-         "sync" : [
-            1,
-            -45
-         ],
-         "length_max" : "20"
-      },
-      "51" : {
-         "name" : "weather",
-         "modulematch" : "^W51#.*",
-         "clientmodule" : "SD_WS",
-         "sync" : [
-            1,
-            -16
-         ],
-         "length_max" : "45",
-         "one" : [
-            1,
-            -8
-         ],
-         "format" : "twostate",
-         "postamble" : "",
-         "clockabs" : "500",
-         "zero" : [
-            1,
-            -4
-         ],
-         "length_min" : "40",
-         "preamble" : "W51#",
-         "knownFreqs" : "433.92",
-         "id" : "51",
-         "comment" : "Lidl Weatherstation IAN60107, IAN 114324, IAN 275901"
-      },
-      "43" : {
-         "length_max" : "57",
-         "modulematch" : "^Ys[0-9A-F]{14}",
-         "clientmodule" : "SOMFY",
-         "name" : "Somfy RTS",
-         "format" : "manchester",
+      "52" : {
          "clockrange" : [
-            610,
-            680
+            470,
+            640
          ],
-         "method" : "manchester.mcBit2SomfyRTS",
-         "frequency" : "10AB85550A",
-         "preamble" : "Ys",
-         "length_min" : "56",
-         "knownFreqs" : "433.42",
-         "msgIntro" : "SR;P0=-2560;P1=2560;P3=-640;D=10101010101010113;",
-         "id" : "43"
-      },
-      "94" : {
-         "id" : "94",
-         "comment" : "Temperature sensor",
-         "start" : [
-            5.3,
-            -26.1
-         ],
-         "preamble" : "W94#",
-         "length_min" : "24",
+         "comment" : "JMR868 / NR868",
+         "length_max" : "30",
+         "polarity" : "invert",
+         "id" : "52",
+         "modulematch" : "^u52#F{3}|0{3}.*",
+         "length_min" : "30",
          "knownFreqs" : "433.92",
-         "clockabs" : 290,
-         "reconstructBit" : "1",
-         "zero" : [
-            5.3,
-            -6.9
-         ],
-         "one" : [
-            5.3,
-            -1
-         ],
-         "format" : "twostate",
+         "name" : "Oregon Scientific PIR",
+         "format" : "manchester",
+         "preamble" : "u52#",
+         "method" : "manchester.mcBit2OSPIR"
+      },
+      "135" : {
          "clientmodule" : "SD_WS",
-         "name" : "Atech",
-         "length_max" : "96"
-      },
-      "73" : {
-         "id" : "73",
-         "comment" : "roomthermostat (only receive)",
-         "clockabs" : 400,
-         "zero" : [
-            1,
-            -1
-         ],
-         "preamble" : "810c04xx0909a001",
-         "length_min" : "59",
-         "knownFreqs" : "868.35",
-         "one" : [
-            1.5,
-            -1.5
-         ],
-         "pause" : [
-            -25
-         ],
+         "preamble" : "W135#",
          "format" : "twostate",
-         "postDemodulation" : "postdemodulation.postDemo_FHT80",
-         "clientmodule" : "FHT",
-         "name" : "FHT80",
-         "length_max" : "67"
-      },
-      "17" : {
-         "format" : "twostate",
-         "end" : [
-            1,
-            -40
-         ],
-         "postDemodulation" : "helpers.Convbit2Arctec",
-         "one" : [
-            1,
-            -5,
-            1,
-            -1
-         ],
-         "length_max" : "34",
-         "modulematch" : "^i......",
-         "clientmodule" : "IT",
-         "name" : "arctech / Intertechno",
-         "sync" : [
-            1,
-            -10
-         ],
-         "id" : "17",
-         "float" : [
-            1,
-            -1,
-            1,
-            -1
-         ],
-         "clockabs" : -1,
-         "zero" : [
-            1,
-            -1,
-            1,
-            -5
-         ],
-         "length_min" : "32",
-         "preamble" : "i",
-         "knownFreqs" : "433.92",
-         "postamble" : "00"
-      },
-      "118.1" : {
-         "comment" : "Remote controls for Meikee LED lights",
-         "id" : "118.1",
-         "clockabs" : 508,
+         "name" : "TFA 30.3255.02",
          "zero" : [
             1,
             -2
          ],
-         "length_min" : "24",
-         "preamble" : "P118#",
-         "format" : "twostate",
-         "end" : [
-            1
-         ],
-         "one" : [
-            2,
-            -1
-         ],
-         "length_max" : "25",
-         "modulematch" : "^P118#",
-         "name" : "Meikee",
-         "clientmodule" : "SD_UT",
-         "sync" : [
-            -25
-         ]
-      },
-      "31" : {
-         "preamble" : "u31#",
-         "preSync" : [
-            1,
-            -0.9,
-            1,
-            -0.9,
-            1,
-            -0.9,
-            1,
-            -0.9,
-            1,
-            -0.9,
-            1,
-            -0.9,
-            1,
-            -0.9,
-            1,
-            -0.9
-         ],
          "knownFreqs" : "433.92",
-         "clockabs" : 315,
-         "zero" : [
-            2,
-            -0.9
-         ],
-         "name" : "LTECH",
-         "start" : [
-            1,
-            -0.9,
-            1,
-            -0.9,
-            1,
-            -3.8
-         ],
-         "comment" : "remote control for LED Controller M4-5A",
-         "format" : "twostate",
-         "end" : [
-            3.8,
-            -51
-         ],
-         "one" : [
-            1,
-            -1.8
-         ],
-         "id" : "31"
-      },
-      "21" : {
-         "preamble" : "u21#",
          "length_min" : "32",
-         "knownFreqs" : "433.92",
-         "clockabs" : 400,
-         "zero" : [
-            -1,
-            3
-         ],
-         "comment" : "remote control ISC HS 434/6",
          "start" : [
-            -50,
-            1
+            4,
+            -4,
+            4,
+            -4,
+            4,
+            -4
          ],
-         "id" : "21",
-         "length_max" : "32",
-         "name" : "Einhell Garagedoor",
-         "format" : "twostate",
+         "id" : "135",
+         "length_max" : "33",
+         "clockabs" : 244,
+         "comment" : "Temperature sensor TFA 30.3255.02",
          "one" : [
-            -3,
-            1
-         ],
-         "paddingbits" : "1"
-      },
-      "127" : {
-         "one" : [
-            1,
-            -3
-         ],
-         "format" : "twostate",
-         "clientmodule" : "SD_UT",
-         "name" : "RCnoName127",
-         "modulematch" : "^P127#",
-         "length_max" : "30",
-         "id" : "127",
-         "comment" : "Remote control with 14 buttons for ceiling fan",
-         "start" : [
-            -15
-         ],
-         "length_min" : "29",
-         "preamble" : "P127#",
-         "knownFreqs" : "433.92",
-         "clockabs" : "370",
-         "reconstructBit" : "1",
-         "zero" : [
-            3,
+            2,
             -1
          ]
       },
       "115" : {
-         "rfmode" : "Bresser_6in1",
-         "method" : "helpers.ConvBresser_6in1",
-         "regexMatch" : "(?^:^[a-fA-F0-9])",
-         "modulation" : "2-FSK",
-         "name" : "Bresser 6in1",
-         "clientmodule" : "SD_WS",
-         "sync" : "2DD4",
-         "datarate" : "8.232",
-         "comment" : "BRESSER 6-in-1 weather center",
-         "id" : "115",
-         "length_min" : "36",
-         "preamble" : "W115#",
          "knownFreqs" : "868.300",
+         "length_min" : "36",
+         "sync" : "2DD4",
          "register" : [
             "0001",
             "022E",
@@ -956,1857 +70,132 @@
             "1916",
             "1B43",
             "1C68"
-         ]
-      },
-      "7" : {
-         "one" : [
-            1,
-            -4
          ],
-         "format" : "twostate",
-         "modulematch" : "^P7#.{6}[AFaf].{2}",
-         "clientmodule" : "SD_WS07",
-         "name" : "Weather",
-         "sync" : [
-            1,
-            -8
-         ],
-         "length_max" : "40",
-         "id" : "7",
-         "comment" : "EAS800z, FreeTec NC-7344, HAMA TS34A, Auriol AFW 2 A1",
-         "preamble" : "P7#",
-         "length_min" : "35",
-         "knownFreqs" : "433.92",
-         "clockabs" : 484,
-         "zero" : [
-            1,
-            -2
-         ]
-      },
-      "129" : {
-         "modulematch" : "^W129#FF.*",
-         "clientmodule" : "SD_WS",
-         "name" : "FT-0835",
-         "length_max" : "128",
-         "method" : "manchester.mcBit2Sainlogic",
-         "clockrange" : [
-            450,
-            550
-         ],
-         "format" : "manchester",
-         "polarity" : "invert",
-         "knownFreqs" : "433.92",
-         "preamble" : "W129#",
-         "length_min" : "128",
-         "id" : "129",
-         "comment" : "Sainlogic weather stations"
-      },
-      "120" : {
-         "comment" : "Weatherstation with sensors 30.3151, 30.3152, 30.3153",
-         "id" : "120",
-         "clockabs" : 480,
-         "zero" : [
-            3,
-            -2
-         ],
-         "reconstructBit" : "1",
-         "length_min" : "78",
-         "preamble" : "W120#",
-         "knownFreqs" : "868.35",
-         "format" : "twostate",
-         "one" : [
-            1,
-            -2
-         ],
-         "length_max" : "80",
-         "name" : "TFA 35.1077.54.S2",
-         "clientmodule" : "SD_WS",
-         "modulematch" : "^W120#"
-      },
-      "90" : {
-         "comment" : "remote control mumbi RC-10, MANAX MX-RCS250",
-         "id" : "90",
-         "zero" : [
-            1,
-            -3
-         ],
-         "clockabs" : 280,
-         "knownFreqs" : "433.92",
-         "length_min" : "33",
-         "preamble" : "P90#",
-         "format" : "twostate",
-         "one" : [
-            3,
-            -1
-         ],
-         "length_max" : "36",
-         "sync" : [
-            1,
-            -36
-         ],
-         "name" : "mumbi | MANAX",
-         "clientmodule" : "SD_UT",
-         "modulematch" : "^P90#.*"
-      },
-      "127.1" : {
-         "sync" : [
-            1,
-            -18
-         ],
-         "clientmodule" : "SD_UT",
-         "name" : "RCnoName127",
-         "modulematch" : "^P127#",
-         "length_max" : "30",
-         "one" : [
-            1,
-            -3
-         ],
-         "format" : "twostate",
-         "knownFreqs" : "433.92",
-         "length_min" : "29",
-         "preamble" : "P127#",
-         "zero" : [
-            3,
-            -1
-         ],
-         "clockabs" : "370",
-         "id" : "127.1",
-         "comment" : "Remote control with 14 buttons for ceiling fan"
-      },
-      "33.1" : {
-         "sync" : [
-            1,
-            -11
-         ],
-         "name" : "TFA 30.3200",
-         "clientmodule" : "SD_WS",
-         "length_max" : "44",
-         "one" : [
-            1,
-            -5.6
-         ],
-         "format" : "twostate",
-         "zero" : [
-            1,
-            -2.8
-         ],
-         "clockabs" : 736,
-         "knownFreqs" : "433.92",
-         "preamble" : "W33#",
-         "length_min" : "42",
-         "id" : "33.1",
-         "comment" : "Thermo-/Hygrosensor TFA 30.3200 (CP=750)"
-      },
-      "4" : {
-         "length_max" : "44",
-         "modulematch" : "^i......",
-         "name" : "arctech2",
-         "clientmodule" : "IT",
-         "sync" : [
-            1,
-            -14
-         ],
-         "format" : "twostate",
-         "one" : [
-            1,
-            -5
-         ],
-         "length_min" : "39",
-         "preamble" : "i",
-         "knownFreqs" : "",
-         "clockabs" : -1,
-         "zero" : [
-            1,
-            -1
-         ],
-         "postamble" : "00",
-         "id" : "4"
-      },
-      "118" : {
-         "end" : [
-            1
-         ],
-         "format" : "twostate",
-         "one" : [
-            2,
-            -1
-         ],
-         "length_max" : "25",
-         "clientmodule" : "SD_UT",
-         "name" : "Meikee",
-         "modulematch" : "^P118#",
-         "comment" : "Remote controls for Meikee LED lights",
-         "start" : [
-            -25
-         ],
-         "id" : "118",
-         "zero" : [
-            1,
-            -2
-         ],
-         "clockabs" : 508,
-         "length_min" : "24",
-         "preamble" : "P118#"
-      },
-      "41" : {
-         "comment" : "Elro (DB200) / KANGTAI (Pollin 94-550405) / unitec",
-         "id" : "41",
-         "clockabs" : 500,
-         "zero" : [
-            1,
-            -3
-         ],
-         "preamble" : "P41#",
-         "length_min" : "32",
-         "knownFreqs" : "433.92",
-         "format" : "twostate",
-         "one" : [
-            3,
-            -1
-         ],
-         "length_max" : "32",
-         "clientmodule" : "SD_BELL",
-         "name" : "wireless doorbell",
-         "modulematch" : "^P41#.*",
-         "sync" : [
-            1,
-            -14
-         ]
-      },
-      "53" : {
-         "comment" : "Auriol weatherstation IAN 314695",
-         "id" : "53",
-         "clockabs" : 600,
-         "zero" : [
-            1,
-            -3.5
-         ],
-         "length_min" : "42",
-         "preamble" : "W53#",
-         "knownFreqs" : "433.92",
-         "format" : "twostate",
-         "one" : [
-            1,
-            -7
-         ],
-         "length_max" : "44",
-         "clientmodule" : "SD_WS",
-         "name" : "AHFL 433 B2",
-         "modulematch" : "^W53#.*",
-         "sync" : [
-            1,
-            -15
-         ]
-      },
-      "17.1" : {
-         "postamble" : "00",
-         "preamble" : "i",
-         "length_min" : "32",
-         "knownFreqs" : "433.92",
-         "clockabs" : 230,
-         "zero" : [
-            1,
-            -1,
-            1,
-            -5
-         ],
-         "id" : "17.1",
-         "comment" : "PIR-1000 | ITT-1500",
-         "name" : "Intertechno",
-         "modulematch" : "^i......",
-         "clientmodule" : "IT",
-         "length_max" : "34",
-         "one" : [
-            1,
-            -5,
-            1,
-            -1
-         ],
-         "postDemodulation" : "helpers.Convbit2Arctec",
-         "format" : "twostate"
-      },
-      "71" : {
-         "length_max" : "48",
-         "clientmodule" : "SD_WS",
-         "name" : "PEARL",
-         "format" : "twostate",
-         "one" : [
-            1,
-            -1.5
-         ],
-         "zero" : [
-            3,
-            -2
-         ],
-         "clockabs" : 580,
-         "knownFreqs" : "433.92",
-         "preamble" : "W71#",
-         "length_min" : "48",
-         "comment" : "infactory Poolthermometer (PV-8644)",
-         "id" : "71"
-      },
-      "106" : {
-         "length_max" : "22",
-         "clientmodule" : "SD_WS",
-         "name" : "GT-TMBBQ-01",
-         "modulematch" : "^W106#",
-         "sync" : [
-            1,
-            -18
-         ],
-         "format" : "twostate",
-         "one" : [
-            1,
-            -8
-         ],
-         "length_min" : "22",
-         "preamble" : "W106#",
-         "clockabs" : 500,
-         "zero" : [
-            1,
-            -4
-         ],
-         "comment" : "BBQ temperature sensor",
-         "id" : "106"
-      },
-      "87" : {
-         "knownFreqs" : "433.92",
-         "length_min" : "72",
-         "preSync" : [
-            3.8,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1
-         ],
-         "preamble" : "P87#",
-         "reconstructBit" : "1",
-         "zero" : [
-            2,
-            -1
-         ],
-         "clockabs" : 400,
-         "comment" : "remote control JAROLIFT TDRC_16W / TDRCT_04W",
-         "id" : "87",
-         "length_max" : "85",
-         "sync" : [
-            1,
-            -10
-         ],
-         "clientmodule" : "SD_Keeloq",
-         "name" : "JAROLIFT",
-         "format" : "twostate",
-         "pause" : [
-            -40
-         ],
-         "one" : [
-            1,
-            -2
-         ]
-      },
-      "2" : {
-         "knownFreqs" : "",
-         "length_min" : "32",
-         "preamble" : "P2#",
-         "zero" : [
-            1,
-            -1
-         ],
-         "clockabs" : "500",
-         "comment" : "self build arduino sensor (developModule. SD_AS module only in github)",
-         "developId" : "m",
-         "id" : "2",
-         "length_max" : "40",
-         "sync" : [
-            1,
-            -20
-         ],
-         "name" : "Arduino",
-         "clientmodule" : "SD_AS",
-         "modulematch" : "^P2#.{8,10}",
-         "format" : "twostate",
-         "one" : [
-            1,
-            -2
-         ]
-      },
-      "99" : {
-         "preamble" : "P99#",
-         "length_min" : "24",
-         "knownFreqs" : "433.92",
-         "clockabs" : 100,
-         "zero" : [
-            2,
-            -3
-         ],
-         "comment" : "Wireless touch light switch",
-         "start" : [
-            4,
-            -4
-         ],
-         "id" : "99",
-         "length_max" : "24",
-         "modulematch" : "^P99#",
-         "name" : "Navaris 44344.04",
-         "clientmodule" : "SD_UT",
-         "format" : "twostate",
-         "one" : [
-            3,
-            -2
-         ]
-      },
-      "3" : {
-         "format" : "twostate",
-         "one" : [
-            3,
-            -1
-         ],
-         "length_max" : "24",
-         "clientmodule" : "IT",
-         "modulematch" : "^i......",
-         "name" : "chip xx2260 / xx2262",
-         "sync" : [
-            1,
-            -31
-         ],
-         "comment" : "remote for benon|ELRO|Kangtai|Intertek|REWE|WOFI / PIR JCHENG",
-         "id" : "3",
-         "length_min" : "24",
-         "preamble" : "i",
-         "knownFreqs" : "433.92",
-         "clockabs" : -1,
-         "zero" : [
-            1,
-            -3
-         ]
-      },
-      "103" : {
-         "clientmodule" : "LaCrosse",
-         "name" : "Lacrosse mode 2",
-         "datarate" : "9596",
-         "sync" : "2DD4",
-         "rfmode" : "Lacrosse_mode2",
-         "method" : "helpers.ConvLaCrosse",
-         "regexMatch" : "(?^:^9)",
+         "regexMatch" : "(?:^[a-fA-F0-9])",
+         "rfmode" : "Bresser_6in1",
          "modulation" : "2-FSK",
-         "length_min" : "10",
-         "knownFreqs" : "868.3",
-         "register" : [
-            "0001",
-            "022E",
-            "0341",
-            "042D",
-            "05D4",
-            "0605",
-            "0780",
-            "0800",
-            "0D21",
-            "0E65",
-            "0F6A",
-            "10C8",
-            "1183",
-            "1202",
-            "1322",
-            "14F8",
-            "1542",
-            "1916",
-            "1B43",
-            "1C68"
-         ],
-         "comment" : "example: TX35-IT,TX35DTH-IT,30.3155WD,30.3156WD,EMT7110",
-         "id" : "103"
-      },
-      "33" : {
-         "one" : [
-            1,
-            -8
-         ],
-         "format" : "twostate",
-         "sync" : [
-            1,
-            -16
-         ],
+         "name" : "Bresser 6in1",
+         "preamble" : "W115#",
          "clientmodule" : "SD_WS",
-         "name" : "weather",
-         "length_max" : "44",
-         "id" : "33",
-         "comment" : "S014, TFA 30.3200, TCM, Conrad S522, renkforce E0001PA, TX-EZ6",
-         "postamble" : "",
-         "knownFreqs" : "433.92",
-         "preamble" : "W33#",
-         "length_min" : "42",
-         "zero" : [
-            1,
-            -4
-         ],
-         "clockabs" : "500"
+         "method" : "helpers.ConvBresser_6in1",
+         "datarate" : "8.232",
+         "comment" : "BRESSER 6-in-1 weather center",
+         "id" : "115"
       },
-      "23" : {
-         "id" : "23",
-         "comment" : "unknown sensortyp",
-         "knownFreqs" : "",
-         "preamble" : "u23#",
-         "length_min" : "36",
+      "8" : {
          "zero" : [
-            1,
-            -1
+            2,
+            -2
          ],
-         "clockabs" : 200,
+         "knownFreqs" : "",
+         "length_min" : "43",
+         "clientmodule" : "CUL_TX",
+         "preamble" : "TX",
+         "format" : "pwm",
+         "name" : "TX3 Protocol",
+         "clockabs" : 470,
+         "remove_zero" : 1,
          "one" : [
             1,
-            -6
+            -2
          ],
-         "format" : "twostate",
-         "sync" : [
-            1,
-            -50
-         ],
-         "name" : "Pearl",
+         "modulematch" : "^TX......",
+         "id" : "8",
          "length_max" : "44"
       },
-      "135" : {
-         "knownFreqs" : "433.92",
-         "length_min" : "32",
-         "preamble" : "W135#",
-         "zero" : [
-            1,
-            -2
-         ],
-         "clockabs" : 244,
-         "id" : "135",
-         "start" : [
-            4,
-            -4,
-            4,
-            -4,
-            4,
-            -4
-         ],
-         "comment" : "Temperature sensor TFA 30.3255.02",
-         "clientmodule" : "SD_WS",
-         "name" : "TFA 30.3255.02",
-         "length_max" : "33",
-         "one" : [
-            2,
-            -1
-         ],
-         "format" : "twostate"
-      },
-      "67" : {
-         "one" : [
-            -38,
-            10
-         ],
-         "postDemodulation" : "postdemodulation.postDemo_WS7053",
-         "modulematch" : "^TX......",
-         "name" : "WS7053",
-         "clientmodule" : "CUL_TX",
-         "length_max" : "34",
-         "id" : "67",
-         "comment" : "temperature sensor",
-         "clockabs" : 122,
-         "zero" : [
-            -38,
-            28
-         ],
-         "length_min" : "32",
-         "preamble" : "TX",
-         "knownFreqs" : ""
-      },
-      "96" : {
-         "length_max" : "49",
-         "modulematch" : "^P96#",
-         "clientmodule" : "SD_BELL",
-         "name" : "Grothe Mistral SE",
+      "10" : {
+         "name" : "Oregon Scientific v2|v3",
          "format" : "manchester",
-         "clockrange" : [
-            170,
-            260
-         ],
-         "method" : "manchester.mcBit2Grothe",
-         "length_min" : "40",
-         "preamble" : "P96#",
-         "knownFreqs" : "868.35",
-         "comment" : "Wireless doorbell Grothe Mistral SE 01.1 or 03.1",
-         "id" : "96"
-      },
-      "0.4" : {
-         "id" : "0.4",
-         "comment" : "temperature / humidity or other sensors | Auriol Z31092",
-         "postamble" : "00",
-         "knownFreqs" : "433.92",
-         "preamble" : "s",
-         "length_min" : "32",
-         "zero" : [
-            1,
-            -4
-         ],
-         "clockabs" : 450,
-         "one" : [
-            1,
-            -9
-         ],
-         "paddingbits" : "8",
-         "sync" : [
-            1,
-            -20
-         ],
-         "name" : "weather (v5)",
-         "clientmodule" : "CUL_TCM97001",
-         "length_max" : "36"
-      },
-      "5" : {
-         "format" : "twostate",
-         "developId" : "y",
-         "comment" : "remote control model 6899/45108",
-         "id" : "5",
-         "one" : [
-            3,
-            -1
-         ],
-         "clockabs" : 500,
-         "length_max" : "24",
-         "zero" : [
-            1,
-            -3
-         ],
-         "length_min" : "24",
-         "preamble" : "u5#",
-         "knownFreqs" : "",
-         "name" : "Unitec"
-      },
-      "44" : {
-         "one" : [
-            4,
-            -8
-         ],
-         "length_max" : "72",
-         "name" : "BresserTemeo",
-         "modulematch" : "^W44#[A-F0-9]{18}",
-         "clientmodule" : "SD_WS",
-         "comment" : "temperature / humidity sensor",
-         "start" : [
-            8,
-            -8
-         ],
-         "id" : "44",
-         "knownFreqs" : "433.92",
-         "length_min" : "64",
-         "preamble" : "W44#",
-         "zero" : [
-            4,
-            -4
-         ],
-         "clockabs" : 500
-      },
-      "93" : {
-         "length_max" : "36",
-         "clientmodule" : "SD_UT",
-         "name" : "ESTO Lighting GmbH",
-         "sync" : [
-            1,
-            -32
-         ],
-         "format" : "twostate",
-         "one" : [
-            3,
-            -1
-         ],
-         "clockabs" : 385,
-         "zero" : [
-            1,
-            -3
-         ],
-         "length_min" : "32",
-         "preamble" : "P93#",
-         "knownFreqs" : "433.92",
-         "comment" : "remote control KL-RF01",
-         "id" : "93"
-      },
-      "20.1" : {
-         "comment" : "Remote control with 4, 9, 10, 12 or 14 buttons",
-         "start" : [
-            1,
-            -33
-         ],
-         "id" : "20.1",
-         "preamble" : "P20#",
-         "length_min" : "31",
-         "knownFreqs" : "433.92",
-         "clockabs" : 240,
-         "zero" : [
-            1,
-            -3
-         ],
-         "format" : "twostate",
-         "one" : [
-            3,
-            -1
-         ],
-         "length_max" : "32",
-         "clientmodule" : "SD_UT",
-         "name" : "RCnoName20",
-         "modulematch" : "^P20#.{8}"
-      },
-      "18" : {
-         "polarity" : "invert",
-         "knownFreqs" : "433.92",
-         "preamble" : "",
-         "length_min" : "32",
-         "comment" : "temperature / humidity or other sensors",
-         "id" : "18",
-         "length_max" : "32",
          "clientmodule" : "OREGON",
-         "name" : "Oregon Scientific v1",
-         "modulematch" : "^[0-9A-F].*",
-         "clockrange" : [
-            1400,
-            1500
-         ],
-         "format" : "manchester",
-         "method" : "manchester.mcBit2OSV1"
-      },
-      "49.1" : {
-         "knownFreqs" : "433.92",
-         "preamble" : "P49#",
-         "length_min" : "24",
-         "zero" : [
-            1,
-            -2
-         ],
-         "clockabs" : 515,
-         "id" : "49.1",
-         "start" : [
-            6,
-            -14
-         ],
-         "comment" : "Remote control is traded under different names",
-         "clientmodule" : "SD_GT",
-         "modulematch" : "^P49.*",
-         "name" : "GT-9000",
-         "length_max" : "24",
-         "one" : [
-            2,
-            -1
-         ],
-         "format" : "twostate"
-      },
-      "26" : {
-         "id" : "26",
-         "comment" : "Remote control xavax 00111939",
-         "start" : [
-            1,
-            -1,
-            1,
-            -1,
-            7,
-            -7
-         ],
-         "zero" : [
-            1,
-            -1
-         ],
-         "clockabs" : 460,
-         "knownFreqs" : "433.92",
-         "length_min" : "40",
-         "preamble" : "P26#",
-         "pause" : [
-            -44
-         ],
-         "one" : [
-            1,
-            -3
-         ],
-         "format" : "twostate",
-         "modulematch" : "^P26#.{10}",
-         "name" : "xavax",
-         "clientmodule" : "SD_UT",
-         "length_max" : "40"
-      },
-      "65" : {
-         "one" : [
-            1,
-            -5.5
-         ],
-         "format" : "twostate",
-         "postDemodulation" : "helpers.ConvHE_EU",
-         "clientmodule" : "IT",
-         "name" : "HomeEasy HE_EU",
-         "sync" : [
-            1,
-            -38
-         ],
-         "length_max" : "72",
-         "id" : "65",
-         "clockabs" : 230,
-         "zero" : [
-            1,
-            -1.2
-         ],
-         "length_min" : "57",
-         "preamble" : "ih",
-         "knownFreqs" : ""
-      },
-      "74" : {
-         "name" : "FS20",
-         "clientmodule" : "FS20",
-         "length_max" : "67",
-         "pause" : [
-            -25
-         ],
-         "one" : [
-            1.5,
-            -1.5
-         ],
-         "postDemodulation" : "postdemodulation.postDemo_FS20",
-         "format" : "twostate",
-         "knownFreqs" : "868.35",
-         "preamble" : "810b04f70101a001",
-         "length_min" : "50",
-         "zero" : [
-            1,
-            -1
-         ],
-         "clockabs" : 400,
-         "id" : "74",
-         "comment" : "remote control (decode as MU)"
-      },
-      "91.1" : {
-         "format" : "twostate",
-         "one" : [
-            -2,
-            1
-         ],
-         "length_max" : "36",
-         "sync" : [
-            -10,
-            1
-         ],
-         "clientmodule" : "SD_UT",
-         "name" : "Atlantic security",
-         "comment" : "example sensor MD-210R | MD-2018R | MD-2003R (MS decode)",
-         "id" : "91.1",
-         "reconstructBit" : "1",
-         "zero" : [
-            -1,
-            2
-         ],
-         "clockabs" : 400,
-         "knownFreqs" : "433.92 | 868.35",
-         "preamble" : "P91#",
-         "length_min" : "32"
-      },
-      "36" : {
-         "one" : [
-            1,
-            -3
-         ],
-         "format" : "twostate",
-         "name" : "remote",
-         "length_max" : "24",
-         "id" : "36",
-         "comment" : "cheap wireless dimmer",
-         "start" : [
-            20,
-            -20
-         ],
-         "postamble" : "",
-         "knownFreqs" : "433.92",
-         "preamble" : "u36#",
-         "length_min" : "24",
-         "zero" : [
-            1,
-            -1
-         ],
-         "clockabs" : "500"
-      },
-      "54.1" : {
-         "format" : "twostate",
-         "one" : [
-            2,
-            -1
-         ],
-         "length_max" : "68",
-         "clientmodule" : "SD_WS",
-         "name" : "TFA 30.3233.01",
-         "sync" : [
-            3,
-            -3
-         ],
-         "comment" : "Rain sensor",
-         "id" : "54.1",
-         "preamble" : "W54#",
+         "method" : "manchester.mcBit2OSV2o3",
          "length_min" : "64",
-         "knownFreqs" : "433.92",
-         "clockabs" : 250,
-         "zero" : [
-            1,
-            -2
-         ]
-      },
-      "113" : {
-         "format" : "twostate",
-         "one" : [
-            3,
-            -1
-         ],
-         "length_max" : "48",
-         "clientmodule" : "SD_WS",
-         "name" : "GFGT_433_B1",
-         "modulematch" : "^W113#",
-         "sync" : [
-            1,
-            -12
-         ],
-         "comment" : "Wireless Grill Thermometer",
-         "id" : "113",
-         "preamble" : "W113#",
-         "length_min" : "47",
-         "knownFreqs" : "433.92",
-         "clockabs" : 250,
-         "reconstructBit" : "1",
-         "zero" : [
-            1,
-            -3
-         ]
-      },
-      "59" : {
-         "id" : "59",
-         "comment" : "remote control with 4 buttons",
-         "start" : [
-            -1,
-            37
-         ],
-         "postamble" : "",
-         "knownFreqs" : "433.92",
-         "length_min" : "24",
-         "preamble" : "u59#",
-         "zero" : [
-            -4,
-            1
-         ],
-         "clockabs" : 230,
-         "one" : [
-            -1,
-            4
-         ],
-         "format" : "twostate",
-         "name" : "AK-HD-4",
-         "length_max" : "24"
-      },
-      "0.2" : {
-         "id" : "0.2",
-         "comment" : "temperature / humidity or other sensors",
-         "postamble" : "00",
-         "length_min" : "24",
-         "preamble" : "s",
-         "knownFreqs" : "433.92",
-         "clockabs" : -1,
-         "zero" : [
-            1,
-            -9
-         ],
-         "one" : [
-            1,
-            -18
-         ],
-         "paddingbits" : "8",
-         "format" : "twostate",
-         "name" : "weather (v3)",
-         "clientmodule" : "CUL_TCM97001",
-         "sync" : [
-            1,
-            -37
-         ],
-         "length_max" : "32"
-      },
-      "121" : {
-         "zero" : [
-            1,
-            -2.6
-         ],
-         "reconstructBit" : "1",
-         "clockabs" : 260,
-         "length_min" : "23",
-         "preamble" : "P121#",
-         "comment" : "Remote control 6861",
-         "start" : [
-            -2.6
-         ],
-         "id" : "121",
-         "length_max" : "24",
-         "modulematch" : "^P121#",
-         "clientmodule" : "SD_UT",
-         "name" : "Busch-Transcontrol",
-         "format" : "twostate",
-         "pause" : [
-            120,
-            -2.6
-         ],
-         "one" : [
-            2.2,
-            -1.4
-         ]
-      },
-      "116" : {
-         "comment" : "Fine Offset WH57, Ambient Weather WH31L, Froggit DP60 Thunder and Lightning sensor",
-         "id" : "116",
-         "knownFreqs" : "433.92",
-         "length_min" : "18",
-         "preamble" : "W116#",
-         "register" : [
-            "0001",
-            "022E",
-            "0343",
-            "042D",
-            "05D4",
-            "0609",
-            "0780",
-            "0800",
-            "0D10",
-            "0EB0",
-            "0F71",
-            "10A9",
-            "115C",
-            "1202",
-            "1322",
-            "14F8",
-            "1543",
-            "1916",
-            "1B43",
-            "1C68"
-         ],
-         "rfmode" : "Fine_Offset_WH57_434",
-         "modulation" : "2-FSK",
-         "regexMatch" : "(?^:^57)",
-         "length_max" : "38",
-         "datarate" : "17.257",
-         "sync" : "2DD4",
-         "name" : "WH57",
-         "clientmodule" : "SD_WS"
-      },
-      "70" : {
-         "clockabs" : 400,
-         "zero" : [
-            1,
-            -1
-         ],
-         "preamble" : "T",
-         "length_min" : "50",
-         "knownFreqs" : "868.35",
-         "id" : "70",
-         "comment" : "door/window switch",
-         "name" : "FHT80TF",
-         "clientmodule" : "CUL_FHTTK",
-         "length_max" : "58",
-         "one" : [
-            1.5,
-            -1.5
-         ],
-         "format" : "twostate",
-         "postDemodulation" : "postdemodulation.postDemo_FHT80TF"
-      },
-      "12" : {
-         "length_max" : "128",
-         "name" : "Hideki",
-         "modulematch" : "^P12#75.+",
-         "clientmodule" : "Hideki",
-         "clockrange" : [
-            420,
-            510
-         ],
-         "format" : "manchester",
-         "method" : "manchester.mcBit2Hideki",
-         "knownFreqs" : "433.92",
-         "preamble" : "P12#",
-         "length_min" : "71",
-         "comment" : "temperature / humidity or other sensors",
-         "id" : "12"
-      },
-      "56" : {
-         "length_max" : "65",
-         "modulematch" : "^P56#",
-         "clientmodule" : "SD_UT",
-         "name" : "AC114-xxB",
-         "format" : "twostate",
-         "pause" : [
-            -25
-         ],
-         "one" : [
-            3,
-            -1
-         ],
-         "knownFreqs" : "433.92",
-         "preamble" : "P56#",
-         "length_min" : "64",
-         "zero" : [
-            1,
-            -3
-         ],
-         "reconstructBit" : "1",
-         "clockabs" : 200,
-         "comment" : "Remote control for motorized screen from Alphavision, Celexon",
-         "start" : [
-            25,
-            -3
-         ],
-         "id" : "56"
-      },
-      "40" : {
-         "name" : "Romotec ",
-         "preamble" : "u40#",
-         "length_min" : "12",
          "knownFreqs" : "",
-         "clockabs" : 270,
-         "zero" : [
-            1,
-            -3
+         "length_max" : "220",
+         "polarity" : "invert",
+         "id" : "10",
+         "modulematch" : "^(3[8-9A-F]|[4-6][0-9A-F]|7[0-8]).*",
+         "clockrange" : [
+            300,
+            520
          ],
-         "one" : [
-            3,
-            -2
-         ],
-         "id" : "40",
-         "start" : [
-            1,
-            -2
-         ],
-         "comment" : "Tubular motor"
+         "comment" : "temperature / humidity or other sensors"
       },
-      "85" : {
+      "128" : {
+         "comment" : "Remote control with 12 buttons for ceiling fan",
          "one" : [
-            2,
-            -1
-         ],
-         "format" : "twostate",
-         "clientmodule" : "SD_WS",
-         "name" : "TFA 30.3222.02",
-         "length_max" : "68",
-         "id" : "85",
-         "start" : [
-            3,
             -3,
-            3,
-            -3,
-            3,
-            -3
-         ],
-         "comment" : "Combisensor TFA 30.3222.02, Windsensor TFA 30.3251.10",
-         "postamble" : "",
-         "length_min" : "64",
-         "preamble" : "W85#",
-         "knownFreqs" : "",
-         "clockabs" : 250,
-         "zero" : [
-            1,
-            -2
-         ]
-      },
-      "39" : {
-         "preamble" : "",
-         "length_min" : "32",
-         "knownFreqs" : "",
-         "clockabs" : 560,
-         "zero" : [
-            1,
-            -1
-         ],
-         "id" : "39",
-         "filterfunc" : "SIGNALduino_compPattern",
-         "start" : [
-            17,
-            -7
-         ],
-         "clientmodule" : "RFXX10REC",
-         "name" : "X10 Protocol",
-         "length_max" : "44",
-         "one" : [
-            1,
-            -3
-         ],
-         "paddingbits" : "8",
-         "postDemodulation" : "postdemodulation.postDemo_lengtnPrefix",
-         "format" : "twostate"
-      },
-      "9" : {
-         "one" : [
-            1,
-            -2
-         ],
-         "format" : "pwm",
-         "clientmodule" : "SD_WS09",
-         "name" : "weather",
-         "length_max" : "120",
-         "id" : "9",
-         "comment" : "Weatherstation WH1080, WH3080, WH5300SE, CTW600",
-         "reconstructBit" : "1",
-         "zero" : [
-            3,
-            -2
-         ],
-         "clockabs" : 480,
-         "knownFreqs" : "433.92 | 868.35",
-         "length_min" : "60",
-         "preamble" : "P9#"
-      },
-      "29" : {
-         "comment" : "remote control for example Westinghouse airfan with 5 buttons",
-         "start" : [
-            -35,
             1
          ],
-         "id" : "29",
-         "clockabs" : 235,
-         "zero" : [
-            -1,
-            2
-         ],
-         "length_min" : "12",
-         "preamble" : "P29#",
-         "knownFreqs" : "",
-         "format" : "twostate",
-         "one" : [
-            -2,
-            1
-         ],
-         "length_max" : "12",
-         "clientmodule" : "SD_UT",
-         "modulematch" : "^P29#.{3}",
-         "name" : "HT12e"
-      },
-      "116.1" : {
-         "register" : [
-            "0001",
-            "022E",
-            "0343",
-            "042D",
-            "05D4",
-            "0609",
-            "0780",
-            "0800",
-            "0D21",
-            "0E65",
-            "0FE8",
-            "10A9",
-            "115C",
-            "1202",
-            "1322",
-            "14F8",
-            "1543",
-            "1916",
-            "1B43",
-            "1C68"
-         ],
-         "preamble" : "W116#",
-         "length_min" : "18",
-         "knownFreqs" : "868.35",
-         "id" : "116.1",
-         "comment" : "Fine Offset WH57, Ambient Weather WH31L, Froggit DP60 Thunder and Lightning sensor",
-         "name" : "WH57",
-         "clientmodule" : "SD_WS",
-         "sync" : "2DD4",
-         "datarate" : "17.257",
-         "length_max" : "38",
-         "regexMatch" : "(?^:^57)",
-         "modulation" : "2-FSK",
-         "rfmode" : "Fine_Offset_WH57_868"
-      },
-      "77" : {
-         "length_max" : "44",
-         "modulematch" : "^TX......",
-         "clientmodule" : "CUL_TX",
-         "name" : "NANO_DS1820_4Fach",
-         "format" : "pwm",
-         "one" : [
-            1,
-            -6
-         ],
-         "length_min" : "43",
-         "preamble" : "TX",
-         "knownFreqs" : "",
-         "remove_zero" : 1,
-         "clockabs" : 250,
-         "zero" : [
-            4,
-            -6
-         ],
-         "comment" : "self build sensor",
-         "developId" : "y",
-         "id" : "77"
-      },
-      "3.1" : {
-         "clockabs" : -1,
-         "zero" : [
-            1,
-            -3.8
-         ],
-         "length_min" : "24",
-         "preamble" : "i",
-         "knownFreqs" : "433.92",
-         "comment" : "IT remote control PAR 1000, ITS-150, AB440R",
-         "id" : "3",
-         "float" : [
-            1,
-            -1
-         ],
+         "clockabs" : "406",
+         "id" : "128",
          "length_max" : "24",
-         "name" : "itv1_sync40",
-         "clientmodule" : "IT",
-         "modulematch" : "^i......",
-         "sync" : [
-            1,
-            -44
-         ],
-         "format" : "twostate",
-         "postDemodulation" : "helpers.Convbit2itv1",
-         "one" : [
-            3.5,
-            -1
-         ]
-      },
-      "98" : {
-         "name" : "GEA-028DB",
-         "clientmodule" : "SD_BELL",
-         "modulematch" : "^P98#",
-         "length_max" : "16",
-         "one" : [
-            1,
-            -3
-         ],
-         "format" : "twostate",
-         "preamble" : "P98#",
-         "length_min" : "16",
-         "knownFreqs" : "433.92",
-         "clockabs" : 500,
-         "zero" : [
-            3,
-            -1
-         ],
-         "id" : "98",
-         "start" : [
-            4,
-            -11,
-            4,
-            -11
-         ],
-         "comment" : "Wireless doorbell"
-      },
-      "13" : {
-         "sync" : [
-            1,
-            -20,
-            10,
-            -1
-         ],
-         "name" : "FLAMINGO FA21",
-         "clientmodule" : "FLAMINGO",
-         "length_max" : "26",
-         "one" : [
-            1,
-            -2
-         ],
-         "format" : "twostate",
-         "zero" : [
-            1,
-            -4
-         ],
-         "clockabs" : 800,
-         "knownFreqs" : "433.92",
-         "length_min" : "24",
-         "preamble" : "P13#",
-         "id" : "13",
-         "comment" : "FLAMINGO FA21 smoke detector (message decode as MS)"
-      },
-      "81" : {
-         "length_max" : "12",
-         "modulematch" : "^P81#.{3}",
-         "name" : "SA-434-1",
-         "clientmodule" : "SD_UT",
-         "format" : "twostate",
-         "one" : [
-            -2,
-            1
-         ],
-         "clockabs" : 500,
-         "zero" : [
-            -1,
-            2
-         ],
-         "length_min" : "12",
-         "preamble" : "P81#",
-         "knownFreqs" : "433.92",
-         "start" : [
-            -35,
-            1
-         ],
-         "comment" : "remote control SA-434-1 mini 923301 based on HT12E",
-         "id" : "81"
-      },
-      "47" : {
-         "id" : "47",
-         "comment" : "BBQ / food thermometer",
-         "knownFreqs" : "433.92",
-         "length_min" : "100",
-         "preamble" : "P47#",
-         "method" : "manchester.mcBit2Maverick",
-         "clockrange" : [
-            180,
-            260
-         ],
-         "format" : "manchester",
-         "modulematch" : "^P47#[569A]{12}.*",
-         "name" : "Maverick",
-         "clientmodule" : "SD_WS_Maverick",
-         "length_max" : "108"
-      },
-      "61" : {
-         "comment" : "remote control",
-         "id" : "61",
-         "clockabs" : 400,
-         "zero" : [
-            1,
-            -1
-         ],
-         "preamble" : "P61#",
-         "length_min" : "30",
-         "knownFreqs" : "433.92",
-         "postamble" : "",
-         "format" : "twostate",
-         "one" : [
-            1,
-            -2
-         ],
-         "pause" : [
-            -81
-         ],
-         "length_max" : "48",
-         "name" : "FS10",
-         "clientmodule" : "FS10"
-      },
-      "107" : {
-         "register" : [
-            "0001",
-            "022E",
-            "0343",
-            "042D",
-            "05D4",
-            "060E",
-            "0780",
-            "0800",
-            "0D10",
-            "0EB0",
-            "0F71",
-            "10A9",
-            "115C",
-            "1202",
-            "1322",
-            "14F8",
-            "1543",
-            "1916",
-            "1B43",
-            "1C68"
-         ],
-         "knownFreqs" : "433.92",
-         "length_min" : "28",
-         "preamble" : "W107#",
-         "id" : "107",
-         "comment" : "Fine Offset WH51, ECOWITT WH51, MISOL/1, Froggit DP100 Soil moisture sensor",
-         "sync" : "2DD4",
-         "datarate" : "17257.69",
-         "clientmodule" : "SD_WS",
-         "name" : "WH51 433.92 MHz",
-         "length_max" : "38",
-         "modulation" : "2-FSK",
-         "regexMatch" : "(?^:^51)",
-         "rfmode" : "Fine_Offset_WH51_434"
-      },
-      "109" : {
-         "comment" : "Rojaflex shutter",
-         "id" : "109",
-         "length_min" : "18",
-         "preamble" : "P109#",
-         "knownFreqs" : "433.92",
-         "register" : [
-            "0007",
-            "022E",
-            "0302",
-            "04D3",
-            "0591",
-            "060C",
-            "0788",
-            "0805",
-            "0D10",
-            "0EB0",
-            "0F71",
-            "10C8",
-            "1193",
-            "1213",
-            "1322",
-            "14F8",
-            "1535",
-            "170F",
-            "1916",
-            "1B43",
-            "1C40",
-            "2156",
-            "2211"
-         ],
-         "rfmode" : "Rojaflex",
-         "regexMatch" : "(?^:^08)",
-         "modulation" : "GFSK",
-         "length_max" : "18",
-         "name" : "Rojaflex",
-         "clientmodule" : "SD_Rojaflex",
-         "datarate" : "9.9926",
-         "sync" : "D391D391"
-      },
-      "131" : {
-         "length_min" : "20",
-         "preamble" : "W131#",
-         "knownFreqs" : "868.300",
-         "register" : [
-            "0001",
-            "022E",
-            "0342",
-            "042D",
-            "05D4",
-            "060A",
-            "07C0",
-            "0800",
-            "0D21",
-            "0E65",
-            "0F6A",
-            "1088",
-            "114C",
-            "1202",
-            "1322",
-            "14F8",
-            "1551",
-            "1916",
-            "1B43",
-            "1C68"
-         ],
-         "comment" : "Bresser lightning detector",
-         "id" : "131",
-         "clientmodule" : "SD_WS",
-         "name" : "Bresser lightning",
-         "sync" : "2DD4",
-         "datarate" : "8.232",
-         "rfmode" : "Bresser_lightning",
-         "method" : "helpers.ConvBresser_lightning",
-         "regexMatch" : "(?^:^[a-fA-F0-9])",
-         "modulation" : "2-FSK"
-      },
-      "104" : {
-         "id" : "104",
-         "comment" : "Remote control for example Westinghouse Bendan 77841B",
+         "modulematch" : "^P128#",
          "start" : [
             -25,
             1
          ],
-         "zero" : [
-            -2,
-            1
-         ],
-         "clockabs" : 380,
          "knownFreqs" : "433.92",
-         "length_min" : "16",
-         "preamble" : "P104#",
-         "one" : [
-            -1,
-            2
-         ],
-         "format" : "twostate",
-         "name" : "TR60C-1",
-         "clientmodule" : "SD_UT",
-         "modulematch" : "^P104#",
-         "length_max" : "16"
-      },
-      "0.3" : {
-         "paddingbits" : "8",
-         "one" : [
-            1,
-            -10
-         ],
-         "length_max" : "42",
-         "sync" : [
-            1,
-            -21
-         ],
-         "name" : "weather (v4)",
-         "clientmodule" : "CUL_TCM97001",
-         "comment" : "temperature / humidity or other sensors | Pollin PFR-130, Ventus W174 ...",
-         "id" : "0.3",
-         "zero" : [
-            1,
-            -5
-         ],
-         "clockabs" : -1,
-         "knownFreqs" : "433.92",
-         "length_min" : "36",
-         "preamble" : "s",
-         "postamble" : "00"
-      },
-      "49.2" : {
-         "format" : "twostate",
-         "one" : [
-            3,
-            -1
-         ],
-         "length_max" : "24",
-         "modulematch" : "^P49.*",
-         "clientmodule" : "SD_GT",
-         "name" : "GT-9000",
-         "comment" : "Remote control Tec Star Modell 2335191R",
-         "start" : [
-            1,
-            -6
-         ],
-         "id" : "49.2",
-         "clockabs" : 383,
-         "zero" : [
-            1,
-            -3
-         ],
-         "length_min" : "24",
-         "preamble" : "P49#",
-         "knownFreqs" : "433.92"
-      },
-      "1" : {
-         "knownFreqs" : "",
-         "length_min" : "20",
-         "preamble" : "P1#",
-         "zero" : [
-            1,
-            -2
-         ],
-         "clockabs" : "560",
-         "postamble" : "",
-         "comment" : "remotes and switches",
-         "id" : "1",
-         "length_max" : "40",
-         "sync" : [
-            1,
-            -12
-         ],
-         "modulematch" : "^P1#[A-Fa-f0-9]{8}",
-         "name" : "Conrad RSL v1",
-         "clientmodule" : "SD_RSL",
-         "format" : "twostate",
-         "one" : [
-            2,
-            -1
-         ]
-      },
-      "100" : {
-         "sync" : "2DD4",
-         "datarate" : "17257.69",
-         "name" : "Lacrosse mode 1",
-         "clientmodule" : "LaCrosse",
-         "register" : [
-            "0001",
-            "022E",
-            "0341",
-            "042D",
-            "05D4",
-            "0605",
-            "0780",
-            "0800",
-            "0D21",
-            "0E65",
-            "0F6A",
-            "1089",
-            "115C",
-            "1202",
-            "1322",
-            "14F8",
-            "1556",
-            "1916",
-            "1B43",
-            "1C68"
-         ],
-         "knownFreqs" : "868.3",
-         "length_min" : "10",
-         "modulation" : "2-FSK",
-         "regexMatch" : "(?^:^9)",
-         "method" : "helpers.ConvLaCrosse",
-         "id" : "100",
-         "comment" : "example: TX25-IT,TX27-IT,TX29-IT,TX29DTH-IT,TX37,30.3143.IT,30.3144.IT",
-         "rfmode" : "Lacrosse_mode1"
-      },
-      "92" : {
-         "knownFreqs" : "433.92",
-         "preamble" : "P92#",
-         "length_min" : "32",
-         "zero" : [
-            1,
-            -2
-         ],
-         "clockabs" : 420,
-         "id" : "92",
-         "comment" : "remote control LED X-MAS",
-         "start" : [
-            2,
-            -24
-         ],
-         "name" : "KRINNER Lumix",
-         "clientmodule" : "SD_UT",
-         "length_max" : "32",
-         "one" : [
-            2,
-            -1
-         ],
-         "format" : "twostate"
-      },
-      "107.1" : {
-         "regexMatch" : "(?^:^51)",
-         "modulation" : "2-FSK",
-         "rfmode" : "Fine_Offset_WH51_868",
-         "name" : "WH51 868.35 MHz",
-         "clientmodule" : "SD_WS",
-         "sync" : "2DD4",
-         "datarate" : "17257.69",
-         "length_max" : "38",
-         "id" : "107.1",
-         "comment" : "Fine Offset WH51, ECOWITT WH51, MISOL/1, Froggit DP100 Soil moisture sensor",
-         "register" : [
-            "0001",
-            "022E",
-            "0343",
-            "042D",
-            "05D4",
-            "060E",
-            "0780",
-            "0800",
-            "0D21",
-            "0E65",
-            "0FE8",
-            "10A9",
-            "115C",
-            "1202",
-            "1322",
-            "14F8",
-            "1543",
-            "1916",
-            "1B43",
-            "1C68"
-         ],
-         "length_min" : "28",
-         "preamble" : "W107#",
-         "knownFreqs" : "868.35"
-      },
-      "112" : {
-         "register" : [
-            "0001",
-            "0246",
-            "0301",
-            "0408",
-            "0569",
-            "06FF",
-            "0780",
-            "0802",
-            "0D10",
-            "0EAA",
-            "0F56",
-            "108A",
-            "11F8",
-            "1202",
-            "1322",
-            "14F8",
-            "1551",
-            "1916",
-            "1B43",
-            "1C40",
-            "20FB",
-            "2156",
-            "2211"
-         ],
-         "knownFreqs" : "433.3",
-         "length_min" : "16",
-         "preamble" : "P112#",
-         "id" : "112",
-         "comment" : "Wireless doorbell & LED night light",
-         "sync" : "0869",
-         "datarate" : "50.087",
-         "clientmodule" : "SD_BELL",
-         "name" : "Avantek",
-         "length_max" : "16",
-         "modulation" : "2-FSK",
-         "rfmode" : "Avantek"
-      },
-      "58" : {
-         "id" : "58",
-         "comment" : "Temperature/humidity sensors (TFA 30.3208.02, 30.3228.02, 30.3229.02, Froggit/Renkforce FT007xx, Ambient Weather F007-xx)",
-         "preamble" : "W58#",
-         "length_min" : "52",
-         "knownFreqs" : "433.92",
-         "polarity" : "invert",
-         "method" : "manchester.mcBit2TFA",
-         "format" : "manchester",
-         "clockrange" : [
-            460,
-            520
-         ],
-         "clientmodule" : "SD_WS",
-         "modulematch" : "^W58*",
-         "name" : "TFA 30.3208.0",
-         "length_max" : "52"
-      },
-      "128" : {
-         "preamble" : "P128#",
          "length_min" : "23",
-         "knownFreqs" : "433.92",
-         "clockabs" : "406",
          "zero" : [
             -1,
             3
          ],
-         "id" : "128",
-         "comment" : "Remote control with 12 buttons for ceiling fan",
-         "start" : [
-            -25,
-            1
-         ],
          "name" : "RCnoName128",
+         "preamble" : "P128#",
          "clientmodule" : "SD_UT",
-         "modulematch" : "^P128#",
-         "length_max" : "24",
-         "one" : [
-            -3,
-            1
-         ],
          "format" : "twostate"
       },
+      "118.1" : {
+         "clockabs" : 508,
+         "comment" : "Remote controls for Meikee LED lights",
+         "one" : [
+            2,
+            -1
+         ],
+         "modulematch" : "^P118#",
+         "id" : "118.1",
+         "length_max" : "25",
+         "zero" : [
+            1,
+            -2
+         ],
+         "end" : [
+            1
+         ],
+         "sync" : [
+            -25
+         ],
+         "length_min" : "24",
+         "clientmodule" : "SD_UT",
+         "preamble" : "P118#",
+         "format" : "twostate",
+         "name" : "Meikee"
+      },
+      "62" : {
+         "preamble" : "i",
+         "clientmodule" : "IT",
+         "start" : [
+            1,
+            -35
+         ],
+         "id" : "62",
+         "name" : "Clarus_Switch",
+         "length_max" : "24",
+         "zero" : [
+            1,
+            -3
+         ],
+         "clockabs" : 189,
+         "knownFreqs" : "",
+         "length_min" : "24",
+         "one" : [
+            3,
+            -1
+         ]
+      },
       "102" : {
-         "datarate" : "4785.5",
-         "sync" : "AA54",
-         "clientmodule" : "KOPP_FC",
-         "name" : "KoppFreeControl",
-         "method" : "helpers.ConvKoppFreeControl",
-         "modulation" : "GFSK",
-         "regexMatch" : "(?^:^0)",
-         "rfmode" : "KOPP_FC",
+         "comment" : "example: remotes, switches",
+         "id" : "102",
          "register" : [
             "0001",
             "012E",
@@ -2849,21 +238,1029 @@
             "261F",
             "2741"
          ],
+         "sync" : "AA54",
          "knownFreqs" : "868.3",
-         "id" : "102",
-         "comment" : "example: remotes, switches"
+         "datarate" : "4785.5",
+         "clientmodule" : "KOPP_FC",
+         "method" : "helpers.ConvKoppFreeControl",
+         "rfmode" : "KOPP_FC",
+         "name" : "KoppFreeControl",
+         "modulation" : "GFSK",
+         "regexMatch" : "(?:^0)"
       },
-      "84" : {
+      "7" : {
+         "length_max" : "40",
+         "id" : "7",
+         "modulematch" : "^P7#.{6}[AFaf].{2}",
+         "one" : [
+            1,
+            -4
+         ],
+         "comment" : "EAS800z, FreeTec NC-7344, HAMA TS34A, Auriol AFW 2 A1",
+         "clockabs" : 484,
+         "name" : "Weather",
+         "format" : "twostate",
+         "clientmodule" : "SD_WS07",
+         "preamble" : "P7#",
+         "sync" : [
+            1,
+            -8
+         ],
+         "length_min" : "35",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            1,
+            -2
+         ]
+      },
+      "57" : {
+         "length_min" : "21",
+         "knownFreqs" : "",
+         "name" : "m-e",
+         "format" : "manchester",
+         "method" : "helpers.mcraw",
+         "clientmodule" : "SD_BELL",
+         "preamble" : "P57#",
+         "clockrange" : [
+            300,
+            360
+         ],
+         "comment" : "radio gong transmitter for FG- and Basic-Serie",
+         "polarity" : "invert",
+         "length_max" : "24",
+         "id" : "57",
+         "modulematch" : "^P57#.*"
+      },
+      "56" : {
          "one" : [
             3,
             -1
          ],
+         "comment" : "Remote control for motorized screen from Alphavision, Celexon",
+         "clockabs" : 200,
+         "length_max" : "65",
+         "id" : "56",
+         "modulematch" : "^P56#",
+         "start" : [
+            25,
+            -3
+         ],
+         "length_min" : "64",
+         "knownFreqs" : "433.92",
+         "reconstructBit" : "1",
+         "zero" : [
+            1,
+            -3
+         ],
+         "name" : "AC114-xxB",
+         "pause" : [
+            -25
+         ],
          "format" : "twostate",
-         "name" : "IAN 283582 / TV-4848",
+         "preamble" : "P56#",
+         "clientmodule" : "SD_UT"
+      },
+      "40" : {
+         "start" : [
+            1,
+            -2
+         ],
+         "preamble" : "u40#",
+         "name" : "Romotec ",
+         "id" : "40",
+         "clockabs" : 270,
+         "zero" : [
+            1,
+            -3
+         ],
+         "one" : [
+            3,
+            -2
+         ],
+         "length_min" : "12",
+         "knownFreqs" : "",
+         "comment" : "Tubular motor"
+      },
+      "54" : {
+         "one" : [
+            2,
+            -1
+         ],
+         "comment" : "Rain sensor",
+         "clockabs" : 250,
+         "length_max" : "68",
+         "id" : "54",
+         "start" : [
+            3,
+            -3
+         ],
+         "length_min" : "64",
+         "knownFreqs" : "433.92",
+         "reconstructBit" : "1",
+         "zero" : [
+            1,
+            -2
+         ],
+         "name" : "TFA 30.3233.01",
+         "format" : "twostate",
+         "preamble" : "W54#",
+         "clientmodule" : "SD_WS"
+      },
+      "55" : {
+         "modulematch" : "^i.*",
+         "length_max" : "24",
+         "id" : "55",
+         "clockabs" : 300,
+         "one" : [
+            4,
+            -2
+         ],
+         "comment" : "remote control",
+         "format" : "twostate",
+         "clientmodule" : "IT",
+         "preamble" : "i",
+         "name" : "QUIGG_GT-1000",
+         "zero" : [
+            1,
+            -4
+         ],
+         "sync" : [
+            1,
+            -8
+         ],
+         "length_min" : "24",
+         "knownFreqs" : ""
+      },
+      "90" : {
+         "clockabs" : 280,
+         "comment" : "remote control mumbi RC-10, MANAX MX-RCS250",
+         "one" : [
+            3,
+            -1
+         ],
+         "modulematch" : "^P90#.*",
+         "id" : "90",
+         "length_max" : "36",
+         "zero" : [
+            1,
+            -3
+         ],
+         "knownFreqs" : "433.92",
+         "sync" : [
+            1,
+            -36
+         ],
+         "length_min" : "33",
+         "clientmodule" : "SD_UT",
+         "preamble" : "P90#",
+         "format" : "twostate",
+         "name" : "mumbi | MANAX"
+      },
+      "110" : {
+         "id" : "110",
+         "length_max" : "66",
+         "modulematch" : "^W110#",
+         "start" : [
+            8
+         ],
+         "comment" : "Weather station with rain gauge",
+         "one" : [
+            -3,
+            1
+         ],
+         "clockabs" : 900,
+         "name" : "ADE_WS_1907",
          "clientmodule" : "SD_WS",
-         "length_max" : "41",
-         "id" : "84",
+         "preamble" : "W110#",
+         "format" : "twostate",
+         "knownFreqs" : "433.92",
+         "reconstructBit" : "1",
+         "length_min" : "65",
+         "zero" : [
+            -1,
+            3
+         ]
+      },
+      "130" : {
+         "zero" : [
+            3,
+            -1
+         ],
+         "length_min" : "24",
+         "sync" : [
+            1,
+            -30
+         ],
+         "knownFreqs" : "433.92",
+         "format" : "twostate",
+         "clientmodule" : "SD_UT",
+         "preamble" : "P130#",
+         "name" : "CREATE_6601TL",
+         "clockabs" : "400",
+         "one" : [
+            1,
+            -3
+         ],
+         "comment" : "Remote control for ceiling fan with light",
+         "modulematch" : "^P130#",
+         "length_max" : "24",
+         "id" : "130"
+      },
+      "68" : {
+         "comment" : "Medion OR28V RF Vista Remote Control",
+         "one" : [
+            1,
+            -3
+         ],
+         "clockabs" : 550,
+         "id" : "68",
+         "length_max" : "20",
+         "modulematch" : "^P68#.{5}",
+         "knownFreqs" : "433.92",
+         "sync" : [
+            1,
+            -8,
+            5,
+            -3
+         ],
+         "length_min" : "20",
+         "zero" : [
+            1,
+            -1
+         ],
+         "name" : "OR28V",
+         "preamble" : "P68#",
+         "clientmodule" : "SD_UT",
+         "format" : "twostate"
+      },
+      "20" : {
+         "name" : "RCnoName20",
+         "preamble" : "P20#",
+         "clientmodule" : "SD_UT",
+         "format" : "twostate",
+         "knownFreqs" : "433.92",
+         "sync" : [
+            1,
+            -33
+         ],
+         "length_min" : "31",
+         "zero" : [
+            1,
+            -3
+         ],
+         "id" : "20",
+         "length_max" : "32",
+         "modulematch" : "^P20#.{8}",
+         "comment" : "Remote control with 4, 9, 10, 12 or 14 buttons",
+         "one" : [
+            3,
+            -1
+         ],
+         "clockabs" : 240
+      },
+      "67" : {
+         "clockabs" : 122,
+         "comment" : "temperature sensor",
+         "one" : [
+            -38,
+            10
+         ],
+         "modulematch" : "^TX......",
+         "id" : "67",
+         "length_max" : "34",
+         "zero" : [
+            -38,
+            28
+         ],
+         "knownFreqs" : "",
+         "length_min" : "32",
+         "clientmodule" : "CUL_TX",
+         "preamble" : "TX",
+         "postDemodulation" : "postdemodulation.postDemo_WS7053",
+         "name" : "WS7053"
+      },
+      "66" : {
+         "name" : "WS7035",
+         "format" : "pwm",
+         "postDemodulation" : "postdemodulation.postDemo_WS7035",
+         "clientmodule" : "CUL_TX",
+         "preamble" : "TX",
+         "length_min" : "43",
+         "knownFreqs" : "",
+         "reconstructBit" : "1",
+         "zero" : [
+            27,
+            -52
+         ],
+         "length_max" : "44",
+         "id" : "66",
+         "start" : [
+            -21,
+            42,
+            -21
+         ],
+         "modulematch" : "^TX......",
+         "one" : [
+            10,
+            -52
+         ],
+         "comment" : "temperature sensor",
+         "clockabs" : 122
+      },
+      "0.5" : {
+         "comment" : "temperature / humidity or other sensors | ABS700",
+         "one" : [
+            1,
+            -8
+         ],
+         "paddingbits" : "8",
+         "clockabs" : 475,
+         "id" : "0.5",
+         "length_max" : "24",
+         "postamble" : "00",
+         "knownFreqs" : "433.92",
+         "sync" : [
+            1,
+            -16
+         ],
+         "length_min" : "24",
+         "zero" : [
+            1,
+            -4
+         ],
+         "name" : "weather (v6)",
+         "preamble" : "s",
+         "clientmodule" : "CUL_TCM97001",
+         "format" : "twostate"
+      },
+      "107.1" : {
+         "knownFreqs" : "868.35",
+         "length_min" : "28",
+         "sync" : "2DD4",
+         "register" : [
+            "0001",
+            "022E",
+            "0343",
+            "042D",
+            "05D4",
+            "060E",
+            "0780",
+            "0800",
+            "0D21",
+            "0E65",
+            "0FE8",
+            "10A9",
+            "115C",
+            "1202",
+            "1322",
+            "14F8",
+            "1543",
+            "1916",
+            "1B43",
+            "1C68"
+         ],
+         "regexMatch" : "(?:^51)",
+         "name" : "WH51 868.35 MHz",
+         "rfmode" : "Fine_Offset_WH51_868",
+         "modulation" : "2-FSK",
+         "preamble" : "W107#",
+         "clientmodule" : "SD_WS",
+         "datarate" : "17257.69",
+         "comment" : "Fine Offset WH51, ECOWITT WH51, MISOL/1, Froggit DP100 Soil moisture sensor",
+         "id" : "107.1",
+         "length_max" : "38"
+      },
+      "64" : {
+         "modulematch" : "^W64*",
+         "id" : "64",
+         "length_max" : "56",
+         "clockabs" : 490,
+         "comment" : "temperature / humidity sensor",
+         "one" : [
+            1,
+            -2
+         ],
+         "preamble" : "W64#",
+         "clientmodule" : "SD_WS",
+         "name" : "WH2",
+         "zero" : [
+            3,
+            -2
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "48"
+      },
+      "119" : {
+         "length_min" : "47",
+         "clockrange" : [
+            490,
+            520
+         ],
+         "comment" : "only Typ 43",
+         "length_max" : "52",
+         "name" : "Funkbus",
+         "id" : "119",
+         "format" : "manchester",
+         "preamble" : "J",
+         "clientmodule" : "IFB",
+         "method" : "manchester.mcBit2Funkbus"
+      },
+      "116" : {
+         "id" : "116",
+         "length_max" : "38",
+         "comment" : "Fine Offset WH57, Ambient Weather WH31L, Froggit DP60 Thunder and Lightning sensor",
+         "regexMatch" : "(?:^57)",
+         "modulation" : "2-FSK",
+         "rfmode" : "Fine_Offset_WH57_434",
+         "name" : "WH57",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W116#",
+         "datarate" : "17.257",
+         "knownFreqs" : "433.92",
+         "length_min" : "18",
+         "sync" : "2DD4",
+         "register" : [
+            "0001",
+            "022E",
+            "0343",
+            "042D",
+            "05D4",
+            "0609",
+            "0780",
+            "0800",
+            "0D10",
+            "0EB0",
+            "0F71",
+            "10A9",
+            "115C",
+            "1202",
+            "1322",
+            "14F8",
+            "1543",
+            "1916",
+            "1B43",
+            "1C68"
+         ]
+      },
+      "121" : {
+         "length_max" : "24",
+         "id" : "121",
+         "modulematch" : "^P121#",
+         "start" : [
+            -2.6
+         ],
+         "one" : [
+            2.2,
+            -1.4
+         ],
+         "comment" : "Remote control 6861",
+         "clockabs" : 260,
+         "name" : "Busch-Transcontrol",
+         "pause" : [
+            120,
+            -2.6
+         ],
+         "format" : "twostate",
+         "clientmodule" : "SD_UT",
+         "preamble" : "P121#",
+         "length_min" : "23",
+         "reconstructBit" : "1",
+         "zero" : [
+            1,
+            -2.6
+         ]
+      },
+      "65" : {
+         "name" : "HomeEasy HE_EU",
+         "preamble" : "ih",
+         "clientmodule" : "IT",
+         "postDemodulation" : "helpers.ConvHE_EU",
+         "format" : "twostate",
+         "knownFreqs" : "",
+         "length_min" : "57",
+         "sync" : [
+            1,
+            -38
+         ],
+         "zero" : [
+            1,
+            -1.2
+         ],
+         "id" : "65",
+         "length_max" : "72",
+         "one" : [
+            1,
+            -5.5
+         ],
+         "clockabs" : 230
+      },
+      "30" : {
+         "zero" : [
+            -1,
+            2
+         ],
+         "knownFreqs" : "",
+         "length_min" : "12",
+         "preamble" : "P30#",
+         "clientmodule" : "SD_UT",
+         "format" : "twostate",
+         "name" : "diverse",
+         "clockabs" : 330,
+         "comment" : "remote control unitec | door reed switch 47031",
+         "one" : [
+            -2,
+            1
+         ],
+         "start" : [
+            -30,
+            1
+         ],
+         "modulematch" : "^P30#.{3}",
+         "id" : "30",
+         "length_max" : "12"
+      },
+      "58" : {
+         "clockrange" : [
+            460,
+            520
+         ],
+         "comment" : "Temperature/humidity sensors (TFA 30.3208.02, 30.3228.02, 30.3229.02, Froggit/Renkforce FT007xx, Ambient Weather F007-xx)",
+         "modulematch" : "^W58*",
+         "length_max" : "52",
+         "polarity" : "invert",
+         "id" : "58",
+         "length_min" : "52",
+         "knownFreqs" : "433.92",
+         "format" : "manchester",
+         "preamble" : "W58#",
+         "clientmodule" : "SD_WS",
+         "method" : "manchester.mcBit2TFA",
+         "name" : "TFA 30.3208.0"
+      },
+      "75" : {
+         "length_min" : "32",
+         "knownFreqs" : "",
+         "zero" : [
+            1,
+            -3
+         ],
+         "name" : "Conrad RSL v2",
+         "format" : "twostate",
+         "clientmodule" : "SD_RSL",
+         "preamble" : "P1#",
+         "one" : [
+            3,
+            -1
+         ],
+         "comment" : "remotes and switches",
+         "clockabs" : 500,
+         "length_max" : "40",
+         "id" : "75",
+         "developId" : "y",
+         "modulematch" : "^P1#[A-Fa-f0-9]{8}"
+      },
+      "0.2" : {
+         "zero" : [
+            1,
+            -9
+         ],
+         "sync" : [
+            1,
+            -37
+         ],
+         "length_min" : "24",
+         "knownFreqs" : "433.92",
+         "format" : "twostate",
+         "preamble" : "s",
+         "clientmodule" : "CUL_TCM97001",
+         "name" : "weather (v3)",
+         "clockabs" : -1,
+         "paddingbits" : "8",
+         "one" : [
+            1,
+            -18
+         ],
+         "comment" : "temperature / humidity or other sensors",
+         "postamble" : "00",
+         "length_max" : "32",
+         "id" : "0.2"
+      },
+      "41" : {
+         "clockabs" : 500,
+         "one" : [
+            3,
+            -1
+         ],
+         "comment" : "Elro (DB200) / KANGTAI (Pollin 94-550405) / unitec",
+         "modulematch" : "^P41#.*",
+         "length_max" : "32",
+         "id" : "41",
+         "zero" : [
+            1,
+            -3
+         ],
+         "sync" : [
+            1,
+            -14
+         ],
+         "length_min" : "32",
+         "knownFreqs" : "433.92",
+         "format" : "twostate",
+         "preamble" : "P41#",
+         "clientmodule" : "SD_BELL",
+         "name" : "wireless doorbell"
+      },
+      "43" : {
+         "clockrange" : [
+            610,
+            680
+         ],
+         "frequency" : "10AB85550A",
+         "length_max" : "57",
+         "id" : "43",
+         "modulematch" : "^Ys[0-9A-F]{14}",
+         "msgIntro" : "SR;P0=-2560;P1=2560;P3=-640;D=10101010101010113;",
+         "length_min" : "56",
+         "knownFreqs" : "433.42",
+         "name" : "Somfy RTS",
+         "format" : "manchester",
+         "clientmodule" : "SOMFY",
+         "preamble" : "Ys",
+         "method" : "manchester.mcBit2SomfyRTS"
+      },
+      "77" : {
+         "length_min" : "43",
+         "knownFreqs" : "",
+         "zero" : [
+            4,
+            -6
+         ],
+         "name" : "NANO_DS1820_4Fach",
+         "format" : "pwm",
+         "clientmodule" : "CUL_TX",
+         "preamble" : "TX",
+         "one" : [
+            1,
+            -6
+         ],
+         "comment" : "self build sensor",
+         "remove_zero" : 1,
+         "clockabs" : 250,
+         "length_max" : "44",
+         "id" : "77",
+         "developId" : "y",
+         "modulematch" : "^TX......"
+      },
+      "33.2" : {
+         "zero" : [
+            1,
+            -5
+         ],
+         "knownFreqs" : "433.92",
+         "sync" : [
+            1,
+            -19
+         ],
+         "length_min" : "42",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W33#",
+         "format" : "twostate",
+         "name" : "Tchibo",
+         "clockabs" : 400,
+         "comment" : "Tchibo weatherstation (CP=400)",
+         "one" : [
+            1,
+            -10
+         ],
+         "postamble" : "",
+         "id" : "33.2",
+         "length_max" : "44"
+      },
+      "91" : {
+         "preamble" : "P91#",
+         "clientmodule" : "SD_UT",
+         "format" : "twostate",
+         "name" : "Atlantic security",
+         "zero" : [
+            -1,
+            2
+         ],
+         "reconstructBit" : "1",
+         "knownFreqs" : "433.92 | 868.35",
+         "length_min" : "35",
+         "start" : [
+            -10,
+            1
+         ],
+         "id" : "91",
+         "length_max" : "36",
+         "clockabs" : 400,
+         "comment" : "example sensor MD-210R | MD-2018R | MD-2003R (MU decode)",
+         "one" : [
+            -2,
+            1
+         ]
+      },
+      "74" : {
+         "length_min" : "50",
+         "knownFreqs" : "868.35",
+         "zero" : [
+            1,
+            -1
+         ],
+         "name" : "FS20",
+         "pause" : [
+            -25
+         ],
+         "postDemodulation" : "postdemodulation.postDemo_FS20",
+         "format" : "twostate",
+         "clientmodule" : "FS20",
+         "preamble" : "810b04f70101a001",
+         "one" : [
+            1.5,
+            -1.5
+         ],
+         "comment" : "remote control (decode as MU)",
+         "clockabs" : 400,
+         "length_max" : "67",
+         "id" : "74"
+      },
+      "88" : {
+         "clockabs" : 400,
+         "one" : [
+            1,
+            -2
+         ],
+         "comment" : "remote controls Aurel TX-nM-HCS, enjoy motors HS, Normstahl ,Rademacher RP-S1-HS-RF11, SCS Sentinel PR3-4207-002, Waeco MA650_TX",
+         "length_max" : "78",
+         "id" : "88",
+         "zero" : [
+            2,
+            -1
+         ],
+         "length_min" : "65",
+         "sync" : [
+            1,
+            -10
+         ],
+         "reconstructBit" : "1",
+         "knownFreqs" : "433.92 | 868.35",
+         "format" : "twostate",
+         "preSync" : [
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1
+         ],
+         "pause" : [
+            -39
+         ],
+         "preamble" : "P88#",
+         "clientmodule" : "SD_Keeloq",
+         "name" : "HCS300/HCS301"
+      },
+      "100" : {
+         "id" : "100",
+         "comment" : "example: TX25-IT,TX27-IT,TX29-IT,TX29DTH-IT,TX37,30.3143.IT,30.3144.IT",
+         "method" : "helpers.ConvLaCrosse",
+         "clientmodule" : "LaCrosse",
+         "datarate" : "17257.69",
+         "regexMatch" : "(?:^9)",
+         "name" : "Lacrosse mode 1",
+         "modulation" : "2-FSK",
+         "rfmode" : "Lacrosse_mode1",
+         "register" : [
+            "0001",
+            "022E",
+            "0341",
+            "042D",
+            "05D4",
+            "0605",
+            "0780",
+            "0800",
+            "0D21",
+            "0E65",
+            "0F6A",
+            "1089",
+            "115C",
+            "1202",
+            "1322",
+            "14F8",
+            "1556",
+            "1916",
+            "1B43",
+            "1C68"
+         ],
+         "knownFreqs" : "868.3",
+         "sync" : "2DD4",
+         "length_min" : "10"
+      },
+      "76" : {
+         "length_min" : 58,
+         "knownFreqs" : "433.92",
+         "name" : "LED XM21",
+         "format" : "twostate",
+         "preamble" : "P76#",
+         "clientmodule" : "SD_UT",
+         "one" : [
+            1.2,
+            -2
+         ],
+         "comment" : "remote with 2-buttons for LED X-MAS light string",
+         "clockabs" : 100,
+         "length_max" : 64,
+         "id" : "76",
+         "start" : [
+            4.5,
+            -2,
+            4.5,
+            -2,
+            4.5,
+            -2,
+            4.5,
+            -2
+         ]
+      },
+      "93" : {
+         "comment" : "remote control KL-RF01",
+         "one" : [
+            3,
+            -1
+         ],
+         "clockabs" : 385,
+         "id" : "93",
+         "length_max" : "36",
+         "knownFreqs" : "433.92",
+         "sync" : [
+            1,
+            -32
+         ],
+         "length_min" : "32",
+         "zero" : [
+            1,
+            -3
+         ],
+         "name" : "ESTO Lighting GmbH",
+         "clientmodule" : "SD_UT",
+         "preamble" : "P93#",
+         "format" : "twostate"
+      },
+      "87" : {
+         "name" : "JAROLIFT",
+         "preamble" : "P87#",
+         "clientmodule" : "SD_Keeloq",
+         "pause" : [
+            -40
+         ],
+         "preSync" : [
+            3.8,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1
+         ],
+         "format" : "twostate",
+         "knownFreqs" : "433.92",
+         "reconstructBit" : "1",
+         "sync" : [
+            1,
+            -10
+         ],
+         "length_min" : "72",
+         "zero" : [
+            2,
+            -1
+         ],
+         "id" : "87",
+         "length_max" : "85",
+         "comment" : "remote control JAROLIFT TDRC_16W / TDRCT_04W",
+         "one" : [
+            1,
+            -2
+         ],
+         "clockabs" : 400
+      },
+      "17.1" : {
+         "clockabs" : 230,
+         "comment" : "PIR-1000 | ITT-1500",
+         "one" : [
+            1,
+            -5,
+            1,
+            -1
+         ],
+         "postamble" : "00",
+         "modulematch" : "^i......",
+         "id" : "17.1",
+         "length_max" : "34",
+         "zero" : [
+            1,
+            -1,
+            1,
+            -5
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "32",
+         "clientmodule" : "IT",
+         "preamble" : "i",
+         "postDemodulation" : "helpers.Convbit2Arctec",
+         "format" : "twostate",
+         "name" : "Intertechno"
+      },
+      "21" : {
+         "start" : [
+            -50,
+            1
+         ],
+         "length_max" : "32",
+         "id" : "21",
+         "clockabs" : 400,
+         "paddingbits" : "1",
+         "one" : [
+            -3,
+            1
+         ],
+         "comment" : "remote control ISC HS 434/6",
+         "format" : "twostate",
+         "preamble" : "u21#",
+         "name" : "Einhell Garagedoor",
+         "zero" : [
+            -1,
+            3
+         ],
+         "length_min" : "32",
+         "knownFreqs" : "433.92"
+      },
+      "23" : {
+         "zero" : [
+            1,
+            -1
+         ],
+         "knownFreqs" : "",
+         "sync" : [
+            1,
+            -50
+         ],
+         "length_min" : "36",
+         "preamble" : "u23#",
+         "format" : "twostate",
+         "name" : "Pearl",
+         "clockabs" : 200,
+         "comment" : "unknown sensortyp",
+         "one" : [
+            1,
+            -6
+         ],
+         "id" : "23",
+         "length_max" : "44"
+      },
+      "84" : {
+         "clockabs" : 215,
          "comment" : "Weatherstation Auriol IAN 283582 / Sempre 92596/65395 / TECVANCE",
+         "one" : [
+            3,
+            -1
+         ],
+         "postamble" : "",
          "start" : [
             4,
             -4,
@@ -2872,87 +1269,865 @@
             4,
             -4
          ],
-         "postamble" : "",
-         "length_min" : "39",
-         "preamble" : "W84#",
-         "knownFreqs" : "433.92",
-         "clockabs" : 215,
+         "id" : "84",
+         "length_max" : "41",
          "zero" : [
             1,
             -3
-         ]
-      },
-      "110" : {
-         "clientmodule" : "SD_WS",
-         "modulematch" : "^W110#",
-         "name" : "ADE_WS_1907",
-         "length_max" : "66",
-         "one" : [
-            -3,
-            1
          ],
-         "format" : "twostate",
-         "clockabs" : 900,
-         "zero" : [
-            -1,
-            3
-         ],
-         "reconstructBit" : "1",
-         "length_min" : "65",
-         "preamble" : "W110#",
          "knownFreqs" : "433.92",
-         "id" : "110",
-         "start" : [
-            8
-         ],
-         "comment" : "Weather station with rain gauge"
-      },
-      "119" : {
-         "comment" : "only Typ 43",
-         "clockrange" : [
-            490,
-            520
-         ],
-         "format" : "manchester",
-         "id" : "119",
-         "method" : "manchester.mcBit2Funkbus",
-         "preamble" : "J",
-         "length_min" : "47",
-         "length_max" : "52",
-         "clientmodule" : "IFB",
-         "name" : "Funkbus"
+         "length_min" : "39",
+         "preamble" : "W84#",
+         "clientmodule" : "SD_WS",
+         "format" : "twostate",
+         "name" : "IAN 283582 / TV-4848"
       },
       "19" : {
+         "id" : "19",
+         "length_max" : "23",
+         "name" : "minify",
+         "preamble" : "u19#",
+         "format" : "twostate",
+         "knownFreqs" : "",
+         "comment" : "remote control RC202",
          "one" : [
             3,
             -1
          ],
-         "id" : "19",
-         "comment" : "remote control RC202",
-         "format" : "twostate",
-         "name" : "minify",
          "length_min" : "19",
-         "preamble" : "u19#",
+         "zero" : [
+            1,
+            -3
+         ],
+         "clockabs" : 300
+      },
+      "127" : {
+         "name" : "RCnoName127",
+         "format" : "twostate",
+         "preamble" : "P127#",
+         "clientmodule" : "SD_UT",
+         "length_min" : "29",
+         "reconstructBit" : "1",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            3,
+            -1
+         ],
+         "length_max" : "30",
+         "id" : "127",
+         "modulematch" : "^P127#",
+         "start" : [
+            -15
+         ],
+         "one" : [
+            1,
+            -3
+         ],
+         "comment" : "Remote control with 14 buttons for ceiling fan",
+         "clockabs" : "370"
+      },
+      "78" : {
+         "comment" : "Remote control SEAV BeSmart S4",
+         "one" : [
+            2,
+            -1
+         ],
+         "clockabs" : 250,
+         "id" : "78",
+         "length_max" : "20",
+         "start" : [
+            -14
+         ],
+         "modulematch" : "^P78#",
+         "knownFreqs" : "433.92",
+         "reconstructBit" : "1",
+         "length_min" : "19",
+         "zero" : [
+            1,
+            -2
+         ],
+         "name" : "BeSmart_Sx",
+         "preamble" : "P78#",
+         "clientmodule" : "SD_UT",
+         "format" : "twostate"
+      },
+      "86" : {
+         "name" : "BOSCH | CAME | Novy | Neff | Refsta Topdraft",
+         "format" : "twostate",
+         "preamble" : "P86#",
+         "clientmodule" : "SD_UT",
+         "length_min" : "12",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            -1,
+            2
+         ],
+         "length_max" : "18",
+         "id" : "86",
+         "start" : [
+            -44,
+            1
+         ],
+         "one" : [
+            -2,
+            1
+         ],
+         "comment" : "remote control CAME TOP 432EV, Novy 840029 & 840039, BOSCH / Neff or Refsta Topdraft SF01 01319004",
+         "clockabs" : 350
+      },
+      "109" : {
+         "id" : "109",
+         "length_max" : "18",
+         "comment" : "Rojaflex shutter",
+         "clientmodule" : "SD_Rojaflex",
+         "preamble" : "P109#",
+         "datarate" : "9.9926",
+         "regexMatch" : "(?:^08)",
+         "name" : "Rojaflex",
+         "rfmode" : "Rojaflex",
+         "modulation" : "GFSK",
+         "register" : [
+            "0007",
+            "022E",
+            "0302",
+            "04D3",
+            "0591",
+            "060C",
+            "0788",
+            "0805",
+            "0D10",
+            "0EB0",
+            "0F71",
+            "10C8",
+            "1193",
+            "1213",
+            "1322",
+            "14F8",
+            "1535",
+            "170F",
+            "1916",
+            "1B43",
+            "1C40",
+            "2156",
+            "2211"
+         ],
+         "knownFreqs" : "433.92",
+         "sync" : "D391D391",
+         "length_min" : "18"
+      },
+      "85" : {
+         "clockabs" : 250,
+         "one" : [
+            2,
+            -1
+         ],
+         "comment" : "Combisensor TFA 30.3222.02, Windsensor TFA 30.3251.10",
+         "start" : [
+            3,
+            -3,
+            3,
+            -3,
+            3,
+            -3
+         ],
+         "postamble" : "",
+         "length_max" : "68",
+         "id" : "85",
+         "zero" : [
+            1,
+            -2
+         ],
+         "length_min" : "64",
          "knownFreqs" : "",
+         "format" : "twostate",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W85#",
+         "name" : "TFA 30.3222.02"
+      },
+      "106" : {
+         "modulematch" : "^W106#",
+         "length_max" : "22",
+         "id" : "106",
+         "clockabs" : 500,
+         "one" : [
+            1,
+            -8
+         ],
+         "comment" : "BBQ temperature sensor",
+         "format" : "twostate",
+         "preamble" : "W106#",
+         "clientmodule" : "SD_WS",
+         "name" : "GT-TMBBQ-01",
+         "zero" : [
+            1,
+            -4
+         ],
+         "sync" : [
+            1,
+            -18
+         ],
+         "length_min" : "22"
+      },
+      "31" : {
+         "comment" : "remote control for LED Controller M4-5A",
+         "one" : [
+            1,
+            -1.8
+         ],
+         "clockabs" : 315,
+         "id" : "31",
+         "start" : [
+            1,
+            -0.9,
+            1,
+            -0.9,
+            1,
+            -3.8
+         ],
+         "end" : [
+            3.8,
+            -51
+         ],
+         "knownFreqs" : "433.92",
+         "zero" : [
+            2,
+            -0.9
+         ],
+         "name" : "LTECH",
+         "preamble" : "u31#",
+         "preSync" : [
+            1,
+            -0.9,
+            1,
+            -0.9,
+            1,
+            -0.9,
+            1,
+            -0.9,
+            1,
+            -0.9,
+            1,
+            -0.9,
+            1,
+            -0.9,
+            1,
+            -0.9
+         ],
+         "format" : "twostate"
+      },
+      "33" : {
+         "format" : "twostate",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W33#",
+         "name" : "weather",
+         "zero" : [
+            1,
+            -4
+         ],
+         "sync" : [
+            1,
+            -16
+         ],
+         "length_min" : "42",
+         "knownFreqs" : "433.92",
+         "postamble" : "",
+         "length_max" : "44",
+         "id" : "33",
+         "clockabs" : "500",
+         "one" : [
+            1,
+            -8
+         ],
+         "comment" : "S014, TFA 30.3200, TCM, Conrad S522, renkforce E0001PA, TX-EZ6"
+      },
+      "39" : {
+         "start" : [
+            17,
+            -7
+         ],
+         "id" : "39",
+         "length_max" : "44",
+         "paddingbits" : "8",
+         "clockabs" : 560,
+         "one" : [
+            1,
+            -3
+         ],
+         "preamble" : "",
+         "clientmodule" : "RFXX10REC",
+         "postDemodulation" : "postdemodulation.postDemo_lengtnPrefix",
+         "format" : "twostate",
+         "filterfunc" : "SIGNALduino_compPattern",
+         "name" : "X10 Protocol",
+         "zero" : [
+            1,
+            -1
+         ],
+         "knownFreqs" : "",
+         "length_min" : "32"
+      },
+      "105" : {
+         "clockabs" : 330,
+         "comment" : "Remote control",
+         "one" : [
+            2,
+            -1
+         ],
+         "start" : [
+            17,
+            -7,
+            5,
+            -1
+         ],
+         "modulematch" : "^P105#",
+         "id" : "105",
+         "length_max" : "40",
+         "zero" : [
+            1,
+            -2
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "40",
+         "clientmodule" : "SD_UT",
+         "preamble" : "P105#",
+         "format" : "twostate",
+         "name" : "BF-301"
+      },
+      "6" : {
+         "postamble" : "00",
+         "id" : "6",
+         "length_max" : "36",
+         "paddingbits" : "8",
+         "clockabs" : 248,
+         "comment" : "Weatherstation TCM 218943, Eurochron",
+         "one" : [
+            1,
+            -5
+         ],
+         "preamble" : "s",
+         "clientmodule" : "CUL_TCM97001",
+         "format" : "twostate",
+         "name" : "TCM 218943",
+         "zero" : [
+            1,
+            -10
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "36",
+         "sync" : [
+            1,
+            -32
+         ]
+      },
+      "11" : {
+         "knownFreqs" : "",
+         "length_min" : "52",
+         "name" : "Arduino",
+         "method" : "manchester.mcBit2AS",
+         "preamble" : "P2#",
+         "clientmodule" : "SD_AS",
+         "format" : "manchester",
+         "comment" : "for Arduino based sensors",
+         "clockrange" : [
+            380,
+            425
+         ],
+         "id" : "11",
+         "length_max" : "56",
+         "modulematch" : "^P2#.{7,8}"
+      },
+      "72" : {
+         "comment" : "message decode as MU",
+         "one" : [
+            2,
+            -1.2
+         ],
+         "clockabs" : 340,
+         "id" : "72",
+         "length_max" : "40",
+         "start" : [
+            14,
+            -4.4
+         ],
+         "knownFreqs" : "",
+         "msgOutro" : "SR;P0=-8500;D=0;",
+         "length_min" : "39",
+         "dispatchequals" : "true",
+         "zero" : [
+            1,
+            -2.2
+         ],
+         "name" : "Siro shutter",
+         "clientmodule" : "Siro",
+         "preamble" : "P72#",
+         "format" : "twostate"
+      },
+      "13" : {
+         "zero" : [
+            1,
+            -4
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "24",
+         "sync" : [
+            1,
+            -20,
+            10,
+            -1
+         ],
+         "preamble" : "P13#",
+         "clientmodule" : "FLAMINGO",
+         "format" : "twostate",
+         "name" : "FLAMINGO FA21",
+         "clockabs" : 800,
+         "comment" : "FLAMINGO FA21 smoke detector (message decode as MS)",
+         "one" : [
+            1,
+            -2
+         ],
+         "id" : "13",
+         "length_max" : "26"
+      },
+      "49.2" : {
+         "name" : "GT-9000",
+         "format" : "twostate",
+         "preamble" : "P49#",
+         "clientmodule" : "SD_GT",
+         "length_min" : "24",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            1,
+            -3
+         ],
+         "length_max" : "24",
+         "id" : "49.2",
+         "start" : [
+            1,
+            -6
+         ],
+         "modulematch" : "^P49.*",
+         "one" : [
+            3,
+            -1
+         ],
+         "comment" : "Remote control Tec Star Modell 2335191R",
+         "clockabs" : 383
+      },
+      "29" : {
+         "knownFreqs" : "",
+         "length_min" : "12",
+         "zero" : [
+            -1,
+            2
+         ],
+         "name" : "HT12e",
+         "preamble" : "P29#",
+         "clientmodule" : "SD_UT",
+         "format" : "twostate",
+         "comment" : "remote control for example Westinghouse airfan with 5 buttons",
+         "one" : [
+            -2,
+            1
+         ],
+         "clockabs" : 235,
+         "id" : "29",
+         "length_max" : "12",
+         "start" : [
+            -35,
+            1
+         ],
+         "modulematch" : "^P29#.{3}"
+      },
+      "99" : {
+         "id" : "99",
+         "length_max" : "24",
+         "start" : [
+            4,
+            -4
+         ],
+         "modulematch" : "^P99#",
+         "comment" : "Wireless touch light switch",
+         "one" : [
+            3,
+            -2
+         ],
+         "clockabs" : 100,
+         "name" : "Navaris 44344.04",
+         "preamble" : "P99#",
+         "clientmodule" : "SD_UT",
+         "format" : "twostate",
+         "knownFreqs" : "433.92",
+         "length_min" : "24",
+         "zero" : [
+            2,
+            -3
+         ]
+      },
+      "82" : {
+         "zero" : [
+            2,
+            -1
+         ],
+         "float" : [
+            1,
+            -8
+         ],
+         "knownFreqs" : "",
+         "length_min" : "100",
+         "clientmodule" : "Fernotron",
+         "preamble" : "P82#",
+         "format" : "twostate",
+         "pause" : [
+            1,
+            -1
+         ],
+         "name" : "Fernotron",
+         "paddingbits" : "1",
+         "clockabs" : 400,
+         "comment" : "shutters and light switches",
+         "one" : [
+            1,
+            -2
+         ],
+         "dispatchBin" : "1",
+         "developId" : "m",
+         "id" : "82",
+         "length_max" : "3360"
+      },
+      "5" : {
+         "format" : "twostate",
+         "preamble" : "u5#",
+         "name" : "Unitec",
+         "zero" : [
+            1,
+            -3
+         ],
+         "length_min" : "24",
+         "knownFreqs" : "",
+         "developId" : "y",
+         "length_max" : "24",
+         "id" : "5",
+         "clockabs" : 500,
+         "one" : [
+            3,
+            -1
+         ],
+         "comment" : "remote control model 6899/45108"
+      },
+      "132" : {
+         "length_max" : "24",
+         "id" : "132",
+         "modulematch" : "^P132#.*",
+         "start" : [
+            -39,
+            1
+         ],
+         "one" : [
+            -2,
+            1
+         ],
+         "comment" : "Remote control for Halemeier LED actor HA-RX-M2-1",
+         "clockabs" : 330,
+         "name" : "HA-HX2",
+         "format" : "twostate",
+         "preamble" : "P132#",
+         "clientmodule" : "SD_UT",
+         "length_min" : "24",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            -1,
+            2
+         ]
+      },
+      "7.1" : {
+         "zero" : [
+            1,
+            -4
+         ],
+         "sync" : [
+            1,
+            -14
+         ],
+         "length_min" : "36",
+         "knownFreqs" : "433.92",
+         "format" : "twostate",
+         "clientmodule" : "SD_WS07",
+         "preamble" : "P7#",
+         "name" : "Weather",
          "clockabs" : 300,
-         "length_max" : "23",
+         "one" : [
+            1,
+            -7
+         ],
+         "comment" : "Mebus HQ7312-2",
+         "modulematch" : "^P7#.{6}[AFaf].{2}",
+         "length_max" : "36",
+         "id" : "7.1"
+      },
+      "112" : {
+         "clientmodule" : "SD_BELL",
+         "preamble" : "P112#",
+         "datarate" : "50.087",
+         "modulation" : "2-FSK",
+         "name" : "Avantek",
+         "rfmode" : "Avantek",
+         "register" : [
+            "0001",
+            "0246",
+            "0301",
+            "0408",
+            "0569",
+            "06FF",
+            "0780",
+            "0802",
+            "0D10",
+            "0EAA",
+            "0F56",
+            "108A",
+            "11F8",
+            "1202",
+            "1322",
+            "14F8",
+            "1551",
+            "1916",
+            "1B43",
+            "1C40",
+            "20FB",
+            "2156",
+            "2211"
+         ],
+         "knownFreqs" : "433.3",
+         "length_min" : "16",
+         "sync" : "0869",
+         "id" : "112",
+         "length_max" : "16",
+         "comment" : "Wireless doorbell & LED night light"
+      },
+      "44.1" : {
+         "modulematch" : "^W44x#[A-F0-9]{18}",
+         "start" : [
+            8,
+            -12
+         ],
+         "id" : "44",
+         "length_max" : "72",
+         "clockabs" : 500,
+         "comment" : "temperature / humidity sensor",
+         "one" : [
+            4,
+            -8
+         ],
+         "clientmodule" : "SD_WS",
+         "preamble" : "W44x#",
+         "name" : "BresserTemeo",
+         "zero" : [
+            4,
+            -4
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "64"
+      },
+      "49" : {
+         "id" : "49",
+         "length_max" : "24",
+         "modulematch" : "^P49.*",
+         "comment" : "Remote control EASY HOME RCT DS1 CR-A",
+         "one" : [
+            3,
+            -1
+         ],
+         "clockabs" : 383,
+         "name" : "GT-9000",
+         "preamble" : "P49#",
+         "clientmodule" : "SD_GT",
+         "format" : "twostate",
+         "knownFreqs" : "433.92",
+         "sync" : [
+            1,
+            -6
+         ],
+         "length_min" : "24",
          "zero" : [
             1,
             -3
          ]
       },
-      "125" : {
-         "length_max" : "38",
-         "datarate" : "17.257",
+      "123" : {
+         "comment" : "Inkbird IBS-P01R pool phermometer, ITH-20R",
+         "id" : "123",
+         "knownFreqs" : "433.92",
          "sync" : "2DD4",
-         "clientmodule" : "SD_WS",
-         "name" : "WH31",
-         "rfmode" : "Fine_Offset_WH31_868",
+         "length_min" : "36",
+         "register" : [
+            "0001",
+            "022E",
+            "0344",
+            "042D",
+            "05D4",
+            "0612",
+            "07C0",
+            "0800",
+            "0D10",
+            "0EB0",
+            "0F71",
+            "10C8",
+            "1193",
+            "1202",
+            "1322",
+            "14F8",
+            "1534",
+            "1916",
+            "1B43",
+            "1C48"
+         ],
+         "regexMatch" : "(?:^D391)",
+         "rfmode" : "Inkbird_IBS-P01R",
          "modulation" : "2-FSK",
-         "regexMatch" : "(?^:^(30|37|52))",
-         "knownFreqs" : "868.35",
-         "length_min" : "22",
-         "preamble" : "W125#",
+         "name" : "IBS-P01R",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W123#",
+         "datarate" : "10.000"
+      },
+      "13.2" : {
+         "clockabs" : 790,
+         "one" : [
+            1,
+            -3.5
+         ],
+         "comment" : "Unitec smoke detector (message decode as MS)",
+         "length_max" : "24",
+         "id" : "13",
+         "zero" : [
+            1,
+            -1.8
+         ],
+         "length_min" : "24",
+         "sync" : [
+            1,
+            -11,
+            10,
+            -1.2
+         ],
+         "knownFreqs" : "433.92",
+         "format" : "twostate",
+         "clientmodule" : "FLAMINGO",
+         "preamble" : "P13#",
+         "name" : "LM-101LD"
+      },
+      "51" : {
+         "length_max" : "45",
+         "id" : "51",
+         "modulematch" : "^W51#.*",
+         "postamble" : "",
+         "one" : [
+            1,
+            -8
+         ],
+         "comment" : "Lidl Weatherstation IAN60107, IAN 114324, IAN 275901",
+         "clockabs" : "500",
+         "name" : "weather",
+         "format" : "twostate",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W51#",
+         "sync" : [
+            1,
+            -16
+         ],
+         "length_min" : "40",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            1,
+            -4
+         ]
+      },
+      "134" : {
+         "comment" : "WMBus mode C and T",
+         "id" : "134",
+         "register" : [
+            "0006",
+            "0200",
+            "0340",
+            "0454",
+            "053D",
+            "06FF",
+            "0704",
+            "0802",
+            "0B08",
+            "0D21",
+            "0E6B",
+            "0FD0",
+            "105C",
+            "1104",
+            "1206",
+            "1322",
+            "14F8",
+            "1544",
+            "192E",
+            "1ABF",
+            "1BC7",
+            "1C09",
+            "1DB2"
+         ],
+         "knownFreqs" : "868.950",
+         "length_min" : "56",
+         "sync" : "543D",
+         "preamble" : "b",
+         "clientmodule" : "WMBUS",
+         "datarate" : "100.000",
+         "rfmode" : "WMBus_T",
+         "name" : "WMBus_T",
+         "modulation" : "2-FSK"
+      },
+      "114" : {
+         "preamble" : "P114#",
+         "clientmodule" : "SD_UT",
+         "modulematch" : "^P114#[13569BDE][13579BDF]F$",
+         "format" : "twostate",
+         "start" : [
+            -118,
+            3
+         ],
+         "id" : "114",
+         "length_max" : "12",
+         "name" : "TR401",
+         "zero" : [
+            -4,
+            6
+         ],
+         "clockabs" : 200,
+         "comment" : "Remote control for example for Well-Light",
+         "length_min" : "12",
+         "one" : [
+            -7,
+            3
+         ]
+      },
+      "53" : {
+         "clockabs" : 600,
+         "one" : [
+            1,
+            -7
+         ],
+         "comment" : "Auriol weatherstation IAN 314695",
+         "modulematch" : "^W53#.*",
+         "length_max" : "44",
+         "id" : "53",
+         "zero" : [
+            1,
+            -3.5
+         ],
+         "sync" : [
+            1,
+            -15
+         ],
+         "length_min" : "42",
+         "knownFreqs" : "433.92",
+         "format" : "twostate",
+         "preamble" : "W53#",
+         "clientmodule" : "SD_WS",
+         "name" : "AHFL 433 B2"
+      },
+      "125" : {
          "register" : [
             "0001",
             "022E",
@@ -2975,34 +2150,996 @@
             "1B43",
             "1C68"
          ],
+         "sync" : "2DD4",
+         "length_min" : "22",
+         "knownFreqs" : "868.35",
+         "datarate" : "17.257",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W125#",
+         "modulation" : "2-FSK",
+         "name" : "WH31",
+         "rfmode" : "Fine_Offset_WH31_868",
+         "regexMatch" : "(?:^(30|37|52))",
          "comment" : "Fine Offset | Ambient Weather WH31E Thermo-Hygrometer Sensor",
+         "length_max" : "38",
          "id" : "125"
       },
-      "60" : {
+      "0.1" : {
+         "paddingbits" : "8",
+         "clockabs" : -1,
+         "comment" : "temperature / humidity or other sensors",
          "one" : [
-            3,
-            -7
+            1,
+            -12
          ],
-         "postDemodulation" : "postdemodulation.postDemo_WS2000",
-         "clientmodule" : "CUL_WS",
-         "name" : "WS2000",
-         "length_max" : "82",
-         "id" : "60",
-         "comment" : "Series WS2000/WS7000 of various sensors",
-         "postamble" : "",
-         "knownFreqs" : "",
-         "preamble" : "K",
-         "length_min" : "38",
+         "postamble" : "00",
+         "id" : "0.1",
+         "length_max" : "32",
          "zero" : [
-            7,
-            -3
+            1,
+            -6
+         ],
+         "knownFreqs" : "433.92",
+         "sync" : [
+            1,
+            -26
+         ],
+         "length_min" : "24",
+         "preamble" : "s",
+         "clientmodule" : "CUL_TCM97001",
+         "format" : "twostate",
+         "name" : "weather (v2)"
+      },
+      "70" : {
+         "zero" : [
+            1,
+            -1
+         ],
+         "knownFreqs" : "868.35",
+         "length_min" : "50",
+         "clientmodule" : "CUL_FHTTK",
+         "preamble" : "T",
+         "format" : "twostate",
+         "postDemodulation" : "postdemodulation.postDemo_FHT80TF",
+         "name" : "FHT80TF",
+         "clockabs" : 400,
+         "comment" : "door/window switch",
+         "one" : [
+            1.5,
+            -1.5
+         ],
+         "id" : "70",
+         "length_max" : "58"
+      },
+      "118" : {
+         "zero" : [
+            1,
+            -2
+         ],
+         "length_min" : "24",
+         "end" : [
+            1
+         ],
+         "format" : "twostate",
+         "preamble" : "P118#",
+         "clientmodule" : "SD_UT",
+         "name" : "Meikee",
+         "clockabs" : 508,
+         "one" : [
+            2,
+            -1
+         ],
+         "comment" : "Remote controls for Meikee LED lights",
+         "modulematch" : "^P118#",
+         "start" : [
+            -25
+         ],
+         "length_max" : "25",
+         "id" : "118"
+      },
+      "128.1" : {
+         "name" : "RCnoName128",
+         "preamble" : "P128#",
+         "clientmodule" : "SD_UT",
+         "format" : "twostate",
+         "knownFreqs" : "433.92",
+         "reconstructBit" : "1",
+         "sync" : [
+            -25,
+            1
+         ],
+         "length_min" : "23",
+         "zero" : [
+            -1,
+            3
+         ],
+         "id" : "128.1",
+         "length_max" : "24",
+         "modulematch" : "^P128#",
+         "comment" : "Remote control with 12 buttons for ceiling fan",
+         "one" : [
+            -3,
+            1
+         ],
+         "clockabs" : "406"
+      },
+      "61" : {
+         "clockabs" : 400,
+         "comment" : "remote control",
+         "one" : [
+            1,
+            -2
+         ],
+         "postamble" : "",
+         "id" : "61",
+         "length_max" : "48",
+         "zero" : [
+            1,
+            -1
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "30",
+         "clientmodule" : "FS10",
+         "preamble" : "P61#",
+         "pause" : [
+            -81
+         ],
+         "format" : "twostate",
+         "name" : "FS10"
+      },
+      "63" : {
+         "zero" : [
+            0
+         ],
+         "knownFreqs" : "",
+         "length_min" : "24",
+         "preamble" : "u63#",
+         "name" : "Warema",
+         "filterfunc" : "SIGNALduino_filterMC",
+         "clockabs" : 800,
+         "comment" : "radio shutter switch (is still experimental)",
+         "one" : [
+            1
+         ],
+         "developId" : "y",
+         "syncabs" : "6700",
+         "id" : "63"
+      },
+      "80" : {
+         "name" : "EM1000WZ",
+         "format" : "twostate",
+         "postDemodulation" : "postdemodulation.postDemo_EM",
+         "preamble" : "E",
+         "clientmodule" : "CUL_EM",
+         "length_min" : "104",
+         "knownFreqs" : "868.35",
+         "zero" : [
+            1,
+            -1
+         ],
+         "length_max" : "114",
+         "id" : "80",
+         "one" : [
+            1,
+            -2
+         ],
+         "comment" : "EM (Energy-Monitor)",
+         "clockabs" : 400
+      },
+      "103" : {
+         "comment" : "example: TX35-IT,TX35DTH-IT,30.3155WD,30.3156WD,EMT7110",
+         "id" : "103",
+         "knownFreqs" : "868.3",
+         "sync" : "2DD4",
+         "length_min" : "10",
+         "register" : [
+            "0001",
+            "022E",
+            "0341",
+            "042D",
+            "05D4",
+            "0605",
+            "0780",
+            "0800",
+            "0D21",
+            "0E65",
+            "0F6A",
+            "10C8",
+            "1183",
+            "1202",
+            "1322",
+            "14F8",
+            "1542",
+            "1916",
+            "1B43",
+            "1C68"
+         ],
+         "regexMatch" : "(?:^9)",
+         "rfmode" : "Lacrosse_mode2",
+         "name" : "Lacrosse mode 2",
+         "modulation" : "2-FSK",
+         "method" : "helpers.ConvLaCrosse",
+         "clientmodule" : "LaCrosse",
+         "datarate" : "9596"
+      },
+      "1" : {
+         "zero" : [
+            1,
+            -2
+         ],
+         "length_min" : "20",
+         "sync" : [
+            1,
+            -12
+         ],
+         "knownFreqs" : "",
+         "format" : "twostate",
+         "clientmodule" : "SD_RSL",
+         "preamble" : "P1#",
+         "name" : "Conrad RSL v1",
+         "clockabs" : "560",
+         "one" : [
+            2,
+            -1
+         ],
+         "comment" : "remotes and switches",
+         "modulematch" : "^P1#[A-Fa-f0-9]{8}",
+         "postamble" : "",
+         "length_max" : "40",
+         "id" : "1"
+      },
+      "2" : {
+         "knownFreqs" : "",
+         "length_min" : "32",
+         "sync" : [
+            1,
+            -20
+         ],
+         "zero" : [
+            1,
+            -1
+         ],
+         "name" : "Arduino",
+         "clientmodule" : "SD_AS",
+         "preamble" : "P2#",
+         "format" : "twostate",
+         "comment" : "self build arduino sensor (developModule. SD_AS module only in github)",
+         "one" : [
+            1,
+            -2
+         ],
+         "clockabs" : "500",
+         "id" : "2",
+         "length_max" : "40",
+         "modulematch" : "^P2#.{8,10}",
+         "developId" : "m"
+      },
+      "69" : {
+         "knownFreqs" : "433.92 | 868.35",
+         "length_min" : "44",
+         "zero" : [
+            2,
+            -1
+         ],
+         "name" : "Hoermann",
+         "clientmodule" : "SD_UT",
+         "preamble" : "P69#",
+         "format" : "twostate",
+         "comment" : "remote control HS1-868-BS, HSM4",
+         "one" : [
+            1,
+            -2
+         ],
+         "clockabs" : 510,
+         "id" : "69",
+         "length_max" : "44",
+         "modulematch" : "^P69#.{11}",
+         "start" : [
+            25,
+            -1
+         ]
+      },
+      "120" : {
+         "modulematch" : "^W120#",
+         "id" : "120",
+         "length_max" : "80",
+         "clockabs" : 480,
+         "comment" : "Weatherstation with sensors 30.3151, 30.3152, 30.3153",
+         "one" : [
+            1,
+            -2
+         ],
+         "preamble" : "W120#",
+         "clientmodule" : "SD_WS",
+         "format" : "twostate",
+         "name" : "TFA 35.1077.54.S2",
+         "zero" : [
+            3,
+            -2
          ],
          "reconstructBit" : "1",
-         "clockabs" : 122
+         "knownFreqs" : "868.35",
+         "length_min" : "78"
+      },
+      "3" : {
+         "clockabs" : -1,
+         "one" : [
+            3,
+            -1
+         ],
+         "comment" : "remote for benon|ELRO|Kangtai|Intertek|REWE|WOFI / PIR JCHENG",
+         "modulematch" : "^i......",
+         "length_max" : "24",
+         "id" : "3",
+         "zero" : [
+            1,
+            -3
+         ],
+         "length_min" : "24",
+         "sync" : [
+            1,
+            -31
+         ],
+         "knownFreqs" : "433.92",
+         "format" : "twostate",
+         "preamble" : "i",
+         "clientmodule" : "IT",
+         "name" : "chip xx2260 / xx2262"
+      },
+      "20.1" : {
+         "format" : "twostate",
+         "preamble" : "P20#",
+         "clientmodule" : "SD_UT",
+         "name" : "RCnoName20",
+         "zero" : [
+            1,
+            -3
+         ],
+         "length_min" : "31",
+         "knownFreqs" : "433.92",
+         "start" : [
+            1,
+            -33
+         ],
+         "modulematch" : "^P20#.{8}",
+         "length_max" : "32",
+         "id" : "20.1",
+         "clockabs" : 240,
+         "one" : [
+            3,
+            -1
+         ],
+         "comment" : "Remote control with 4, 9, 10, 12 or 14 buttons"
+      },
+      "107" : {
+         "comment" : "Fine Offset WH51, ECOWITT WH51, MISOL/1, Froggit DP100 Soil moisture sensor",
+         "length_max" : "38",
+         "id" : "107",
+         "register" : [
+            "0001",
+            "022E",
+            "0343",
+            "042D",
+            "05D4",
+            "060E",
+            "0780",
+            "0800",
+            "0D10",
+            "0EB0",
+            "0F71",
+            "10A9",
+            "115C",
+            "1202",
+            "1322",
+            "14F8",
+            "1543",
+            "1916",
+            "1B43",
+            "1C68"
+         ],
+         "length_min" : "28",
+         "sync" : "2DD4",
+         "knownFreqs" : "433.92",
+         "datarate" : "17257.69",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W107#",
+         "name" : "WH51 433.92 MHz",
+         "rfmode" : "Fine_Offset_WH51_434",
+         "modulation" : "2-FSK",
+         "regexMatch" : "(?:^51)"
+      },
+      "0.4" : {
+         "name" : "weather (v5)",
+         "preamble" : "s",
+         "clientmodule" : "CUL_TCM97001",
+         "sync" : [
+            1,
+            -20
+         ],
+         "length_min" : "32",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            1,
+            -4
+         ],
+         "length_max" : "36",
+         "id" : "0.4",
+         "postamble" : "00",
+         "one" : [
+            1,
+            -9
+         ],
+         "comment" : "temperature / humidity or other sensors | Auriol Z31092",
+         "clockabs" : 450,
+         "paddingbits" : "8"
+      },
+      "4" : {
+         "id" : "4",
+         "length_max" : "44",
+         "postamble" : "00",
+         "modulematch" : "^i......",
+         "one" : [
+            1,
+            -5
+         ],
+         "clockabs" : -1,
+         "name" : "arctech2",
+         "preamble" : "i",
+         "clientmodule" : "IT",
+         "format" : "twostate",
+         "knownFreqs" : "",
+         "length_min" : "39",
+         "sync" : [
+            1,
+            -14
+         ],
+         "zero" : [
+            1,
+            -1
+         ]
+      },
+      "59" : {
+         "name" : "AK-HD-4",
+         "format" : "twostate",
+         "preamble" : "u59#",
+         "length_min" : "24",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            -4,
+            1
+         ],
+         "length_max" : "24",
+         "id" : "59",
+         "start" : [
+            -1,
+            37
+         ],
+         "postamble" : "",
+         "one" : [
+            -1,
+            4
+         ],
+         "comment" : "remote control with 4 buttons",
+         "clockabs" : 230
+      },
+      "54.1" : {
+         "preamble" : "W54#",
+         "clientmodule" : "SD_WS",
+         "format" : "twostate",
+         "name" : "TFA 30.3233.01",
+         "zero" : [
+            1,
+            -2
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "64",
+         "sync" : [
+            3,
+            -3
+         ],
+         "id" : "54.1",
+         "length_max" : "68",
+         "clockabs" : 250,
+         "comment" : "Rain sensor",
+         "one" : [
+            2,
+            -1
+         ]
+      },
+      "131" : {
+         "register" : [
+            "0001",
+            "022E",
+            "0342",
+            "042D",
+            "05D4",
+            "060A",
+            "07C0",
+            "0800",
+            "0D21",
+            "0E65",
+            "0F6A",
+            "1088",
+            "114C",
+            "1202",
+            "1322",
+            "14F8",
+            "1551",
+            "1916",
+            "1B43",
+            "1C68"
+         ],
+         "sync" : "2DD4",
+         "length_min" : "20",
+         "knownFreqs" : "868.300",
+         "datarate" : "8.232",
+         "method" : "helpers.ConvBresser_lightning",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W131#",
+         "rfmode" : "Bresser_lightning",
+         "modulation" : "2-FSK",
+         "name" : "Bresser lightning",
+         "regexMatch" : "(?:^[a-fA-F0-9])",
+         "comment" : "Bresser lightning detector",
+         "id" : "131"
+      },
+      "9" : {
+         "name" : "weather",
+         "format" : "pwm",
+         "clientmodule" : "SD_WS09",
+         "preamble" : "P9#",
+         "length_min" : "60",
+         "knownFreqs" : "433.92 | 868.35",
+         "reconstructBit" : "1",
+         "zero" : [
+            3,
+            -2
+         ],
+         "length_max" : "120",
+         "id" : "9",
+         "one" : [
+            1,
+            -2
+         ],
+         "comment" : "Weatherstation WH1080, WH3080, WH5300SE, CTW600",
+         "clockabs" : 480
+      },
+      "129" : {
+         "modulematch" : "^W129#FF.*",
+         "id" : "129",
+         "polarity" : "invert",
+         "length_max" : "128",
+         "comment" : "Sainlogic weather stations",
+         "clockrange" : [
+            450,
+            550
+         ],
+         "method" : "manchester.mcBit2Sainlogic",
+         "preamble" : "W129#",
+         "clientmodule" : "SD_WS",
+         "format" : "manchester",
+         "name" : "FT-0835",
+         "knownFreqs" : "433.92",
+         "length_min" : "128"
+      },
+      "116.1" : {
+         "datarate" : "17.257",
+         "preamble" : "W116#",
+         "clientmodule" : "SD_WS",
+         "name" : "WH57",
+         "modulation" : "2-FSK",
+         "rfmode" : "Fine_Offset_WH57_868",
+         "regexMatch" : "(?:^57)",
+         "register" : [
+            "0001",
+            "022E",
+            "0343",
+            "042D",
+            "05D4",
+            "0609",
+            "0780",
+            "0800",
+            "0D21",
+            "0E65",
+            "0FE8",
+            "10A9",
+            "115C",
+            "1202",
+            "1322",
+            "14F8",
+            "1543",
+            "1916",
+            "1B43",
+            "1C68"
+         ],
+         "sync" : "2DD4",
+         "length_min" : "18",
+         "knownFreqs" : "868.35",
+         "length_max" : "38",
+         "id" : "116.1",
+         "comment" : "Fine Offset WH57, Ambient Weather WH31L, Froggit DP60 Thunder and Lightning sensor"
+      },
+      "126" : {
+         "regexMatch" : "(?:^40)",
+         "modulation" : "2-FSK",
+         "rfmode" : "Fine_Offset_WH40_868",
+         "name" : "WH40",
+         "preamble" : "W126#",
+         "clientmodule" : "SD_WS",
+         "datarate" : "17.257",
+         "knownFreqs" : "868.35",
+         "length_min" : "22",
+         "sync" : "2DD4",
+         "register" : [
+            "0001",
+            "022E",
+            "0343",
+            "042D",
+            "05D4",
+            "060e",
+            "0780",
+            "0800",
+            "0D21",
+            "0E65",
+            "0FE8",
+            "10A9",
+            "115C",
+            "1202",
+            "1322",
+            "14F8",
+            "1543",
+            "1916",
+            "1B43",
+            "1C68"
+         ],
+         "id" : "125",
+         "length_max" : "38",
+         "comment" : "Fine Offset | Ambient Weather WH40 rain gauge"
+      },
+      "111" : {
+         "comment" : "Water tank level monitor with temperature",
+         "one" : [
+            1,
+            -2
+         ],
+         "clockabs" : 480,
+         "id" : "111",
+         "length_max" : "64",
+         "start" : [
+            1,
+            -2,
+            1,
+            -1,
+            1,
+            -2,
+            1,
+            -2,
+            1,
+            -2,
+            1,
+            -2,
+            1,
+            -2
+         ],
+         "modulematch" : "^W111#",
+         "knownFreqs" : "433.92",
+         "length_min" : "64",
+         "zero" : [
+            1,
+            -1
+         ],
+         "name" : "TS-FT002",
+         "preamble" : "W111#5F",
+         "clientmodule" : "SD_WS",
+         "format" : "twostate"
+      },
+      "42" : {
+         "zero" : [
+            3,
+            -1
+         ],
+         "length_min" : "28",
+         "knownFreqs" : "433.92",
+         "format" : "twostate",
+         "preamble" : "P42#",
+         "clientmodule" : "SD_BELL",
+         "name" : "wireless doorbell",
+         "clockabs" : 500,
+         "one" : [
+            1,
+            -1
+         ],
+         "comment" : "Pollin 551227",
+         "start" : [
+            1,
+            -1,
+            1,
+            -1,
+            1,
+            -1
+         ],
+         "length_max" : "120",
+         "id" : "42"
+      },
+      "33.1" : {
+         "length_max" : "44",
+         "id" : "33.1",
+         "one" : [
+            1,
+            -5.6
+         ],
+         "comment" : "Thermo-/Hygrosensor TFA 30.3200 (CP=750)",
+         "clockabs" : 736,
+         "name" : "TFA 30.3200",
+         "format" : "twostate",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W33#",
+         "length_min" : "42",
+         "sync" : [
+            1,
+            -11
+         ],
+         "knownFreqs" : "433.92",
+         "zero" : [
+            1,
+            -2.8
+         ]
+      },
+      "15" : {
+         "modulematch" : "^P15#.*",
+         "id" : "15",
+         "length_max" : "20",
+         "clockabs" : 700,
+         "comment" : "wireless doorbell TCM 234759 Tchibo",
+         "one" : [
+            1,
+            -1
+         ],
+         "clientmodule" : "SD_BELL",
+         "preamble" : "P15#",
+         "format" : "twostate",
+         "name" : "TCM 234759 Bell",
+         "zero" : [
+            1,
+            -2
+         ],
+         "knownFreqs" : "",
+         "length_min" : "10",
+         "sync" : [
+            1,
+            -45
+         ]
+      },
+      "3.1" : {
+         "zero" : [
+            1,
+            -3.8
+         ],
+         "float" : [
+            1,
+            -1
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "24",
+         "sync" : [
+            1,
+            -44
+         ],
+         "preamble" : "i",
+         "clientmodule" : "IT",
+         "format" : "twostate",
+         "postDemodulation" : "helpers.Convbit2itv1",
+         "name" : "itv1_sync40",
+         "clockabs" : -1,
+         "comment" : "IT remote control PAR 1000, ITS-150, AB440R",
+         "one" : [
+            3.5,
+            -1
+         ],
+         "modulematch" : "^i......",
+         "id" : "3",
+         "length_max" : "24"
+      },
+      "92" : {
+         "length_min" : "32",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            1,
+            -2
+         ],
+         "name" : "KRINNER Lumix",
+         "format" : "twostate",
+         "preamble" : "P92#",
+         "clientmodule" : "SD_UT",
+         "one" : [
+            2,
+            -1
+         ],
+         "comment" : "remote control LED X-MAS",
+         "clockabs" : 420,
+         "length_max" : "32",
+         "id" : "92",
+         "start" : [
+            2,
+            -24
+         ]
+      },
+      "16" : {
+         "knownFreqs" : "",
+         "length_min" : "39",
+         "zero" : [
+            1,
+            -3
+         ],
+         "name" : "Dooya",
+         "preamble" : "P16#",
+         "clientmodule" : "Dooya",
+         "format" : "twostate",
+         "comment" : "Rohrmotor24 and other radio shutters / awnings motors",
+         "one" : [
+            2,
+            -1
+         ],
+         "clockabs" : 280,
+         "id" : "16",
+         "length_max" : "40",
+         "start" : [
+            17,
+            -5
+         ]
+      },
+      "89" : {
+         "length_max" : "40",
+         "id" : "89",
+         "start" : [
+            3,
+            -3,
+            3,
+            -3,
+            3,
+            -3
+         ],
+         "postamble" : "",
+         "one" : [
+            2,
+            -1
+         ],
+         "comment" : "temperature / humidity sensor for weatherstation TFA 35.1140.01",
+         "clockabs" : 250,
+         "name" : "TFA 30.3221.02",
+         "format" : "twostate",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W89#",
+         "length_min" : "40",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            1,
+            -2
+         ]
+      },
+      "14" : {
+         "clockabs" : 350,
+         "comment" : "Chilitec model 22640",
+         "one" : [
+            3,
+            -1
+         ],
+         "id" : "14",
+         "length_max" : "20",
+         "zero" : [
+            1,
+            -3
+         ],
+         "knownFreqs" : "433.92",
+         "sync" : [
+            1,
+            -14
+         ],
+         "length_min" : "20",
+         "preamble" : "P14#",
+         "clientmodule" : "SD_UT",
+         "format" : "twostate",
+         "name" : "LED X-MAS"
+      },
+      "17" : {
+         "format" : "twostate",
+         "postDemodulation" : "helpers.Convbit2Arctec",
+         "clientmodule" : "IT",
+         "preamble" : "i",
+         "name" : "arctech / Intertechno",
+         "float" : [
+            1,
+            -1,
+            1,
+            -1
+         ],
+         "zero" : [
+            1,
+            -1,
+            1,
+            -5
+         ],
+         "length_min" : "32",
+         "sync" : [
+            1,
+            -10
+         ],
+         "end" : [
+            1,
+            -40
+         ],
+         "knownFreqs" : "433.92",
+         "modulematch" : "^i......",
+         "postamble" : "00",
+         "length_max" : "34",
+         "id" : "17",
+         "clockabs" : -1,
+         "one" : [
+            1,
+            -5,
+            1,
+            -1
+         ]
+      },
+      "0.3" : {
+         "one" : [
+            1,
+            -10
+         ],
+         "comment" : "temperature / humidity or other sensors | Pollin PFR-130, Ventus W174 ...",
+         "clockabs" : -1,
+         "paddingbits" : "8",
+         "length_max" : "42",
+         "id" : "0.3",
+         "postamble" : "00",
+         "length_min" : "36",
+         "sync" : [
+            1,
+            -21
+         ],
+         "knownFreqs" : "433.92",
+         "zero" : [
+            1,
+            -5
+         ],
+         "name" : "weather (v4)",
+         "clientmodule" : "CUL_TCM97001",
+         "preamble" : "s"
+      },
+      "127.1" : {
+         "length_min" : "29",
+         "sync" : [
+            1,
+            -18
+         ],
+         "knownFreqs" : "433.92",
+         "zero" : [
+            3,
+            -1
+         ],
+         "name" : "RCnoName127",
+         "format" : "twostate",
+         "preamble" : "P127#",
+         "clientmodule" : "SD_UT",
+         "one" : [
+            1,
+            -3
+         ],
+         "comment" : "Remote control with 14 buttons for ceiling fan",
+         "clockabs" : "370",
+         "length_max" : "30",
+         "id" : "127.1",
+         "modulematch" : "^P127#"
       },
       "117" : {
-         "id" : "117",
-         "comment" : "BRESSER 7-in-1 weather center",
+         "datarate" : "8.232",
+         "preamble" : "W117#",
+         "clientmodule" : "SD_WS",
+         "method" : "helpers.ConvBresser_7in1",
+         "name" : "Bresser 7in1",
+         "rfmode" : "Bresser_7in1",
+         "modulation" : "2-FSK",
+         "regexMatch" : "(?:^[a-fA-F0-9])",
          "register" : [
             "0001",
             "022E",
@@ -3025,19 +3162,107 @@
             "1B43",
             "1C68"
          ],
-         "knownFreqs" : "868.300",
          "length_min" : "46",
-         "preamble" : "W117#",
-         "method" : "helpers.ConvBresser_7in1",
-         "modulation" : "2-FSK",
-         "regexMatch" : "(?^:^[a-fA-F0-9])",
-         "rfmode" : "Bresser_7in1",
-         "datarate" : "8.232",
          "sync" : "2DD4",
-         "clientmodule" : "SD_WS",
-         "name" : "Bresser 7in1"
+         "knownFreqs" : "868.300",
+         "id" : "117",
+         "comment" : "BRESSER 7-in-1 weather center"
+      },
+      "79" : {
+         "start" : [
+            -15,
+            1
+         ],
+         "modulematch" : "^P79#.*",
+         "length_max" : "12",
+         "id" : "79",
+         "clockabs" : 330,
+         "one" : [
+            -1,
+            2
+         ],
+         "comment" : "Heidemann | Heidemann HX | VTX-BELL",
+         "format" : "twostate",
+         "preamble" : "P79#",
+         "clientmodule" : "SD_BELL",
+         "name" : "wireless doorbell",
+         "zero" : [
+            -2,
+            1
+         ],
+         "length_min" : "12",
+         "knownFreqs" : ""
+      },
+      "74.1" : {
+         "name" : "FS20",
+         "format" : "twostate",
+         "postDemodulation" : "postdemodulation.postDemo_FS20",
+         "clientmodule" : "FS20",
+         "preamble" : "810b04f70101a001",
+         "length_min" : "50",
+         "sync" : [
+            -25
+         ],
+         "knownFreqs" : "868.35",
+         "zero" : [
+            1,
+            -1
+         ],
+         "length_max" : "67",
+         "id" : "74.1",
+         "one" : [
+            1.5,
+            -1.5
+         ],
+         "comment" : "remote control (decode as MS)",
+         "clockabs" : 400,
+         "paddingbits" : "1"
+      },
+      "91.1" : {
+         "format" : "twostate",
+         "clientmodule" : "SD_UT",
+         "preamble" : "P91#",
+         "name" : "Atlantic security",
+         "zero" : [
+            -1,
+            2
+         ],
+         "length_min" : "32",
+         "sync" : [
+            -10,
+            1
+         ],
+         "reconstructBit" : "1",
+         "knownFreqs" : "433.92 | 868.35",
+         "length_max" : "36",
+         "id" : "91.1",
+         "clockabs" : 400,
+         "one" : [
+            -2,
+            1
+         ],
+         "comment" : "example sensor MD-210R | MD-2018R | MD-2003R (MS decode)"
+      },
+      "18" : {
+         "comment" : "temperature / humidity or other sensors",
+         "clockrange" : [
+            1400,
+            1500
+         ],
+         "id" : "18",
+         "polarity" : "invert",
+         "length_max" : "32",
+         "modulematch" : "^[0-9A-F].*",
+         "knownFreqs" : "433.92",
+         "length_min" : "32",
+         "name" : "Oregon Scientific v1",
+         "method" : "manchester.mcBit2OSV1",
+         "preamble" : "",
+         "clientmodule" : "OREGON",
+         "format" : "manchester"
       },
       "22" : {
+         "modulematch" : "^P22#",
          "start" : [
             1,
             -1,
@@ -3046,551 +3271,67 @@
             6,
             -6
          ],
-         "comment" : "Remote control for LED transformer",
+         "length_max" : "32",
          "id" : "22",
-         "preamble" : "P22#",
-         "length_min" : "32",
-         "knownFreqs" : "433.92",
          "clockabs" : 200,
+         "one" : [
+            1,
+            -3
+         ],
+         "comment" : "Remote control for LED transformer",
+         "format" : "twostate",
+         "preamble" : "P22#",
+         "clientmodule" : "SD_UT",
+         "name" : "HAMULiGHT",
          "zero" : [
             3,
             -1
          ],
-         "format" : "twostate",
+         "length_min" : "32",
          "end" : [
             1,
             -1,
             1,
             -1
          ],
-         "one" : [
-            1,
-            -3
-         ],
-         "length_max" : "32",
-         "modulematch" : "^P22#",
-         "clientmodule" : "SD_UT",
-         "name" : "HAMULiGHT"
+         "knownFreqs" : "433.92"
       },
       "32" : {
-         "id" : "32",
-         "comment" : "FreeTec PE-6946 / VLOXO",
+         "clientmodule" : "SD_BELL",
+         "preamble" : "P32#",
+         "format" : "twostate",
+         "name" : "wireless doorbell",
+         "zero" : [
+            1,
+            -5
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "24",
          "start" : [
             1,
             -45
          ],
-         "clockabs" : 150,
-         "zero" : [
-            1,
-            -5
-         ],
-         "length_min" : "24",
-         "preamble" : "P32#",
-         "knownFreqs" : "433.92",
-         "one" : [
-            4,
-            -2
-         ],
-         "format" : "twostate",
-         "name" : "wireless doorbell",
          "modulematch" : "^P32#.*",
-         "clientmodule" : "SD_BELL",
-         "length_max" : "24"
-      },
-      "114" : {
-         "length_min" : "12",
-         "preamble" : "P114#",
-         "zero" : [
-            -4,
-            6
-         ],
-         "clockabs" : 200,
-         "id" : "114",
-         "start" : [
-            -118,
-            3
-         ],
-         "comment" : "Remote control for example for Well-Light",
-         "modulematch" : "^P114#[13569BDE][13579BDF]F$",
-         "name" : "TR401",
-         "clientmodule" : "SD_UT",
-         "length_max" : "12",
-         "one" : [
-            -7,
-            3
-         ],
-         "format" : "twostate"
-      },
-      "128.1" : {
-         "comment" : "Remote control with 12 buttons for ceiling fan",
-         "id" : "128.1",
-         "zero" : [
-            -1,
-            3
-         ],
-         "reconstructBit" : "1",
-         "clockabs" : "406",
-         "knownFreqs" : "433.92",
-         "length_min" : "23",
-         "preamble" : "P128#",
-         "format" : "twostate",
-         "one" : [
-            -3,
-            1
-         ],
+         "id" : "32",
          "length_max" : "24",
-         "sync" : [
-            -25,
-            1
-         ],
-         "modulematch" : "^P128#",
-         "name" : "RCnoName128",
-         "clientmodule" : "SD_UT"
-      },
-      "75" : {
-         "zero" : [
-            1,
-            -3
-         ],
-         "clockabs" : 500,
-         "knownFreqs" : "",
-         "preamble" : "P1#",
-         "length_min" : "32",
-         "developId" : "y",
-         "comment" : "remotes and switches",
-         "id" : "75",
-         "length_max" : "40",
-         "clientmodule" : "SD_RSL",
-         "name" : "Conrad RSL v2",
-         "modulematch" : "^P1#[A-Fa-f0-9]{8}",
-         "format" : "twostate",
+         "clockabs" : 150,
+         "comment" : "FreeTec PE-6946 / VLOXO",
          "one" : [
-            3,
-            -1
-         ]
-      },
-      "64" : {
-         "length_min" : "48",
-         "preamble" : "W64#",
-         "knownFreqs" : "433.92",
-         "clockabs" : 490,
-         "zero" : [
-            3,
-            -2
-         ],
-         "id" : "64",
-         "comment" : "temperature / humidity sensor",
-         "clientmodule" : "SD_WS",
-         "modulematch" : "^W64*",
-         "name" : "WH2",
-         "length_max" : "56",
-         "one" : [
-            1,
-            -2
-         ]
-      },
-      "38" : {
-         "length_max" : "36",
-         "clientmodule" : "SD_WS",
-         "modulematch" : "^W38#.*",
-         "name" : "NC-3911",
-         "format" : "twostate",
-         "one" : [
-            2,
-            -1
-         ],
-         "knownFreqs" : "433.92",
-         "length_min" : "36",
-         "preamble" : "W38#",
-         "zero" : [
-            1,
-            -2
-         ],
-         "clockabs" : 250,
-         "start" : [
-            3,
-            -3,
-            3,
-            -3,
-            3,
-            -3,
-            3,
-            -3
-         ],
-         "comment" : "Refrigerator thermometer",
-         "id" : "38"
-      },
-      "28" : {
-         "format" : "twostate",
-         "start" : [
             4,
-            -5
-         ],
-         "id" : "28",
-         "one" : [
-            1,
-            -1
-         ],
-         "length_max" : "8",
-         "zero" : [
-            1,
             -2
-         ],
-         "clockabs" : 600,
-         "knownFreqs" : "",
-         "length_min" : "8",
-         "preamble" : "u28#",
-         "name" : "IC Ledspot"
-      },
-      "45" : {
-         "id" : "45",
-         "start" : [
-            83,
-            -3
-         ],
-         "length_min" : "96",
-         "preamble" : "r",
-         "knownFreqs" : "",
-         "clockabs" : 120,
-         "zero" : [
-            1,
-            -2
-         ],
-         "one" : [
-            2,
-            -2
-         ],
-         "postDemodulation" : "postdemodulation.postDemo_Revolt",
-         "modulematch" : "^r[A-Fa-f0-9]{22}",
-         "clientmodule" : "Revolt",
-         "name" : "Revolt",
-         "length_max" : "120"
-      },
-      "16" : {
-         "id" : "16",
-         "start" : [
-            17,
-            -5
-         ],
-         "comment" : "Rohrmotor24 and other radio shutters / awnings motors",
-         "clockabs" : 280,
-         "zero" : [
-            1,
-            -3
-         ],
-         "length_min" : "39",
-         "preamble" : "P16#",
-         "knownFreqs" : "",
-         "one" : [
-            2,
-            -1
-         ],
-         "format" : "twostate",
-         "name" : "Dooya",
-         "clientmodule" : "Dooya",
-         "length_max" : "40"
-      },
-      "72.1" : {
-         "developId" : "m",
-         "comment" : "message decode as MS",
-         "id" : "72",
-         "clockabs" : 340,
-         "zero" : [
-            1,
-            -2.2
-         ],
-         "length_min" : "39",
-         "preamble" : "P72#",
-         "knownFreqs" : "",
-         "format" : "twostate",
-         "one" : [
-            2,
-            -1.2
-         ],
-         "length_max" : "40",
-         "dispatchequals" : "true",
-         "name" : "Siro shutter",
-         "clientmodule" : "Siro",
-         "sync" : [
-            14,
-            -4.4
-         ]
-      },
-      "80" : {
-         "comment" : "EM (Energy-Monitor)",
-         "id" : "80",
-         "zero" : [
-            1,
-            -1
-         ],
-         "clockabs" : 400,
-         "knownFreqs" : "868.35",
-         "length_min" : "104",
-         "preamble" : "E",
-         "format" : "twostate",
-         "postDemodulation" : "postdemodulation.postDemo_EM",
-         "one" : [
-            1,
-            -2
-         ],
-         "length_max" : "114",
-         "clientmodule" : "CUL_EM",
-         "name" : "EM1000WZ"
-      },
-      "52" : {
-         "length_max" : "30",
-         "modulematch" : "^u52#F{3}|0{3}.*",
-         "name" : "Oregon Scientific PIR",
-         "format" : "manchester",
-         "clockrange" : [
-            470,
-            640
-         ],
-         "method" : "manchester.mcBit2OSPIR",
-         "polarity" : "invert",
-         "length_min" : "30",
-         "preamble" : "u52#",
-         "knownFreqs" : "433.92",
-         "comment" : "JMR868 / NR868",
-         "id" : "52"
-      },
-      "48" : {
-         "zero" : [
-            6,
-            -4
-         ],
-         "reconstructBit" : "1",
-         "clockabs" : 250,
-         "knownFreqs" : "433.92",
-         "preamble" : "W48#",
-         "length_min" : "47",
-         "id" : "48",
-         "comment" : "Temperature transmitter TFA 30.3212",
-         "start" : [
-            -6
-         ],
-         "name" : "TFA JOKER",
-         "modulematch" : "^W48#.*",
-         "clientmodule" : "SD_WS",
-         "length_max" : "48",
-         "one" : [
-            2,
-            -4
-         ],
-         "format" : "twostate"
-      },
-      "0.5" : {
-         "format" : "twostate",
-         "paddingbits" : "8",
-         "one" : [
-            1,
-            -8
-         ],
-         "length_max" : "24",
-         "sync" : [
-            1,
-            -16
-         ],
-         "name" : "weather (v6)",
-         "clientmodule" : "CUL_TCM97001",
-         "comment" : "temperature / humidity or other sensors | ABS700",
-         "id" : "0.5",
-         "zero" : [
-            1,
-            -4
-         ],
-         "clockabs" : 475,
-         "knownFreqs" : "433.92",
-         "preamble" : "s",
-         "length_min" : "24",
-         "postamble" : "00"
-      },
-      "130" : {
-         "length_max" : "24",
-         "clientmodule" : "SD_UT",
-         "modulematch" : "^P130#",
-         "name" : "CREATE_6601TL",
-         "sync" : [
-            1,
-            -30
-         ],
-         "format" : "twostate",
-         "one" : [
-            1,
-            -3
-         ],
-         "length_min" : "24",
-         "preamble" : "P130#",
-         "knownFreqs" : "433.92",
-         "clockabs" : "400",
-         "zero" : [
-            3,
-            -1
-         ],
-         "comment" : "Remote control for ceiling fan with light",
-         "id" : "130"
-      },
-      "33.2" : {
-         "zero" : [
-            1,
-            -5
-         ],
-         "clockabs" : 400,
-         "knownFreqs" : "433.92",
-         "length_min" : "42",
-         "preamble" : "W33#",
-         "postamble" : "",
-         "comment" : "Tchibo weatherstation (CP=400)",
-         "id" : "33.2",
-         "length_max" : "44",
-         "sync" : [
-            1,
-            -19
-         ],
-         "name" : "Tchibo",
-         "clientmodule" : "SD_WS",
-         "format" : "twostate",
-         "one" : [
-            1,
-            -10
-         ]
-      },
-      "14" : {
-         "id" : "14",
-         "comment" : "Chilitec model 22640",
-         "knownFreqs" : "433.92",
-         "length_min" : "20",
-         "preamble" : "P14#",
-         "zero" : [
-            1,
-            -3
-         ],
-         "clockabs" : 350,
-         "one" : [
-            3,
-            -1
-         ],
-         "format" : "twostate",
-         "sync" : [
-            1,
-            -14
-         ],
-         "clientmodule" : "SD_UT",
-         "name" : "LED X-MAS",
-         "length_max" : "20"
-      },
-      "78" : {
-         "start" : [
-            -14
-         ],
-         "comment" : "Remote control SEAV BeSmart S4",
-         "id" : "78",
-         "knownFreqs" : "433.92",
-         "preamble" : "P78#",
-         "length_min" : "19",
-         "zero" : [
-            1,
-            -2
-         ],
-         "reconstructBit" : "1",
-         "clockabs" : 250,
-         "format" : "twostate",
-         "one" : [
-            2,
-            -1
-         ],
-         "length_max" : "20",
-         "modulematch" : "^P78#",
-         "name" : "BeSmart_Sx",
-         "clientmodule" : "SD_UT"
-      },
-      "89" : {
-         "id" : "89",
-         "start" : [
-            3,
-            -3,
-            3,
-            -3,
-            3,
-            -3
-         ],
-         "comment" : "temperature / humidity sensor for weatherstation TFA 35.1140.01",
-         "postamble" : "",
-         "clockabs" : 250,
-         "zero" : [
-            1,
-            -2
-         ],
-         "preamble" : "W89#",
-         "length_min" : "40",
-         "knownFreqs" : "433.92",
-         "one" : [
-            2,
-            -1
-         ],
-         "format" : "twostate",
-         "name" : "TFA 30.3221.02",
-         "clientmodule" : "SD_WS",
-         "length_max" : "40"
-      },
-      "35" : {
-         "format" : "twostate",
-         "postDemodulation" : "helpers.ConvHE800",
-         "one" : [
-            1,
-            -4
-         ],
-         "length_max" : "40",
-         "name" : "HomeEasy HE800",
-         "clientmodule" : "IT",
-         "sync" : [
-            1,
-            -18
-         ],
-         "id" : "35",
-         "clockabs" : "280",
-         "zero" : [
-            3.4,
-            -1
-         ],
-         "preamble" : "ih",
-         "length_min" : "28",
-         "knownFreqs" : "",
-         "postamble" : ""
-      },
-      "25" : {
-         "format" : "twostate",
-         "one" : [
-            -2,
-            1
-         ],
-         "id" : "25",
-         "preamble" : "u25#",
-         "length_min" : "24",
-         "knownFreqs" : "",
-         "clockabs" : 350,
-         "length_max" : "50",
-         "zero" : [
-            -1,
-            2
-         ],
-         "name" : "les led remote",
-         "sync" : [
-            -46,
-            1
          ]
       },
       "101" : {
-         "dispatchequals" : "true",
-         "clientmodule" : "PCA301",
-         "name" : "PCA 301",
-         "sync" : "2DD4",
-         "datarate" : "6620.41",
-         "rfmode" : "PCA301",
-         "method" : "helpers.ConvPCA301",
          "modulation" : "2-FSK",
-         "length_min" : "24",
+         "rfmode" : "PCA301",
+         "name" : "PCA 301",
+         "method" : "helpers.ConvPCA301",
+         "clientmodule" : "PCA301",
+         "datarate" : "6620.41",
          "knownFreqs" : "868.950",
+         "sync" : "2DD4",
+         "length_min" : "24",
+         "dispatchequals" : "true",
          "register" : [
             "0001",
             "0246",
@@ -3619,662 +3360,921 @@
             "2517",
             "2611"
          ],
-         "comment" : "Energy socket",
-         "id" : "101"
+         "id" : "101",
+         "comment" : "Energy socket"
       },
-      "97" : {
-         "length_max" : "40",
-         "clientmodule" : "SD_UT",
-         "name" : "Momento",
-         "format" : "twostate",
-         "one" : [
-            2,
-            -4
+      "95" : {
+         "zero" : [
+            5,
+            -3
          ],
+         "length_min" : "50",
          "knownFreqs" : "433.92",
-         "length_min" : "40",
-         "preamble" : "P97#",
-         "zero" : [
-            4,
-            -2
-         ],
-         "clockabs" : 250,
-         "comment" : "Remote control for wireless digital picture frame",
-         "start" : [
-            23,
-            -15
-         ],
-         "id" : "97"
-      },
-      "66" : {
-         "clockabs" : 122,
-         "zero" : [
-            27,
-            -52
-         ],
-         "reconstructBit" : "1",
-         "length_min" : "43",
-         "preamble" : "TX",
-         "knownFreqs" : "",
-         "comment" : "temperature sensor",
-         "start" : [
-            -21,
-            42,
-            -21
-         ],
-         "id" : "66",
-         "length_max" : "44",
-         "name" : "WS7035",
-         "modulematch" : "^TX......",
-         "clientmodule" : "CUL_TX",
-         "format" : "pwm",
-         "postDemodulation" : "postdemodulation.postDemo_WS7035",
+         "format" : "twostate",
+         "preamble" : "P95#",
+         "clientmodule" : "SD_UT",
+         "name" : "Techmar",
+         "clockabs" : 110,
          "one" : [
-            10,
-            -52
-         ]
+            5,
+            -6
+         ],
+         "comment" : "Garden Lights remote control",
+         "start" : [
+            5,
+            -9
+         ],
+         "length_max" : "50",
+         "id" : "95"
       },
       "0" : {
          "postamble" : "00",
-         "zero" : [
-            1,
-            -3
-         ],
-         "clockabs" : -1,
-         "knownFreqs" : "433.92",
-         "length_min" : "24",
-         "preamble" : "s",
-         "id" : "0",
-         "comment" : "temperature / humidity or other sensors",
-         "sync" : [
-            1,
-            -16
-         ],
-         "clientmodule" : "CUL_TCM97001",
-         "name" : "weather (v1)",
          "length_max" : "40",
+         "id" : "0",
+         "clockabs" : -1,
          "paddingbits" : "8",
          "one" : [
             1,
             -7
          ],
-         "format" : "twostate"
-      },
-      "134" : {
-         "knownFreqs" : "868.950",
-         "length_min" : "56",
-         "preamble" : "b",
-         "register" : [
-            "0006",
-            "0200",
-            "0340",
-            "0454",
-            "053D",
-            "06FF",
-            "0704",
-            "0802",
-            "0B08",
-            "0D21",
-            "0E6B",
-            "0FD0",
-            "105C",
-            "1104",
-            "1206",
-            "1322",
-            "14F8",
-            "1544",
-            "192E",
-            "1ABF",
-            "1BC7",
-            "1C09",
-            "1DB2"
-         ],
-         "comment" : "WMBus mode C and T",
-         "id" : "134",
-         "sync" : "543D",
-         "datarate" : "100.000",
-         "clientmodule" : "WMBUS",
-         "name" : "WMBus_T",
-         "rfmode" : "WMBus_T",
-         "modulation" : "2-FSK"
-      },
-      "72" : {
-         "start" : [
-            14,
-            -4.4
-         ],
-         "comment" : "message decode as MU",
-         "id" : "72",
+         "comment" : "temperature / humidity or other sensors",
+         "format" : "twostate",
+         "preamble" : "s",
+         "clientmodule" : "CUL_TCM97001",
+         "name" : "weather (v1)",
          "zero" : [
             1,
-            -2.2
+            -3
          ],
-         "clockabs" : 340,
-         "knownFreqs" : "",
-         "msgOutro" : "SR;P0=-8500;D=0;",
-         "length_min" : "39",
-         "preamble" : "P72#",
-         "format" : "twostate",
-         "one" : [
-            2,
-            -1.2
-         ],
-         "length_max" : "40",
-         "dispatchequals" : "true",
-         "name" : "Siro shutter",
-         "clientmodule" : "Siro"
-      },
-      "55" : {
          "sync" : [
             1,
+            -16
+         ],
+         "length_min" : "24",
+         "knownFreqs" : "433.92"
+      },
+      "47" : {
+         "comment" : "BBQ / food thermometer",
+         "clockrange" : [
+            180,
+            260
+         ],
+         "id" : "47",
+         "length_max" : "108",
+         "modulematch" : "^P47#[569A]{12}.*",
+         "knownFreqs" : "433.92",
+         "length_min" : "100",
+         "name" : "Maverick",
+         "method" : "manchester.mcBit2Maverick",
+         "clientmodule" : "SD_WS_Maverick",
+         "preamble" : "P47#",
+         "format" : "manchester"
+      },
+      "50" : {
+         "id" : "50",
+         "length_max" : "48",
+         "modulematch" : "^W50#.*",
+         "comment" : "sensor for ground humidity",
+         "one" : [
+            1,
+            -2
+         ],
+         "clockabs" : 500,
+         "name" : "Opus_XT300",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W50#",
+         "format" : "twostate",
+         "reconstructBit" : "1",
+         "knownFreqs" : "433.92",
+         "length_min" : "47",
+         "zero" : [
+            3,
+            -2
+         ]
+      },
+      "46" : {
+         "modulematch" : "^P46#.*",
+         "start" : [
+            -55
+         ],
+         "length_max" : "18",
+         "id" : "46",
+         "clockabs" : 290,
+         "one" : [
+            7,
+            -1
+         ],
+         "comment" : "remote controls Tedsen SKXxxx, GEIGER GF0x0x",
+         "format" : "tristate",
+         "preamble" : "P46#",
+         "clientmodule" : "SD_UT",
+         "name" : "SKXxxx, GF0x0x",
+         "zero" : [
+            1,
+            -7
+         ],
+         "length_min" : "17",
+         "reconstructBit" : "1",
+         "knownFreqs" : "433.92"
+      },
+      "49.1" : {
+         "length_max" : "24",
+         "id" : "49.1",
+         "start" : [
+            6,
+            -14
+         ],
+         "modulematch" : "^P49.*",
+         "one" : [
+            2,
+            -1
+         ],
+         "comment" : "Remote control is traded under different names",
+         "clockabs" : 515,
+         "name" : "GT-9000",
+         "format" : "twostate",
+         "preamble" : "P49#",
+         "clientmodule" : "SD_GT",
+         "length_min" : "24",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            1,
+            -2
+         ]
+      },
+      "38" : {
+         "clockabs" : 250,
+         "comment" : "Refrigerator thermometer",
+         "one" : [
+            2,
+            -1
+         ],
+         "modulematch" : "^W38#.*",
+         "start" : [
+            3,
+            -3,
+            3,
+            -3,
+            3,
+            -3,
+            3,
+            -3
+         ],
+         "id" : "38",
+         "length_max" : "36",
+         "zero" : [
+            1,
+            -2
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "36",
+         "preamble" : "W38#",
+         "clientmodule" : "SD_WS",
+         "format" : "twostate",
+         "name" : "NC-3911"
+      },
+      "104" : {
+         "modulematch" : "^P104#",
+         "start" : [
+            -25,
+            1
+         ],
+         "length_max" : "16",
+         "id" : "104",
+         "clockabs" : 380,
+         "one" : [
+            -1,
+            2
+         ],
+         "comment" : "Remote control for example Westinghouse Bendan 77841B",
+         "format" : "twostate",
+         "preamble" : "P104#",
+         "clientmodule" : "SD_UT",
+         "name" : "TR60C-1",
+         "zero" : [
+            -2,
+            1
+         ],
+         "length_min" : "16",
+         "knownFreqs" : "433.92"
+      },
+      "44" : {
+         "name" : "BresserTemeo",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W44#",
+         "length_min" : "64",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            4,
+            -4
+         ],
+         "length_max" : "72",
+         "id" : "44",
+         "modulematch" : "^W44#[A-F0-9]{18}",
+         "start" : [
+            8,
             -8
          ],
-         "modulematch" : "^i.*",
-         "clientmodule" : "IT",
-         "name" : "QUIGG_GT-1000",
-         "length_max" : "24",
          "one" : [
+            4,
+            -8
+         ],
+         "comment" : "temperature / humidity sensor",
+         "clockabs" : 500
+      },
+      "97" : {
+         "format" : "twostate",
+         "clientmodule" : "SD_UT",
+         "preamble" : "P97#",
+         "name" : "Momento",
+         "zero" : [
             4,
             -2
          ],
+         "length_min" : "40",
+         "knownFreqs" : "433.92",
+         "start" : [
+            23,
+            -15
+         ],
+         "length_max" : "40",
+         "id" : "97",
+         "clockabs" : 250,
+         "one" : [
+            2,
+            -4
+         ],
+         "comment" : "Remote control for wireless digital picture frame"
+      },
+      "28" : {
+         "knownFreqs" : "",
+         "length_min" : "8",
+         "zero" : [
+            1,
+            -2
+         ],
+         "name" : "IC Ledspot",
+         "preamble" : "u28#",
          "format" : "twostate",
+         "one" : [
+            1,
+            -1
+         ],
+         "clockabs" : 600,
+         "id" : "28",
+         "length_max" : "8",
+         "start" : [
+            4,
+            -5
+         ]
+      },
+      "45" : {
+         "modulematch" : "^r[A-Fa-f0-9]{22}",
+         "start" : [
+            83,
+            -3
+         ],
+         "length_max" : "120",
+         "id" : "45",
+         "clockabs" : 120,
+         "one" : [
+            2,
+            -2
+         ],
+         "postDemodulation" : "postdemodulation.postDemo_Revolt",
+         "clientmodule" : "Revolt",
+         "preamble" : "r",
+         "name" : "Revolt",
+         "zero" : [
+            1,
+            -2
+         ],
+         "length_min" : "96",
+         "knownFreqs" : ""
+      },
+      "12" : {
+         "name" : "Hideki",
+         "preamble" : "P12#",
+         "clientmodule" : "Hideki",
+         "method" : "manchester.mcBit2Hideki",
+         "format" : "manchester",
+         "knownFreqs" : "433.92",
+         "length_min" : "71",
+         "id" : "12",
+         "length_max" : "128",
+         "modulematch" : "^P12#75.+",
+         "comment" : "temperature / humidity or other sensors",
+         "clockrange" : [
+            420,
+            510
+         ]
+      },
+      "96" : {
+         "length_max" : "49",
+         "id" : "96",
+         "modulematch" : "^P96#",
+         "clockrange" : [
+            170,
+            260
+         ],
+         "comment" : "Wireless doorbell Grothe Mistral SE 01.1 or 03.1",
+         "name" : "Grothe Mistral SE",
+         "format" : "manchester",
+         "preamble" : "P96#",
+         "clientmodule" : "SD_BELL",
+         "method" : "manchester.mcBit2Grothe",
+         "length_min" : "40",
+         "knownFreqs" : "868.35"
+      },
+      "73" : {
+         "id" : "73",
+         "length_max" : "67",
+         "comment" : "roomthermostat (only receive)",
+         "one" : [
+            1.5,
+            -1.5
+         ],
+         "clockabs" : 400,
+         "name" : "FHT80",
+         "preamble" : "810c04xx0909a001",
+         "clientmodule" : "FHT",
+         "postDemodulation" : "postdemodulation.postDemo_FHT80",
+         "format" : "twostate",
+         "pause" : [
+            -25
+         ],
+         "knownFreqs" : "868.35",
+         "length_min" : "59",
+         "zero" : [
+            1,
+            -1
+         ]
+      },
+      "94" : {
+         "id" : "94",
+         "length_max" : "96",
+         "start" : [
+            5.3,
+            -26.1
+         ],
+         "comment" : "Temperature sensor",
+         "one" : [
+            5.3,
+            -1
+         ],
+         "clockabs" : 290,
+         "name" : "Atech",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W94#",
+         "format" : "twostate",
+         "knownFreqs" : "433.92",
+         "reconstructBit" : "1",
+         "length_min" : "24",
+         "zero" : [
+            5.3,
+            -6.9
+         ]
+      },
+      "71" : {
+         "zero" : [
+            3,
+            -2
+         ],
+         "length_min" : "48",
+         "knownFreqs" : "433.92",
+         "format" : "twostate",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W71#",
+         "name" : "PEARL",
+         "clockabs" : 580,
+         "one" : [
+            1,
+            -1.5
+         ],
+         "comment" : "infactory Poolthermometer (PV-8644)",
+         "length_max" : "48",
+         "id" : "71"
+      },
+      "26" : {
+         "one" : [
+            1,
+            -3
+         ],
+         "comment" : "Remote control xavax 00111939",
+         "clockabs" : 460,
+         "length_max" : "40",
+         "id" : "26",
+         "start" : [
+            1,
+            -1,
+            1,
+            -1,
+            7,
+            -7
+         ],
+         "modulematch" : "^P26#.{10}",
+         "length_min" : "40",
+         "knownFreqs" : "433.92",
+         "zero" : [
+            1,
+            -1
+         ],
+         "name" : "xavax",
+         "pause" : [
+            -44
+         ],
+         "format" : "twostate",
+         "preamble" : "P26#",
+         "clientmodule" : "SD_UT"
+      },
+      "122" : {
+         "zero" : [
+            1,
+            -1
+         ],
+         "length_min" : "104",
+         "knownFreqs" : "433.92",
+         "format" : "twostate",
+         "preamble" : "W122#",
+         "clientmodule" : "SD_WS",
+         "name" : "TM40",
+         "clockabs" : 520,
+         "one" : [
+            1,
+            -3
+         ],
+         "comment" : "Roasting Thermometer with 4 Temperature Sensors",
+         "start" : [
+            2,
+            -1,
+            2,
+            -1,
+            9,
+            -6
+         ],
+         "modulematch" : "^W122#",
+         "length_max" : "108",
+         "id" : "122"
+      },
+      "35" : {
+         "one" : [
+            1,
+            -4
+         ],
+         "clockabs" : "280",
+         "length_max" : "40",
+         "id" : "35",
+         "postamble" : "",
+         "length_min" : "28",
+         "sync" : [
+            1,
+            -18
+         ],
+         "knownFreqs" : "",
+         "zero" : [
+            3.4,
+            -1
+         ],
+         "name" : "HomeEasy HE800",
+         "format" : "twostate",
+         "postDemodulation" : "helpers.ConvHE800",
+         "clientmodule" : "IT",
+         "preamble" : "ih"
+      },
+      "24" : {
+         "clientmodule" : "SD_UT",
+         "preamble" : "P24#",
+         "format" : "twostate",
+         "name" : "Visivo remote",
          "zero" : [
             1,
             -4
          ],
-         "clockabs" : 300,
-         "knownFreqs" : "",
-         "length_min" : "24",
-         "preamble" : "i",
-         "id" : "55",
-         "comment" : "remote control"
-      },
-      "69" : {
-         "format" : "twostate",
-         "one" : [
-            1,
-            -2
-         ],
-         "length_max" : "44",
-         "clientmodule" : "SD_UT",
-         "name" : "Hoermann",
-         "modulematch" : "^P69#.{11}",
-         "comment" : "remote control HS1-868-BS, HSM4",
+         "knownFreqs" : "315",
+         "reconstructBit" : "1",
+         "length_min" : "55",
+         "modulematch" : "^P24#",
          "start" : [
             25,
-            -1
+            -4
          ],
-         "id" : "69",
-         "length_min" : "44",
-         "preamble" : "P69#",
-         "knownFreqs" : "433.92 | 868.35",
-         "clockabs" : 510,
-         "zero" : [
-            2,
+         "id" : "24",
+         "length_max" : "56",
+         "clockabs" : 182,
+         "comment" : "Remote control for motorized screen",
+         "one" : [
+            3,
             -1
          ]
       },
-      "10" : {
-         "name" : "Oregon Scientific v2|v3",
-         "clientmodule" : "OREGON",
-         "modulematch" : "^(3[8-9A-F]|[4-6][0-9A-F]|7[0-8]).*",
-         "knownFreqs" : "",
-         "length_min" : "64",
-         "length_max" : "220",
-         "polarity" : "invert",
-         "method" : "manchester.mcBit2OSV2o3",
-         "id" : "10",
-         "comment" : "temperature / humidity or other sensors",
-         "clockrange" : [
-            300,
-            520
-         ],
-         "format" : "manchester"
-      },
-      "86" : {
-         "name" : "BOSCH | CAME | Novy | Neff | Refsta Topdraft",
-         "clientmodule" : "SD_UT",
-         "length_max" : "18",
-         "one" : [
-            -2,
-            1
-         ],
-         "format" : "twostate",
-         "preamble" : "P86#",
-         "length_min" : "12",
-         "knownFreqs" : "433.92",
-         "clockabs" : 350,
-         "zero" : [
-            -1,
-            2
-         ],
-         "id" : "86",
-         "start" : [
-            -44,
-            1
-         ],
-         "comment" : "remote control CAME TOP 432EV, Novy 840029 & 840039, BOSCH / Neff or Refsta Topdraft SF01 01319004"
-      },
-      "42" : {
-         "one" : [
-            1,
-            -1
-         ],
-         "format" : "twostate",
-         "name" : "wireless doorbell",
-         "clientmodule" : "SD_BELL",
-         "length_max" : "120",
-         "id" : "42",
-         "start" : [
-            1,
-            -1,
-            1,
-            -1,
-            1,
-            -1
-         ],
-         "comment" : "Pollin 551227",
-         "clockabs" : 500,
-         "zero" : [
-            3,
-            -1
-         ],
-         "preamble" : "P42#",
-         "length_min" : "28",
-         "knownFreqs" : "433.92"
-      },
-      "11" : {
-         "clientmodule" : "SD_AS",
-         "name" : "Arduino",
-         "modulematch" : "^P2#.{7,8}",
-         "length_max" : "56",
-         "knownFreqs" : "",
+      "108" : {
+         "comment" : "BRESSER 5-in-1 weather center, rain gauge, Fody E42, Fody E43",
+         "id" : "108",
+         "sync" : "2DD4",
          "length_min" : "52",
-         "preamble" : "P2#",
-         "method" : "manchester.mcBit2AS",
-         "id" : "11",
-         "clockrange" : [
-            380,
-            425
-         ],
-         "format" : "manchester",
-         "comment" : "for Arduino based sensors"
-      },
-      "83" : {
-         "one" : [
-            -2,
-            1
-         ],
-         "format" : "twostate",
-         "clientmodule" : "SD_UT",
-         "name" : "RH787T",
-         "modulematch" : "^P83#.{3}",
-         "length_max" : "12",
-         "id" : "83",
-         "comment" : "remote control for example Westinghouse Delancey 7800140",
-         "start" : [
-            -35,
-            1
-         ],
-         "zero" : [
-            -1,
-            2
-         ],
-         "clockabs" : 335,
-         "knownFreqs" : "433.92",
-         "length_min" : "12",
-         "preamble" : "P83#"
-      },
-      "57" : {
-         "name" : "m-e",
-         "clientmodule" : "SD_BELL",
-         "modulematch" : "^P57#.*",
-         "length_max" : "24",
-         "method" : "helpers.mcraw",
-         "format" : "manchester",
-         "clockrange" : [
-            300,
-            360
-         ],
-         "polarity" : "invert",
-         "length_min" : "21",
-         "preamble" : "P57#",
-         "knownFreqs" : "",
-         "id" : "57",
-         "comment" : "radio gong transmitter for FG- and Basic-Serie"
-      },
-      "6" : {
-         "format" : "twostate",
-         "one" : [
-            1,
-            -5
-         ],
-         "paddingbits" : "8",
-         "length_max" : "36",
-         "name" : "TCM 218943",
-         "clientmodule" : "CUL_TCM97001",
-         "sync" : [
-            1,
-            -32
-         ],
-         "comment" : "Weatherstation TCM 218943, Eurochron",
-         "id" : "6",
-         "length_min" : "36",
-         "preamble" : "s",
-         "knownFreqs" : "433.92",
-         "clockabs" : 248,
-         "zero" : [
-            1,
-            -10
-         ],
-         "postamble" : "00"
-      },
-      "126" : {
-         "id" : "125",
-         "comment" : "Fine Offset | Ambient Weather WH40 rain gauge",
+         "knownFreqs" : "868.300",
          "register" : [
             "0001",
             "022E",
-            "0343",
+            "0346",
             "042D",
             "05D4",
-            "060e",
-            "0780",
+            "061A",
+            "07C0",
             "0800",
             "0D21",
             "0E65",
-            "0FE8",
-            "10A9",
-            "115C",
+            "0F6A",
+            "1088",
+            "114C",
             "1202",
             "1322",
             "14F8",
-            "1543",
+            "1551",
             "1916",
             "1B43",
             "1C68"
          ],
-         "knownFreqs" : "868.35",
-         "preamble" : "W126#",
-         "length_min" : "22",
          "modulation" : "2-FSK",
-         "regexMatch" : "(?^:^40)",
-         "rfmode" : "Fine_Offset_WH40_868",
-         "datarate" : "17.257",
-         "sync" : "2DD4",
+         "name" : "Bresser 5in1",
+         "rfmode" : "Bresser_5in1",
+         "regexMatch" : "(?:^[a-fA-F0-9])",
+         "datarate" : "8.232",
+         "method" : "helpers.ConvBresser_5in1",
          "clientmodule" : "SD_WS",
-         "name" : "WH40",
-         "length_max" : "38"
+         "preamble" : "W108#"
       },
       "13.1" : {
-         "one" : [
-            1,
-            -1.8
-         ],
+         "clientmodule" : "FLAMINGO",
+         "preamble" : "P13.1#",
          "pause" : [
             -25
          ],
          "format" : "twostate",
          "name" : "FLAMINGO FA22RF / FA21RF / LM-101LD",
-         "clientmodule" : "FLAMINGO",
-         "length_max" : "24",
-         "id" : "13.1",
-         "comment" : "FLAMINGO | Unitec smoke detector (message decode as MU)",
-         "start" : [
-            10,
-            -1
-         ],
-         "clockabs" : 800,
          "zero" : [
             1,
             -3.5
          ],
-         "preamble" : "P13.1#",
+         "knownFreqs" : "433.92",
          "length_min" : "24",
-         "knownFreqs" : "433.92"
-      },
-      "111" : {
-         "clockabs" : 480,
-         "zero" : [
-            1,
+         "start" : [
+            10,
             -1
          ],
-         "preamble" : "W111#5F",
-         "length_min" : "64",
-         "knownFreqs" : "433.92",
-         "comment" : "Water tank level monitor with temperature",
-         "start" : [
-            1,
-            -2,
-            1,
-            -1,
-            1,
-            -2,
-            1,
-            -2,
-            1,
-            -2,
-            1,
-            -2,
-            1,
-            -2
-         ],
-         "id" : "111",
-         "length_max" : "64",
-         "clientmodule" : "SD_WS",
-         "modulematch" : "^W111#",
-         "name" : "TS-FT002",
-         "format" : "twostate",
-         "one" : [
-            1,
-            -2
-         ]
-      },
-      "63" : {
-         "developId" : "y",
-         "comment" : "radio shutter switch (is still experimental)",
-         "filterfunc" : "SIGNALduino_filterMC",
-         "id" : "63",
-         "one" : [
-            1
-         ],
-         "zero" : [
-            0
-         ],
-         "clockabs" : 800,
-         "knownFreqs" : "",
-         "length_min" : "24",
-         "preamble" : "u63#",
-         "syncabs" : "6700",
-         "name" : "Warema"
-      },
-      "123" : {
-         "datarate" : "10.000",
-         "sync" : "2DD4",
-         "name" : "IBS-P01R",
-         "clientmodule" : "SD_WS",
-         "rfmode" : "Inkbird_IBS-P01R",
-         "modulation" : "2-FSK",
-         "regexMatch" : "(?^:^D391)",
-         "knownFreqs" : "433.92",
-         "preamble" : "W123#",
-         "length_min" : "36",
-         "register" : [
-            "0001",
-            "022E",
-            "0344",
-            "042D",
-            "05D4",
-            "0612",
-            "07C0",
-            "0800",
-            "0D10",
-            "0EB0",
-            "0F71",
-            "10C8",
-            "1193",
-            "1202",
-            "1322",
-            "14F8",
-            "1534",
-            "1916",
-            "1B43",
-            "1C48"
-         ],
-         "comment" : "Inkbird IBS-P01R pool phermometer, ITH-20R",
-         "id" : "123"
-      },
-      "8" : {
-         "zero" : [
-            2,
-            -2
-         ],
-         "clockabs" : 470,
-         "knownFreqs" : "",
-         "remove_zero" : 1,
-         "preamble" : "TX",
-         "length_min" : "43",
-         "id" : "8",
-         "name" : "TX3 Protocol",
-         "clientmodule" : "CUL_TX",
-         "modulematch" : "^TX......",
-         "length_max" : "44",
-         "one" : [
-            1,
-            -2
-         ],
-         "format" : "pwm"
-      },
-      "7.1" : {
-         "length_max" : "36",
-         "name" : "Weather",
-         "modulematch" : "^P7#.{6}[AFaf].{2}",
-         "clientmodule" : "SD_WS07",
-         "sync" : [
-            1,
-            -14
-         ],
-         "format" : "twostate",
-         "one" : [
-            1,
-            -7
-         ],
-         "length_min" : "36",
-         "preamble" : "P7#",
-         "knownFreqs" : "433.92",
-         "clockabs" : 300,
-         "zero" : [
-            1,
-            -4
-         ],
-         "comment" : "Mebus HQ7312-2",
-         "id" : "7.1"
-      },
-      "37" : {
-         "zero" : [
-            1,
-            -2
-         ],
-         "clockabs" : "250",
-         "knownFreqs" : "433.92",
-         "length_min" : "40",
-         "preamble" : "W37#",
-         "id" : "37",
-         "start" : [
-            3,
-            -3,
-            3,
-            -3
-         ],
-         "comment" : "temperature / humidity sensor",
-         "name" : "Bresser 7009994",
-         "clientmodule" : "SD_WS",
-         "length_max" : "41",
-         "one" : [
-            2,
-            -1
-         ],
-         "format" : "twostate"
-      },
-      "95" : {
-         "format" : "twostate",
-         "one" : [
-            5,
-            -6
-         ],
-         "length_max" : "50",
-         "name" : "Techmar",
-         "clientmodule" : "SD_UT",
-         "start" : [
-            5,
-            -9
-         ],
-         "comment" : "Garden Lights remote control",
-         "id" : "95",
-         "zero" : [
-            5,
-            -3
-         ],
-         "clockabs" : 110,
-         "knownFreqs" : "433.92",
-         "length_min" : "50",
-         "preamble" : "P95#"
-      },
-      "27" : {
-         "preamble" : "W27#",
-         "length_min" : "48",
-         "knownFreqs" : "433.92",
-         "clockabs" : "244",
-         "zero" : [
-            1,
-            -2
-         ],
-         "start" : [
-            3,
-            -3,
-            3,
-            -3,
-            3,
-            -3,
-            3,
-            -3
-         ],
-         "comment" : "EuroChron weatherstation EFTH-800, EFS-3110A",
-         "id" : "27",
-         "length_max" : "48",
-         "clientmodule" : "SD_WS",
-         "modulematch" : "^W27#.{12}",
-         "name" : "EFTH-800",
-         "format" : "twostate",
-         "one" : [
-            2,
-            -1
-         ]
-      },
-      "132" : {
-         "one" : [
-            -2,
-            1
-         ],
-         "format" : "twostate",
-         "name" : "HA-HX2",
-         "clientmodule" : "SD_UT",
-         "modulematch" : "^P132#.*",
+         "id" : "13.1",
          "length_max" : "24",
-         "id" : "132",
-         "start" : [
-            -39,
-            1
+         "clockabs" : 800,
+         "comment" : "FLAMINGO | Unitec smoke detector (message decode as MU)",
+         "one" : [
+            1,
+            -1.8
+         ]
+      },
+      "72.1" : {
+         "name" : "Siro shutter",
+         "preamble" : "P72#",
+         "clientmodule" : "Siro",
+         "format" : "twostate",
+         "knownFreqs" : "",
+         "sync" : [
+            14,
+            -4.4
          ],
-         "comment" : "Remote control for Halemeier LED actor HA-RX-M2-1",
+         "length_min" : "39",
+         "dispatchequals" : "true",
+         "zero" : [
+            1,
+            -2.2
+         ],
+         "id" : "72",
+         "length_max" : "40",
+         "developId" : "m",
+         "comment" : "message decode as MS",
+         "one" : [
+            2,
+            -1.2
+         ],
+         "clockabs" : 340
+      },
+      "83" : {
+         "length_min" : "12",
          "knownFreqs" : "433.92",
-         "preamble" : "P132#",
-         "length_min" : "24",
          "zero" : [
             -1,
             2
          ],
-         "clockabs" : 330
+         "name" : "RH787T",
+         "format" : "twostate",
+         "preamble" : "P83#",
+         "clientmodule" : "SD_UT",
+         "one" : [
+            -2,
+            1
+         ],
+         "comment" : "remote control for example Westinghouse Delancey 7800140",
+         "clockabs" : 335,
+         "length_max" : "12",
+         "id" : "83",
+         "start" : [
+            -35,
+            1
+         ],
+         "modulematch" : "^P83#.{3}"
+      },
+      "60" : {
+         "name" : "WS2000",
+         "postDemodulation" : "postdemodulation.postDemo_WS2000",
+         "clientmodule" : "CUL_WS",
+         "preamble" : "K",
+         "length_min" : "38",
+         "reconstructBit" : "1",
+         "knownFreqs" : "",
+         "zero" : [
+            7,
+            -3
+         ],
+         "length_max" : "82",
+         "id" : "60",
+         "postamble" : "",
+         "one" : [
+            3,
+            -7
+         ],
+         "comment" : "Series WS2000/WS7000 of various sensors",
+         "clockabs" : 122
+      },
+      "81" : {
+         "format" : "twostate",
+         "preamble" : "P81#",
+         "clientmodule" : "SD_UT",
+         "name" : "SA-434-1",
+         "zero" : [
+            -1,
+            2
+         ],
+         "length_min" : "12",
+         "knownFreqs" : "433.92",
+         "modulematch" : "^P81#.{3}",
+         "start" : [
+            -35,
+            1
+         ],
+         "length_max" : "12",
+         "id" : "81",
+         "clockabs" : 500,
+         "one" : [
+            -2,
+            1
+         ],
+         "comment" : "remote control SA-434-1 mini 923301 based on HT12E"
+      },
+      "98" : {
+         "clientmodule" : "SD_BELL",
+         "preamble" : "P98#",
+         "format" : "twostate",
+         "name" : "GEA-028DB",
+         "zero" : [
+            3,
+            -1
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "16",
+         "start" : [
+            4,
+            -11,
+            4,
+            -11
+         ],
+         "modulematch" : "^P98#",
+         "id" : "98",
+         "length_max" : "16",
+         "clockabs" : 500,
+         "comment" : "Wireless doorbell",
+         "one" : [
+            1,
+            -3
+         ]
+      },
+      "27" : {
+         "format" : "twostate",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W27#",
+         "name" : "EFTH-800",
+         "zero" : [
+            1,
+            -2
+         ],
+         "length_min" : "48",
+         "knownFreqs" : "433.92",
+         "start" : [
+            3,
+            -3,
+            3,
+            -3,
+            3,
+            -3,
+            3,
+            -3
+         ],
+         "modulematch" : "^W27#.{12}",
+         "length_max" : "48",
+         "id" : "27",
+         "clockabs" : "244",
+         "one" : [
+            2,
+            -1
+         ],
+         "comment" : "EuroChron weatherstation EFTH-800, EFS-3110A"
+      },
+      "113" : {
+         "modulematch" : "^W113#",
+         "id" : "113",
+         "length_max" : "48",
+         "clockabs" : 250,
+         "comment" : "Wireless Grill Thermometer",
+         "one" : [
+            3,
+            -1
+         ],
+         "clientmodule" : "SD_WS",
+         "preamble" : "W113#",
+         "format" : "twostate",
+         "name" : "GFGT_433_B1",
+         "zero" : [
+            1,
+            -3
+         ],
+         "reconstructBit" : "1",
+         "knownFreqs" : "433.92",
+         "length_min" : "47",
+         "sync" : [
+            1,
+            -12
+         ]
+      },
+      "37" : {
+         "preamble" : "W37#",
+         "clientmodule" : "SD_WS",
+         "format" : "twostate",
+         "name" : "Bresser 7009994",
+         "zero" : [
+            1,
+            -2
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "40",
+         "start" : [
+            3,
+            -3,
+            3,
+            -3
+         ],
+         "id" : "37",
+         "length_max" : "41",
+         "clockabs" : "250",
+         "comment" : "temperature / humidity sensor",
+         "one" : [
+            2,
+            -1
+         ]
+      },
+      "133" : {
+         "register" : [
+            "0006",
+            "0200",
+            "0340",
+            "0476",
+            "0596",
+            "06FF",
+            "0704",
+            "0802",
+            "0B08",
+            "0D21",
+            "0E65",
+            "0F6A",
+            "106A",
+            "114A",
+            "1206",
+            "1322",
+            "14F8",
+            "1547",
+            "192E",
+            "1A6D",
+            "1B04",
+            "1C09",
+            "1DB2"
+         ],
+         "comment" : "WMBus mode S",
+         "knownFreqs" : "868.300",
+         "sync" : "7696",
+         "length_min" : "56",
+         "clientmodule" : "WMBUS",
+         "preamble" : "b",
+         "datarate" : "32.720",
+         "id" : "133",
+         "name" : "WMBus_S",
+         "rfmode" : "WMBus_S",
+         "modulation" : "2-FSK"
+      },
+      "36" : {
+         "zero" : [
+            1,
+            -1
+         ],
+         "knownFreqs" : "433.92",
+         "length_min" : "24",
+         "preamble" : "u36#",
+         "format" : "twostate",
+         "name" : "remote",
+         "clockabs" : "500",
+         "comment" : "cheap wireless dimmer",
+         "one" : [
+            1,
+            -3
+         ],
+         "postamble" : "",
+         "start" : [
+            20,
+            -20
+         ],
+         "id" : "36",
+         "length_max" : "24"
+      },
+      "48" : {
+         "name" : "TFA JOKER",
+         "clientmodule" : "SD_WS",
+         "preamble" : "W48#",
+         "format" : "twostate",
+         "knownFreqs" : "433.92",
+         "reconstructBit" : "1",
+         "length_min" : "47",
+         "zero" : [
+            6,
+            -4
+         ],
+         "id" : "48",
+         "length_max" : "48",
+         "modulematch" : "^W48#.*",
+         "start" : [
+            -6
+         ],
+         "comment" : "Temperature transmitter TFA 30.3212",
+         "one" : [
+            2,
+            -4
+         ],
+         "clockabs" : 250
+      },
+      "25" : {
+         "preamble" : "u25#",
+         "format" : "twostate",
+         "id" : "25",
+         "name" : "les led remote",
+         "length_max" : "50",
+         "zero" : [
+            -1,
+            2
+         ],
+         "clockabs" : 350,
+         "knownFreqs" : "",
+         "length_min" : "24",
+         "sync" : [
+            -46,
+            1
+         ],
+         "one" : [
+            -2,
+            1
+         ]
+      },
+      "34" : {
+         "one" : [
+            -1,
+            2
+         ],
+         "comment" : "remote control DMV-7000, TR-502MSV, 58608",
+         "clockabs" : "635",
+         "length_max" : "20",
+         "id" : "34",
+         "start" : [
+            1
+         ],
+         "length_min" : "19",
+         "knownFreqs" : "433.92",
+         "reconstructBit" : "1",
+         "zero" : [
+            -2,
+            1
+         ],
+         "name" : "QUIGG | LIBRA | Mandolyn | Pollin ISOTRONIC",
+         "pause" : [
+            -15
+         ],
+         "format" : "twostate",
+         "preamble" : "P34#",
+         "clientmodule" : "SD_UT"
       }
-   }
+   },
+   "version" : "unknown"
 }
