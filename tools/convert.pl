@@ -71,7 +71,10 @@ sub sanitize {
                 $copy{$key} = perl_to_python($resolved);
             }
             elsif (ref($val) eq 'Regexp') {
-                $copy{$key} = "$val";
+                my $regex_str = "$val";
+                # Konvertiere Perl's (?^:...) zu Python's (?:...)
+                $regex_str =~ s/\(\?\^:/(?:/g;
+                $copy{$key} = $regex_str;
             }
             else {
                 $copy{$key} = sanitize($val);
