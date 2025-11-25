@@ -19,3 +19,9 @@ def logger():
 def proto():
     """Fixture for a real SDProtocols instance."""
     return SDProtocols()
+
+@pytest.fixture
+def mock_protocols(mocker):
+    """Fixture for a mocked SDProtocols instance."""
+    mock = mocker.patch("signalduino.parser.mc.SDProtocols", autospec=True)
+    return mock.return_value

@@ -2,3 +2,4 @@ pycache/
 *.pyc
 .venv/
 .env/
+temp_repo/
