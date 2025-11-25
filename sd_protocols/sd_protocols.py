@@ -53,6 +53,44 @@ class SDProtocols(ProtocolHelpersMixin, ManchesterMixin, PostdemodulationMixin, 
     def get_property(self, pid: str, value_name: str):
         return self._protocols.get(pid, {}).get(value_name)
 
+
+    def demodulate_mc(self, msg_data: Dict[str, Any], msg_type: str, version: str | None = None) -> list:
+        """Attempts to demodulate an MC message using registered protocols."""
+        
+        protocol_id = msg_data.get("protocol_id")
+        
+        if not protocol_id or not self.protocol_exists(protocol_id):
+            self._logging(f"MC Demodulation failed: Protocol ID {protocol_id} not found or missing.", 3)
+            return []
+            
+        # Get data from msg_data
+        raw_hex = msg_data.get('data', '')
+        clock = msg_data.get('clock', 0)
+        mcbitnum = msg_data.get('bit_length', 0)
+        
+        # We assume the caller (MCParser) ensures we have D, C, L
+        
+        rcode, dmsg, metadata = self._demodulate_mc_data(
+            name=f"Protocol {protocol_id}", # Using protocol name as a simple name for logging
+            protocol_id=protocol_id,
+            clock=clock,
+            raw_hex=raw_hex,
+            mcbitnum=mcbitnum,
+            messagetype=msg_type,
+            version=version
+        )
+        
+        if rcode == 1:
+            # The payload will be inside dmsg, and protocol id in metadata
+            # We assume dmsg contains the HEX payload (mcRaw/mcBit2* methods return this)
+            return [{
+                "protocol_id": str(protocol_id),
+                "payload": dmsg,
+                "meta": metadata
+            }]
+            
+        return []
+
     def demodulate_mn(self, msg_data: Dict[str, Any], msg_type: str) -> list:
         """Attempts to demodulate an MN message using registered protocols."""
         if "protocol_id" not in msg_data:
