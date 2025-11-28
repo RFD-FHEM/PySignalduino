@@ -52,7 +52,7 @@ def test_mc_parser_valid_message(mc_parser, mock_protocols, line, expected_proto
 @pytest.mark.parametrize(
     "line, log_message, expects_demodulate_call, raises_exception",
     [
-        ("MC;LL=-762;LH=544;D=DB6;C=342;L=12;R=bar;", "Could not parse RSSI value: bar", False, False), # Logged as Warning inside _extract_metadata. The parser logs as WARNING, the test expects WARNING in caplog.text
+        ("MC;LL=-762;LH=544;D=DB6;C=342;L=12;R=bar;", "Ignoring corrupt MC message: Invalid value in message: bar", False, False), # Logged as Warning inside _extract_metadata. The parser logs as WARNING, the test expects WARNING in caplog.text
         (
             "MC;LL=-653;LH=679;SL=-310;SH=351;C=332;L=21;R=20;",
             "Ignoring MC message missing required fields (D, C, or L)",
@@ -60,7 +60,7 @@ def test_mc_parser_valid_message(mc_parser, mock_protocols, line, expected_proto
             False,
         ),
         ("FOO;LL=1;D=FF;", "Not an MC message", False, False),
-        ("MC;LL=-2738;LH=3121;SL=-1268;SH=1667;D=GGD9FF0E;C=1465;L=32;R=246;", "Ignoring MC message with non-hexadecimal raw_hex:", False, True),
+        ("MC;LL=-2738;LH=3121;SL=-1268;SH=1667;D=GGD9FF0E;C=1465;L=32;R=246;", "Ignoring corrupt MC message: Invalid value in message: GGD9FF0E", False, True),
     ],
 )
 def test_mc_parser_corrupt_messages(mc_parser, mock_protocols, caplog, line, log_message, expects_demodulate_call, raises_exception):
