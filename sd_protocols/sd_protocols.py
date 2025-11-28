@@ -6,9 +6,10 @@ from .helpers import ProtocolHelpersMixin
 from .manchester import ManchesterMixin
 from .postdemodulation import PostdemodulationMixin
 from .rsl_handler import RSLMixin
+from .message_synced import MessageSyncedMixin
 
 
-class SDProtocols(ProtocolHelpersMixin, ManchesterMixin, PostdemodulationMixin, RSLMixin):
+class SDProtocols(ProtocolHelpersMixin, ManchesterMixin, PostdemodulationMixin, RSLMixin, MessageSyncedMixin):
     """Main protocol handling class with helper methods from multiple mixins.
     
     Inherits from:
@@ -53,6 +54,19 @@ class SDProtocols(ProtocolHelpersMixin, ManchesterMixin, PostdemodulationMixin, 
     def get_property(self, pid: str, value_name: str):
         return self._protocols.get(pid, {}).get(value_name)
 
+    def demodulate(self, msg_data: Dict[str, Any], msg_type: str) -> list:
+        """
+        Generic demodulation entry point.
+        """
+        if msg_type == 'MS':
+            return self.demodulate_ms(msg_data, msg_type)
+        elif msg_type == 'MC':
+            return self.demodulate_mc(msg_data, msg_type)
+        elif msg_type == 'MN':
+            return self.demodulate_mn(msg_data, msg_type)
+        
+        self._logging(f"Unknown message type {msg_type}", 3)
+        return []
 
     def demodulate_mc(self, msg_data: Dict[str, Any], msg_type: str, version: str | None = None) -> list:
         """Attempts to demodulate an MC message using registered protocols."""
