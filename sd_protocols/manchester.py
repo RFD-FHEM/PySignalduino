@@ -67,10 +67,16 @@ class ManchesterMixin:
         from sd_protocols import SDProtocols
         
         # 1. Clock/Length Check (Perl lines 2857-2859)
-        length_min = self.check_property(protocol_id, 'length_min', -1)
+        length_min = int(self.check_property(protocol_id, 'length_min', -1))
         if mcbitnum < length_min:
             self._logging(f"{name}: Parse_MC, bit_length {mcbitnum} too short (min {length_min})", 5)
             return ( -1, 'message is too short', {})
+        
+        # Check if protocol data is longer than maximum (Perl lines 2862-2864)
+        length_max = int(self.check_property(protocol_id, 'length_max', 9999))
+        if mcbitnum > length_max:
+            self._logging(f"{name}: Parse_MC, bit_length {mcbitnum} too long (max {length_max})", 5)
+            return ( -1, 'message is too long', {})
 
         clockrange = self.get_property(protocol_id, 'clockrange')
         if clockrange and len(clockrange) >= 2:
@@ -218,12 +224,12 @@ class ManchesterMixin:
         if mcbitnum is None:
             mcbitnum = len(bit_data)
         
-        length_min = self.check_property(protocol_id, "length_min", -1)
+        length_min = int(self.check_property(protocol_id, "length_min", -1))
         if mcbitnum < length_min:
             return (-1, 'message is too short')
         
         length_max = self.get_property(protocol_id, "length_max")
-        if length_max is not None and mcbitnum > length_max:
+        if length_max is not None and mcbitnum > int(length_max):
             return (-1, 'message is too long')
         
         self._logging(f"lib/mcBitFunkbus, {name} Funkbus: raw={bit_data}", 5)
@@ -318,7 +324,7 @@ class ManchesterMixin:
         self._logging(f"{name}: lib/mcBit2Sainlogic, protocol {protocol_id}, length {mcbitnum}", 5)
         self._logging(f"{name}: lib/mcBit2Sainlogic, {bit_data}", 5)
 
-        length_max = self.check_property(protocol_id, "length_max", 0)
+        length_max = int(self.check_property(protocol_id, "length_max", 0))
         if mcbitnum > length_max:
             return (-1, 'message is too long')
 
@@ -341,7 +347,7 @@ class ManchesterMixin:
 
         self._logging(f"{name}: lib/mcBit2Sainlogic, {bit_data}", 5)
         
-        length_min = self.check_property(protocol_id, "length_min", 0)
+        length_min = int(self.check_property(protocol_id, "length_min", 0))
         if mcbitnum < length_min:
             return (-1, 'message is too short')
         
@@ -382,11 +388,11 @@ class ManchesterMixin:
             
             message_length = end_pos - start_pos
             
-            length_min = self.check_property(protocol_id, "length_min", -1)
+            length_min = int(self.check_property(protocol_id, "length_min", -1))
             if message_length < length_min:
                 return (-1, 'message is too short')
             
-            length_max = self.get_property(protocol_id, "length_max")
+            length_max = int(self.check_property(protocol_id, "length_max", 9999))
             if length_max is not None and message_length > length_max:
                 return (-1, 'message is too long')
             
@@ -398,11 +404,11 @@ class ManchesterMixin:
             return (1, ashex)
         
         # Wenn kein Sync-Pattern gefunden wird, aber die Länge ok ist, konvertiere trotzdem
-        length_min = self.check_property(protocol_id, "length_min", -1)
+        length_min = int(self.check_property(protocol_id, "length_min", -1))
         if mcbitnum < length_min:
             return (-1, 'message is too short')
         
-        length_max = self.get_property(protocol_id, "length_max")
+        length_max = int(self.check_property(protocol_id, "length_max", 9999))
         if length_max is not None and mcbitnum > length_max:
             return (-1, 'message is too long')
         
@@ -429,11 +435,11 @@ class ManchesterMixin:
         
         self._logging(f"{name}: lib/mcBit2Hideki, protocol {protocol_id}, length {mcbitnum}", 5)
         
-        length_min = self.check_property(protocol_id, "length_min", -1)
+        length_min = int(self.check_property(protocol_id, "length_min", -1))
         if mcbitnum < length_min:
             return (-1, 'message is too short')
         
-        length_max = self.get_property(protocol_id, "length_max")
+        length_max = int(self.check_property(protocol_id, "length_max", 9999))
         if length_max is not None and mcbitnum > length_max:
             return (-1, 'message is too long')
         
@@ -463,11 +469,11 @@ class ManchesterMixin:
         
         self._logging(f"{name}: lib/mcBit2Maverick, protocol {protocol_id}, length {mcbitnum}", 5)
         
-        length_min = self.check_property(protocol_id, "length_min", -1)
+        length_min = int(self.check_property(protocol_id, "length_min", -1))
         if mcbitnum < length_min:
             return (-1, 'message is too short')
         
-        length_max = self.get_property(protocol_id, "length_max")
+        length_max = int(self.check_property(protocol_id, "length_max", 9999))
         if length_max is not None and mcbitnum > length_max:
             return (-1, 'message is too long')
         
@@ -497,11 +503,11 @@ class ManchesterMixin:
         
         self._logging(f"{name}: lib/mcBit2OSV1, protocol {protocol_id}, length {mcbitnum}", 5)
         
-        length_min = self.check_property(protocol_id, "length_min", -1)
+        length_min = int(self.check_property(protocol_id, "length_min", -1))
         if mcbitnum < length_min:
             return (-1, 'message is too short')
         
-        length_max = self.get_property(protocol_id, "length_max")
+        length_max = int(self.check_property(protocol_id, "length_max", 9999))
         if length_max is not None and mcbitnum > length_max:
             return (-1, 'message is too long')
         
@@ -531,11 +537,11 @@ class ManchesterMixin:
         
         self._logging(f"{name}: lib/mcBit2OSV2o3, protocol {protocol_id}, length {mcbitnum}", 5)
         
-        length_min = self.check_property(protocol_id, "length_min", -1)
+        length_min = int(self.check_property(protocol_id, "length_min", -1))
         if mcbitnum < length_min:
             return (-1, 'message is too short')
         
-        length_max = self.get_property(protocol_id, "length_max")
+        length_max = int(self.check_property(protocol_id, "length_max", 9999))
         if length_max is not None and mcbitnum > length_max:
             return (-1, 'message is too long')
         
@@ -565,11 +571,11 @@ class ManchesterMixin:
         
         self._logging(f"{name}: lib/mcBit2OSPIR, protocol {protocol_id}, length {mcbitnum}", 5)
         
-        length_min = self.check_property(protocol_id, "length_min", -1)
+        length_min = int(self.check_property(protocol_id, "length_min", -1))
         if mcbitnum < length_min:
             return (-1, 'message is too short')
         
-        length_max = self.get_property(protocol_id, "length_max")
+        length_max = int(self.check_property(protocol_id, "length_max", 9999))
         if length_max is not None and mcbitnum > length_max:
             return (-1, 'message is too long')
         
@@ -598,7 +604,7 @@ class ManchesterMixin:
         # if mcbitnum is None:
         #     mcbitnum = len(bit_data)
             
-        length_max = self.check_property(protocol_id, "length_max", 0)
+        length_max = int(self.check_property(protocol_id, "length_max", 0))
         mcbitnum_int = int(mcbitnum)
         if mcbitnum_int > length_max:
             return (-1, "message is too long")
