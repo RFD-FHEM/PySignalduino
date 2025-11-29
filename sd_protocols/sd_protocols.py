@@ -7,9 +7,10 @@ from .manchester import ManchesterMixin
 from .postdemodulation import PostdemodulationMixin
 from .rsl_handler import RSLMixin
 from .message_synced import MessageSyncedMixin
+from .message_unsynced import MessageUnsyncedMixin
 
 
-class SDProtocols(ProtocolHelpersMixin, ManchesterMixin, PostdemodulationMixin, RSLMixin, MessageSyncedMixin):
+class SDProtocols(ProtocolHelpersMixin, ManchesterMixin, PostdemodulationMixin, RSLMixin, MessageSyncedMixin, MessageUnsyncedMixin):
     """Main protocol handling class with helper methods from multiple mixins.
     
     Inherits from:
@@ -17,6 +18,8 @@ class SDProtocols(ProtocolHelpersMixin, ManchesterMixin, PostdemodulationMixin, 
     - ManchesterMixin: Manchester signal protocol handlers (mcBit2* methods)
     - PostdemodulationMixin: Post-demodulation processors (postDemo_* methods)
     - RSLMixin: RSL protocol handlers (decode_rsl, encode_rsl methods)
+    - MessageSyncedMixin: Synchronous (MS) signal decoding
+    - MessageUnsyncedMixin: Unsynchronous (MU) signal decoding
     """
 
     def __init__(self):
@@ -64,6 +67,8 @@ class SDProtocols(ProtocolHelpersMixin, ManchesterMixin, PostdemodulationMixin, 
             return self.demodulate_mc(msg_data, msg_type)
         elif msg_type == 'MN':
             return self.demodulate_mn(msg_data, msg_type)
+        elif msg_type == 'MU':
+            return self.demodulate_mu(msg_data, msg_type)
         
         self._logging(f"Unknown message type {msg_type}", 3)
         return []
