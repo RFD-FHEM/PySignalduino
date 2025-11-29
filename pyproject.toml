@@ -7,7 +7,10 @@ name = "signalduino-mqtt"
 version = "0.1.0"
 description = "SignalDuino Protocols in Python with MQTT bridge"
 authors = [{name="Sven"}]
-dependencies = []
+dependencies = [
+    "requests",
+    "pyserial"
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
