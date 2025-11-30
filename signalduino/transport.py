@@ -65,7 +65,7 @@ class SerialTransport(BaseTransport):
     def write_line(self, data: str) -> None:
         if not self._serial or not self._serial.is_open:
             raise SignalduinoConnectionError("serial port is not open")
-        payload = (data + "\n").encode("ascii", errors="ignore")
+        payload = (data + "\n").encode("latin-1", errors="ignore")
         self._serial.write(payload)
 
     def readline(self, timeout: Optional[float] = None) -> Optional[str]:
@@ -74,7 +74,7 @@ class SerialTransport(BaseTransport):
         if timeout is not None:
             self._serial.timeout = timeout
         raw = self._serial.readline()
-        return raw.decode("ascii", errors="ignore") if raw else None
+        return raw.decode("latin-1", errors="ignore") if raw else None
 
 
 class TCPTransport(BaseTransport):
@@ -107,7 +107,7 @@ class TCPTransport(BaseTransport):
     def write_line(self, data: str) -> None:
         if not self._sock:
             raise SignalduinoConnectionError("socket is not open")
-        payload = (data + "\n").encode("ascii", errors="ignore")
+        payload = (data + "\n").encode("latin-1", errors="ignore")
         self._sock.sendall(payload)
 
     def readline(self, timeout: Optional[float] = None) -> Optional[str]:
@@ -119,9 +119,13 @@ class TCPTransport(BaseTransport):
         while True:
             if b"\n" in self._buffer:
                 line, _, self._buffer = self._buffer.partition(b"\n")
-                return line.decode("ascii", errors="ignore")
+                return line.decode("latin-1", errors="ignore")
 
-            chunk = self._sock.recv(4096)
-            if not chunk:
+            try:
+                chunk = self._sock.recv(4096)
+            except socket.timeout:
                 return None
+
+            if not chunk:
+                raise SignalduinoConnectionError("Remote closed connection")
             self._buffer.extend(chunk)

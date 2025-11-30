@@ -2,10 +2,13 @@ import logging
 import queue
 import re
 import threading
+import os # NEU: Import für Umgebungsvariablen
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, List, Literal, Optional
+from typing import Any, Callable, List, Literal, Optional, Pattern
 
+from .constants import SDUINO_CMD_TIMEOUT
 from .exceptions import SignalduinoCommandTimeout, SignalduinoConnectionError
+from .mqtt import MqttPublisher # NEU: MQTT-Import
 from .parser import SignalParser
 from .transport import BaseTransport
 from .types import DecodedMessage, PendingResponse, QueuedCommand
@@ -25,6 +28,13 @@ class SignalduinoController:
         self.parser = parser or SignalParser()
         self.message_callback = message_callback
         self.logger = logger or logging.getLogger(__name__)
+
+        # NEU: MQTT Publisher initialisieren
+        self.mqtt_publisher: Optional[MqttPublisher] = None
+        if os.environ.get("MQTT_HOST"):
+            # Nur initialisieren, wenn MQTT-Host konfiguriert ist
+            self.mqtt_publisher = MqttPublisher(logger=self.logger)
+            self.mqtt_publisher.register_command_callback(self._handle_mqtt_command)
 
         self._reader_thread: Optional[threading.Thread] = None
         self._parser_thread: Optional[threading.Thread] = None
@@ -67,6 +77,10 @@ class SignalduinoController:
 
         self.logger.info("Disconnecting...")
         self._stop_event.set()
+
+        # NEU: MQTT Publisher stoppen
+        if self.mqtt_publisher:
+            self.mqtt_publisher.stop()
 
         # Wake up threads that might be waiting on queues
         self._raw_message_queue.put("")
@@ -113,6 +127,12 @@ class SignalduinoController:
 
                 decoded_messages = self.parser.parse_line(raw_line)
                 for message in decoded_messages:
+                    if self.mqtt_publisher:
+                        try:
+                            self.mqtt_publisher.publish(message)
+                        except Exception:
+                            self.logger.exception("Error in MQTT publish")
+
                     if self.message_callback:
                         try:
                             self.message_callback(message)
@@ -241,7 +261,11 @@ class SignalduinoController:
         self.send_command(message)
 
     def send_command(
-        self, payload: str, expect_response: bool = False, timeout: float = 2.0
+        self,
+        payload: str,
+        expect_response: bool = False,
+        timeout: float = 2.0,
+        response_pattern: Optional[Pattern[str]] = None,
     ) -> Optional[str]:
         """Queues a command and optionally waits for a specific response."""
         if not self.transport.is_open:
@@ -256,11 +280,16 @@ class SignalduinoController:
         def on_response(response: str):
             response_queue.put(response)
 
+        if response_pattern is None:
+            response_pattern = re.compile(
+                f".*{re.escape(payload)}.*|.*OK.*", re.IGNORECASE
+            )
+
         command = QueuedCommand(
             payload=payload,
             timeout=timeout,
             expect_response=True,
-            response_pattern=re.compile(f".*{re.escape(payload)}.*|.*OK.*", re.IGNORECASE),
+            response_pattern=response_pattern,
             on_response=on_response,
             description=payload,
         )
@@ -271,3 +300,51 @@ class SignalduinoController:
             return response_queue.get(timeout=timeout)
         except queue.Empty:
             raise SignalduinoCommandTimeout(f"Command '{payload}' timed out")
+
+    def _handle_mqtt_command(self, command: str, payload: str) -> None:
+        """Handles commands received via MQTT."""
+        self.logger.info("Handling MQTT command: %s (payload: %s)", command, payload)
+        
+        if command == "version":
+            try:
+                # Send 'V' command and wait for response matching version pattern
+                # Perl: 'V\s.*SIGNAL(?:duino|ESP|STM).*(?:\s\d\d:\d\d:\d\d)'
+                version_pattern = re.compile(
+                    r"V\s.*SIGNAL(?:duino|ESP|STM).*", re.IGNORECASE
+                )
+
+                try:
+                    response = self.send_command(
+                        payload="V",
+                        expect_response=True,
+                        timeout=SDUINO_CMD_TIMEOUT,
+                        response_pattern=version_pattern,
+                    )
+                    self.logger.info("Got version response: %s", response)
+                    # Publish result back to MQTT
+                    # Topic: signalduino/messages/result/version
+                    # We need access to the client to publish ad-hoc messages or add a method to publisher
+                    if (
+                        self.mqtt_publisher
+                        and self.mqtt_publisher.client.is_connected()
+                    ):
+                        result_topic = (
+                            f"{self.mqtt_publisher.mqtt_topic}/result/{command}"
+                        )
+                        self.mqtt_publisher.client.publish(result_topic, response)
+
+                except SignalduinoCommandTimeout:
+                    self.logger.error("Timeout waiting for version response")
+                    if (
+                        self.mqtt_publisher
+                        and self.mqtt_publisher.client.is_connected()
+                    ):
+                        result_topic = (
+                            f"{self.mqtt_publisher.mqtt_topic}/error/{command}"
+                        )
+                        self.mqtt_publisher.client.publish(result_topic, "Timeout")
+
+            except Exception as e:
+                self.logger.error("Error executing version command: %s", e)
+        else:
+            self.logger.warning("Unknown MQTT command: %s", command)

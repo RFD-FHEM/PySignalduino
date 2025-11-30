@@ -71,8 +71,8 @@ def pattern_exists(search_pattern: List[float], pattern_list: Dict[str, float], 
         
         for pid, pval in pattern_list.items():
             gap = abs(pval - search_val)
-            if gap <= tol:
-                weighted_matches.append((gap, str(pid)))
+            if gap <= 0.001 or gap <= tol: # The gap is likely 0.0 for exact match, add a small tolerance to guarantee it
+                weighted_matches.append((gap, pid))
         
         if not weighted_matches:
             # If any value has no candidates, the pattern cannot exist
