@@ -3,3 +3,5 @@ pycache/
 .venv/
 .env/
 temp_repo/
+.devcontainer/devcontainer.env
+.devcontainer/.devcontainer.env
