@@ -9,7 +9,8 @@ description = "SignalDuino Protocols in Python with MQTT bridge"
 authors = [{name="Sven"}]
 dependencies = [
     "requests",
-    "pyserial"
+    "pyserial",
+    "paho-mqtt"
 ]
 
 [tool.pytest.ini_options]
