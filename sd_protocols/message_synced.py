@@ -126,7 +126,7 @@ class MessageSyncedMixin:
                 representation = symbol_map.get(key, '')
 
                 pstr = pattern_exists(search_pattern, norm_patterns, raw_data)
-                
+
                 print(f"DEBUG: Protocol {pid} Key {key} Pattern {search_pattern} Result {pstr}")
 
                 if pstr != -1:
@@ -220,10 +220,9 @@ class MessageSyncedMixin:
 
             bit_str = "".join(bit_msg)
             
-            try:
-                hex_val = f"{int(bit_str, 2):X}"
-                dmsg = hex_val
-            except ValueError:
+            # Perl: my $dmsg = lib::SD_Protocols::binStr2hexStr(join '', @bit_msg);
+            dmsg = self.bin_str_2_hex_str(bit_str)
+            if dmsg is None:
                 continue
                 
             preamble = self.check_property(pid, 'preamble', '')
