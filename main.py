@@ -6,6 +6,7 @@ import time
 import os
 import re
 from typing import Optional
+from dotenv import load_dotenv
 
 from signalduino.constants import SDUINO_CMD_TIMEOUT
 from signalduino.controller import SignalduinoController
@@ -13,13 +14,21 @@ from signalduino.transport import SerialTransport, TCPTransport
 from signalduino.types import DecodedMessage
 
 # Konfiguration des Loggings
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
-)
+def initialize_logging(log_level_str: str):
+    """Initialisiert das Logging basierend auf dem übergebenen String."""
+    level = getattr(logging, log_level_str.upper(), logging.INFO)
+    
+    # Konfiguration des Loggings
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+
+# Initialisiere das Logging mit dem LOG_LEVEL aus der Umgebungsvariable (falls vorhanden)
+initialize_logging(os.environ.get("LOG_LEVEL", "INFO"))
 
 logger = logging.getLogger("main")
 
@@ -46,39 +55,55 @@ def message_callback(message: DecodedMessage):
     print("="*50 + "\n")
 
 def main():
+    # .env-Datei laden. Umgebungsvariablen werden gesetzt, aber CLI-Argumente überschreiben diese.
+    load_dotenv()
+
+    # ENV-Variablen für Standardwerte abrufen
+    # Transport
+    DEFAULT_SERIAL_PORT = os.environ.get("SIGNALDUINO_SERIAL_PORT")
+    DEFAULT_TCP_HOST = os.environ.get("SIGNALDUINO_TCP_HOST")
+    DEFAULT_BAUD = int(os.environ.get("SIGNALDUINO_BAUD", 57600))
+    DEFAULT_TCP_PORT = int(os.environ.get("SIGNALDUINO_TCP_PORT", 23))
+    
+    # MQTT
+    DEFAULT_MQTT_HOST = os.environ.get("MQTT_HOST")
+    DEFAULT_MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883)) if os.environ.get("MQTT_PORT") else None
+    DEFAULT_MQTT_USERNAME = os.environ.get("MQTT_USERNAME")
+    DEFAULT_MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD")
+    DEFAULT_MQTT_TOPIC = os.environ.get("MQTT_TOPIC")
+
+    # Logging
+    DEFAULT_LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+
     parser = argparse.ArgumentParser(description="Signalduino Python Controller")
     
     # Verbindungseinstellungen
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--serial", help="Serieller Port (z.B. /dev/ttyUSB0)")
-    group.add_argument("--tcp", help="TCP Host (z.B. 192.168.1.10)")
+    # required=True entfernt, da Konfiguration aus ENV stammen kann
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("--serial", default=DEFAULT_SERIAL_PORT, help=f"Serieller Port (z.B. /dev/ttyUSB0). Standard: {DEFAULT_SERIAL_PORT or 'Kein Default'}")
+    group.add_argument("--tcp", default=DEFAULT_TCP_HOST, help=f"TCP Host (z.B. 192.168.1.10). Standard: {DEFAULT_TCP_HOST or 'Kein Default'}")
     
-    parser.add_argument("--baud", type=int, default=57600, help="Baudrate für serielle Verbindung (Standard: 57600)")
-    parser.add_argument("--port", type=int, default=23, help="Port für TCP Verbindung (Standard: 23)")
-    parser.add_argument("--debug", action="store_true", help="Debug-Logging aktivieren")
+    parser.add_argument("--baud", type=int, default=DEFAULT_BAUD, help=f"Baudrate für serielle Verbindung (Standard: {DEFAULT_BAUD})")
+    parser.add_argument("--port", type=int, default=DEFAULT_TCP_PORT, help=f"Port für TCP Verbindung (Standard: {DEFAULT_TCP_PORT})")
     
-    # MQTT Einstellungen (optional via CLI, sonst via ENV)
-    parser.add_argument("--mqtt-host", help="MQTT Broker Host")
-    parser.add_argument("--mqtt-port", type=int, help="MQTT Broker Port")
-    parser.add_argument("--mqtt-username", help="MQTT Broker Benutzername")
-    parser.add_argument("--mqtt-password", help="MQTT Broker Passwort")
+    # MQTT Einstellungen
+    parser.add_argument("--mqtt-host", default=DEFAULT_MQTT_HOST, help=f"MQTT Broker Host. Standard: {DEFAULT_MQTT_HOST or 'Kein Default'}")
+    parser.add_argument("--mqtt-port", type=int, default=DEFAULT_MQTT_PORT, help=f"MQTT Broker Port. Standard: {DEFAULT_MQTT_PORT or 'Kein Default'}")
+    parser.add_argument("--mqtt-username", default=DEFAULT_MQTT_USERNAME, help=f"MQTT Broker Benutzername. Standard: {'*Vorhanden*' if DEFAULT_MQTT_USERNAME else 'Kein Default'}")
+    parser.add_argument("--mqtt-password", default=DEFAULT_MQTT_PASSWORD, help=f"MQTT Broker Passwort. Standard: {'*Vorhanden*' if DEFAULT_MQTT_PASSWORD else 'Kein Default'}")
+    parser.add_argument("--mqtt-topic", default=DEFAULT_MQTT_TOPIC, help=f"MQTT Basis Topic. Standard: {DEFAULT_MQTT_TOPIC or 'Kein Default'}")
+
+    # Logging Einstellung
+    parser.add_argument("--log-level", default=DEFAULT_LOG_LEVEL, choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help=f"Logging Level. Standard: {DEFAULT_LOG_LEVEL}")
     
     args = parser.parse_args()
 
-    # Logging Level anpassen
-    if args.debug:
-        logging.getLogger().setLevel(logging.DEBUG)
-        logger.debug("Debug-Modus aktiviert")
-
-    # MQTT Umgebungsvariablen setzen, falls über CLI übergeben
-    if args.mqtt_host:
-        os.environ["MQTT_HOST"] = args.mqtt_host
-    if args.mqtt_port:
-        os.environ["MQTT_PORT"] = str(args.mqtt_port)
-    if args.mqtt_username:
-        os.environ["MQTT_USERNAME"] = args.mqtt_username
-    if args.mqtt_password:
-        os.environ["MQTT_PASSWORD"] = args.mqtt_password
+    # Logging Level anpassen (aus CLI oder ENV Default)
+    if args.log_level.upper() != DEFAULT_LOG_LEVEL:
+        initialize_logging(args.log_level)
+        logger.debug(f"Logging Level auf {args.log_level.upper()} angepasst.")
+    
+    # Manuelle Zuweisung von MQTT ENV Variablen ist nicht mehr nötig, da argparse sie für die gesamte Laufzeit setzt
 
     # Transport initialisieren
     transport = None
@@ -89,8 +114,9 @@ def main():
         logger.info(f"Initialisiere TCP Verbindung zu {args.tcp}:{args.port}...")
         transport = TCPTransport(host=args.tcp, port=args.port)
 
+    # Wenn weder --serial noch --tcp (oder deren ENV-Defaults) gesetzt sind
     if not transport:
-        logger.error("Kein gültiger Transport konfiguriert.")
+        logger.error("Kein gültiger Transport konfiguriert. Bitte geben Sie --serial oder --tcp an oder setzen Sie SIGNALDUINO_SERIAL_PORT / SIGNALDUINO_TCP_HOST in der Umgebung.")
         sys.exit(1)
 
     # Controller initialisieren
@@ -124,7 +150,7 @@ def main():
         version = controller.send_command(
             "V",
             expect_response=True,
-            timeout=SDUINO_CMD_TIMEOUT,
+            timeout=15.0,  # Erhöhe den Timeout für den initialen V-Befehl
             response_pattern=version_pattern,
         )
         if version:
