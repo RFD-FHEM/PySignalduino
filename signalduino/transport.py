@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import socket
 from typing import Optional
 
 from .exceptions import SignalduinoConnectionError
+
+logger = logging.getLogger(__name__)
 
 
 class BaseTransport:
@@ -125,6 +128,9 @@ class TCPTransport(BaseTransport):
                 chunk = self._sock.recv(4096)
             except socket.timeout:
                 return None
+
+            if chunk:
+                logger.debug("TCP RECV CHUNK: %r", chunk)
 
             if not chunk:
                 raise SignalduinoConnectionError("Remote closed connection")

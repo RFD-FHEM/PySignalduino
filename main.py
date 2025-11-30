@@ -34,25 +34,15 @@ logger = logging.getLogger("main")
 
 def message_callback(message: DecodedMessage):
     """Callback-Funktion, die aufgerufen wird, wenn eine Nachricht dekodiert wurde."""
-    print("\n" + "="*50)
-    print(f"NEUE NACHRICHT EMPFANGEN (Protokoll-ID: {message.protocol_id})")
-    model = message.metadata.get("model", "Unbekannt")
-    print(f"Modell: {model}")
-    print(f"Payload: {message.payload}")
-    print("-" * 20)
-    print("Alle Felder:")
-    # Zeige Metadaten an
-    for key, value in message.metadata.items():
-        print(f"  {key}: {value}")
-    
-    # Zeige RawFrame-Infos an, falls vorhanden
+    model = message.metadata.get("model", "Unknown")
+    logger.info(
+        f"Decoded message received: protocol={message.protocol_id}, "
+        f"model={model}, "
+        f"payload={message.payload}"
+    )
+    logger.debug(f"Full Metadata: {message.metadata}")
     if message.raw:
-        print("  Raw Frame Info:")
-        print(f"    Line: {message.raw.line}")
-        print(f"    Timestamp: {message.raw.timestamp}")
-        if message.raw.rssi:
-            print(f"    RSSI: {message.raw.rssi}")
-    print("="*50 + "\n")
+        logger.debug(f"Raw Frame: {message.raw}")
 
 def main():
     # .env-Datei laden. Umgebungsvariablen werden gesetzt, aber CLI-Argumente überschreiben diese.

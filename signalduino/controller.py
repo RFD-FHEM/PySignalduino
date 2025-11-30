@@ -103,6 +103,7 @@ class SignalduinoController:
             try:
                 line = self.transport.readline()
                 if line:
+                    self.logger.debug("RX RAW: %r", line)
                     self._raw_message_queue.put(line)
             except SignalduinoConnectionError as e:
                 self.logger.error("Connection error in reader loop: %s", e)
@@ -157,6 +158,8 @@ class SignalduinoController:
                 self._send_and_wait(command)
             except queue.Empty:
                 continue
+            except SignalduinoCommandTimeout as e:
+                self.logger.warning("Writer loop: %s", e)
             except Exception:
                 if not self._stop_event.is_set():
                     self.logger.exception("Unhandled exception in writer loop")
@@ -225,7 +228,7 @@ class SignalduinoController:
             raise ValueError(f"Invalid message type: {message_type}")
 
         verb = "E" if enabled else "D"
-        noun = message_type[1]  # S, U, or C
+        noun = message_type  # S, U, or C
         command = f"C{verb}{noun}"
         self.send_command(command)
 
@@ -299,7 +302,21 @@ class SignalduinoController:
         try:
             return response_queue.get(timeout=timeout)
         except queue.Empty:
-            raise SignalduinoCommandTimeout(f"Command '{payload}' timed out")
+            # Code Refactor: Distinguish between timeout (slow device) and dead connection.
+            # The reader loop will set _stop_event and close the transport on SignalduinoConnectionError
+            if self._stop_event.is_set() or not self.transport.is_open:
+                self.logger.error(
+                    "Command '%s' timed out. Connection appears to be dead (transport closed or worker threads stopping).", payload
+                )
+                raise SignalduinoConnectionError(
+                    f"Command '{payload}' failed: Connection dropped."
+                ) from None
+            
+            # If transport is still open and not stopping, assume it's a slow device/no response
+            self.logger.warning(
+                "Command '%s' timed out. Transport still appears open. Treating as no response from device.", payload
+            )
+            raise SignalduinoCommandTimeout(f"Command '{payload}' timed out") from None
 
     def _handle_mqtt_command(self, command: str, payload: str) -> None:
         """Handles commands received via MQTT."""
