@@ -26,6 +26,8 @@ def initialize_logging(log_level_str: str):
             logging.StreamHandler(sys.stdout)
         ]
     )
+    # Setze den Level auch auf den Root-Logger, falls basicConfig ihn nicht korrekt gesetzt hat (z.B. bei wiederholtem Aufruf)
+    logging.getLogger().setLevel(level)
 
 # Initialisiere das Logging mit dem LOG_LEVEL aus der Umgebungsvariable (falls vorhanden)
 initialize_logging(os.environ.get("LOG_LEVEL", "INFO"))
@@ -86,6 +88,8 @@ def main():
     # Logging Einstellung
     parser.add_argument("--log-level", default=DEFAULT_LOG_LEVEL, choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help=f"Logging Level. Standard: {DEFAULT_LOG_LEVEL}")
     
+    parser.add_argument("--timeout", type=int, default=None, help="Beendet das Programm nach N Sekunden (optional)")
+    
     args = parser.parse_args()
 
     # Logging Level anpassen (aus CLI oder ENV Default)
@@ -129,28 +133,28 @@ def main():
     try:
         logger.info("Verbinde zum Signalduino...")
         controller.connect()
-        logger.info("Verbunden! Drücke Ctrl+C zum Beenden.")
+        logger.info("Verbunden! Starte Initialisierung...")
         
-        # Sende Versionsabfrage zum Test
-        logger.info("Sende Versionsabfrage (V)...")
-        # Perl regex: 'V\s.*SIGNAL(?:duino|ESP|STM).*(?:\s\d\d:\d\d:\d\d)'
-        version_pattern = re.compile(
-            r"V\s.*SIGNAL(?:duino|ESP|STM).*", re.IGNORECASE
-        )
-        version = controller.send_command(
-            "V",
-            expect_response=True,
-            timeout=15.0,  # Erhöhe den Timeout für den initialen V-Befehl
-            response_pattern=version_pattern,
-        )
-        if version:
-            logger.info(f"Signalduino Version: {version.strip()}")
-        else:
-            logger.warning("Keine Antwort auf Versionsabfrage erhalten.")
-
+        # Starte Initialisierung, welche die Versionsabfrage inkl. Retry-Logik durchführt
+        controller.initialize()
+        logger.info("Initialisierung abgeschlossen! Drücke Ctrl+C zum Beenden.")
+        
         # Hauptschleife
-        while True:
-            time.sleep(1)
+        if args.timeout is not None:
+            logger.info(f"Programm wird nach {args.timeout} Sekunden beendet.")
+            start_time = time.time()
+            # Der `while` Block mit `time.sleep(0.1)` wird verwendet, um auf das Timeout zu warten,
+            # während das Controller-Thread im Hintergrund Nachrichten verarbeitet.
+            while (time.time() - start_time) < args.timeout:
+                time.sleep(0.1)
+            # Timeout erreicht, Controller trennen (signal_handler wird nicht aufgerufen)
+            logger.info("Timeout erreicht. Programm wird beendet.")
+            controller.disconnect()
+            sys.exit(0)
+        else:
+            # Endlosschleife, wenn kein Timeout gesetzt ist
+            while True:
+                time.sleep(1)
 
     except Exception as e:
         logger.error(f"Ein Fehler ist aufgetreten: {e}", exc_info=True)

@@ -142,3 +142,59 @@ def test_message_callback(mock_transport, mock_parser):
         callback_mock.assert_called_once_with(decoded_msg)
     finally:
         controller.disconnect()
+
+
+def test_initialize_retry_logic(mock_transport, mock_parser):
+    """Test the retry logic during initialization."""
+    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+    controller.connect()
+
+    # Mock send_command to fail initially and then succeed
+    call_count = 0
+
+    def side_effect(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        payload = kwargs.get("payload") or args[0] if args else None
+        
+        if payload == "XQ":
+            return None
+        if payload == "V":
+            if call_count <= 2:  # Fail first attempt (XQ is 1st call)
+                raise SignalduinoCommandTimeout("Timeout")
+            return "V 3.5.0-dev SIGNALduino"
+        return None
+
+    controller.send_command = Mock(side_effect=side_effect)
+
+    # Use very short intervals for testing by patching the imported constants in the controller module
+    import signalduino.controller
+    
+    original_wait = signalduino.controller.SDUINO_INIT_WAIT
+    original_wait_xq = signalduino.controller.SDUINO_INIT_WAIT_XQ
+    
+    signalduino.controller.SDUINO_INIT_WAIT = 0.1
+    signalduino.controller.SDUINO_INIT_WAIT_XQ = 0.05
+
+    try:
+        controller.initialize()
+        time.sleep(1.5)  # Wait for timers and retries
+
+        # Verify calls:
+        # 1. XQ
+        # 2. V (fails)
+        # 3. V (retry, succeeds)
+        # 4. XE (enabled after success)
+        
+        # Note: Depending on timing and implementation details, call count might vary slighty
+        # but we expect at least XQ, failed V, successful V, XE.
+        
+        calls = [c.kwargs.get('payload') or c.args[0] for c in controller.send_command.call_args_list]
+        assert "XQ" in calls
+        assert calls.count("V") >= 2
+        assert "XE" in calls
+
+    finally:
+        signalduino.controller.SDUINO_INIT_WAIT = original_wait
+        signalduino.controller.SDUINO_INIT_WAIT_XQ = original_wait_xq
+        controller.disconnect()

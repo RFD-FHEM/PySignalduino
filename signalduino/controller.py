@@ -6,7 +6,12 @@ import os # NEU: Import für Umgebungsvariablen
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, List, Literal, Optional, Pattern
 
-from .constants import SDUINO_CMD_TIMEOUT
+from .constants import (
+    SDUINO_CMD_TIMEOUT,
+    SDUINO_INIT_MAXRETRY,
+    SDUINO_INIT_WAIT,
+    SDUINO_INIT_WAIT_XQ,
+)
 from .exceptions import SignalduinoCommandTimeout, SignalduinoConnectionError
 from .mqtt import MqttPublisher # NEU: MQTT-Import
 from .parser import SignalParser
@@ -45,6 +50,9 @@ class SignalduinoController:
         self._write_queue: queue.Queue[QueuedCommand] = queue.Queue()
         self._pending_responses: List[PendingResponse] = []
         self._pending_responses_lock = threading.Lock()
+
+        self.init_retry_count = 0
+        self.init_reset_flag = False
 
     def connect(self) -> None:
         """Opens the transport and starts the worker threads."""
@@ -96,6 +104,92 @@ class SignalduinoController:
         self.transport.close()
         self.logger.info("Transport closed.")
 
+    def initialize(self) -> None:
+        """Starts the initialization process."""
+        self.logger.info("Initializing device...")
+        self.init_retry_count = 0
+        self.init_reset_flag = False
+
+        # Schedule Disable Receiver (XQ) and wait briefly
+        threading.Timer(SDUINO_INIT_WAIT_XQ, self._send_xq).start()
+        
+        # Schedule StartInit (Get Version)
+        threading.Timer(SDUINO_INIT_WAIT, self._start_init).start()
+
+    def _send_xq(self) -> None:
+        try:
+            self.logger.debug("Sending XQ to disable receiver during init")
+            self.send_command("XQ", expect_response=False)
+        except Exception as e:
+            self.logger.warning("Failed to send XQ: %s", e)
+
+    def _start_init(self) -> None:
+        self.logger.info("StartInit, get version, retry = %d", self.init_retry_count)
+
+        if self.init_retry_count == 0:
+            # First attempt: XQ is sent via a separate timer in initialize(), no blocking wait here.
+            pass
+
+        if self.init_retry_count >= SDUINO_INIT_MAXRETRY:
+            if not self.init_reset_flag:
+                self.logger.warning("StartInit, retry count reached. Resetting device.")
+                self.init_reset_flag = True
+                self._reset_device()
+            else:
+                self.logger.error("StartInit, retry count reached after reset. Closing device.")
+                self.disconnect()
+            return
+
+        response = None
+        try:
+            # Perl Regex: 'V\s.*SIGNAL(?:duino|ESP|STM).*(?:\s\d\d:\d\d:\d\d)'
+            version_pattern = re.compile(r"V\s.*SIGNAL(?:duino|ESP|STM).*", re.IGNORECASE)
+            # Use a short timeout here to speed up failed attempts
+            response = self.send_command(
+                "V",
+                expect_response=True,
+                timeout=2.0, # Shorter timeout for retries
+                response_pattern=version_pattern,
+            )
+        except Exception as e:
+            self.logger.debug("StartInit: Exception during version check: %s", e)
+
+        self._check_version_resp(response)
+
+    def _check_version_resp(self, msg: Optional[str]) -> None:
+        if msg:
+            self.logger.info("Initialized %s", msg.strip())
+            self.init_reset_flag = False
+            self.init_retry_count = 0
+
+            # Enable Receiver XE
+            try:
+                self.logger.info("Enabling receiver (XE)")
+                self.send_command("XE", expect_response=False)
+            except Exception as e:
+                self.logger.warning("Failed to enable receiver: %s", e)
+
+            # Check for CC1101
+            if "cc1101" in msg.lower():
+                self.logger.info("CC1101 detected")
+                # Here we could query ccconf and ccpatable like in Perl
+        else:
+            self.logger.warning("StartInit: No valid version response.")
+            self.init_retry_count += 1
+            # Retry initialization
+            self._start_init()
+
+    def _reset_device(self) -> None:
+        self.logger.info("Resetting device...")
+        try:
+            self.disconnect()
+            # Wait briefly to ensure port is released/device resets
+            threading.Event().wait(2.0)
+            self.connect()
+            self.initialize()
+        except Exception as e:
+            self.logger.error("Failed to reset device: %s", e)
+
     def _reader_loop(self) -> None:
         """Continuously reads from the transport and puts lines into a queue."""
         self.logger.debug("Reader loop started.")
@@ -123,10 +217,17 @@ class SignalduinoController:
                 if not raw_line or self._stop_event.is_set():
                     continue
 
-                if self._handle_as_command_response(raw_line.strip()):
+                line_data = raw_line.strip()
+                
+                if self._handle_as_command_response(line_data):
                     continue
 
-                decoded_messages = self.parser.parse_line(raw_line)
+                if line_data.startswith("XQ") or line_data.startswith("XR"):
+                    # Abfangen der Receiver-Statusmeldungen XQ/XR (wie in Perl /^XQ/ und /^XR/)
+                    self.logger.debug("Found receiver status: %s", line_data)
+                    continue
+
+                decoded_messages = self.parser.parse_line(line_data)
                 for message in decoded_messages:
                     if self.mqtt_publisher:
                         try:
@@ -228,7 +329,7 @@ class SignalduinoController:
             raise ValueError(f"Invalid message type: {message_type}")
 
         verb = "E" if enabled else "D"
-        noun = message_type  # S, U, or C
+        noun = message_type[-1]  # S, U, or C
         command = f"C{verb}{noun}"
         self.send_command(command)
 
