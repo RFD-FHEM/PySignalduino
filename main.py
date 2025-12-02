@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 from signalduino.constants import SDUINO_CMD_TIMEOUT
 from signalduino.controller import SignalduinoController
+from signalduino.exceptions import SignalduinoConnectionError
 from signalduino.transport import SerialTransport, TCPTransport
 from signalduino.types import DecodedMessage
 
@@ -156,8 +157,15 @@ def main():
             while True:
                 time.sleep(1)
 
+    except SignalduinoConnectionError as e:
+        # Wird ausgelöst, wenn die Verbindung beim Start fehlschlägt (z.B. falscher Port, Gerät nicht angeschlossen)
+        logger.error(f"Verbindungsfehler: {e}")
+        logger.error("Das Programm wird beendet.")
+        controller.disconnect()
+        sys.exit(1)
+
     except Exception as e:
-        logger.error(f"Ein Fehler ist aufgetreten: {e}", exc_info=True)
+        logger.error(f"Ein unerwarteter Fehler ist aufgetreten: {e}", exc_info=True)
         controller.disconnect()
         sys.exit(1)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import socket
+from socket import gaierror
 from typing import Optional
 
 from .exceptions import SignalduinoConnectionError
@@ -91,9 +92,14 @@ class TCPTransport(BaseTransport):
         self._buffer = bytearray()
 
     def open(self) -> None:
-        sock = socket.create_connection((self.host, self.port), timeout=5)
-        sock.settimeout(self.read_timeout)
-        self._sock = sock
+        try:
+            sock = socket.create_connection((self.host, self.port), timeout=5)
+            sock.settimeout(self.read_timeout)
+            self._sock = sock
+        except (OSError, gaierror) as exc:
+            # OSError fängt z.B. No route to host, Connection refused ab
+            # gaierror fängt z.B. Name or service not known ab
+            raise SignalduinoConnectionError(str(exc)) from exc
 
     def close(self) -> None:
         if self._sock:
