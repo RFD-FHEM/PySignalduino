@@ -120,8 +120,9 @@ def test_controller_handles_version_command(signalduino_controller):
     
     # Verify result was published
     signalduino_controller.mqtt_publisher.client.publish.assert_called_with(
-        "signalduino/result/version", 
-        "V 3.3.1-dev SIGNALduino cc1101  - compiled at Mar 10 2017 22:54:50"
+        "signalduino/result/version",
+        "V 3.3.1-dev SIGNALduino cc1101  - compiled at Mar 10 2017 22:54:50",
+        retain=False
     )
 
 def test_controller_handles_unknown_command(signalduino_controller):
@@ -168,5 +169,6 @@ def test_mqtt_integration_full_flow(mock_mqtt_client_cls, mock_transport, mock_l
         # Verify response published
         mock_client_instance.publish.assert_called_with(
             "signalduino/result/version",
-            "V 3.3.1-dev SIGNALduino"
+            "V 3.3.1-dev SIGNALduino",
+            retain=False
         )

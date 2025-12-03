@@ -165,14 +165,14 @@ def test_mqtt_publisher_publish_connects_and_publishes(
     mock_connect_if_needed.assert_called_once()
     
     # Überprüfe den publish-Aufruf
-    expected_topic = f"{publisher.mqtt_topic}/{mock_decoded_message.protocol_id}"
+    expected_topic = f"{publisher.mqtt_topic}/messages"
     
     # Überprüfe das Payload (muss gültiges JSON sein und das Protokoll enthalten)
     args, _ = mock_mqtt_client.publish.call_args
     # args ist ein Tupel (topic, payload), der payload ist das zweite Element
     published_payload = args[1]
 
-    assert expected_topic == "test/signalduino/1"
+    assert expected_topic == "test/signalduino/messages"
     assert isinstance(published_payload, str)
     
     payload_dict = json.loads(published_payload)
@@ -180,7 +180,7 @@ def test_mqtt_publisher_publish_connects_and_publishes(
     assert "raw" not in payload_dict # raw sollte entfernt werden
 
     mock_mqtt_client.publish.assert_called_once()
-    assert "Published message for protocol 1 to test/signalduino/1" in caplog.text
+    assert "Published message for protocol 1 to test/signalduino/messages" in caplog.text
     
     # Teste erneutes Veröffentlichen (sollte nicht erneut verbinden)
     mock_mqtt_client.is_connected.side_effect = [True, True]

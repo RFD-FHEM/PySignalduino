@@ -1,16 +1,19 @@
+import json # NEU: Import für JSON-Serialisierung
 import logging
 import queue
 import re
 import threading
 import os # NEU: Import für Umgebungsvariablen
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, List, Literal, Optional, Pattern
+from typing import Any, Callable, List, Optional, Pattern
 
+from .commands import SignalduinoCommands # NEU: Import für Befehle
 from .constants import (
     SDUINO_CMD_TIMEOUT,
     SDUINO_INIT_MAXRETRY,
     SDUINO_INIT_WAIT,
     SDUINO_INIT_WAIT_XQ,
+    SDUINO_STATUS_HEARTBEAT_INTERVAL, # NEU: Heartbeat-Konstante
 )
 from .exceptions import SignalduinoCommandTimeout, SignalduinoConnectionError
 from .mqtt import MqttPublisher # NEU: MQTT-Import
@@ -30,6 +33,7 @@ class SignalduinoController:
         logger: Optional[logging.Logger] = None,
     ) -> None:
         self.transport = transport
+        self.commands = SignalduinoCommands(self.send_command) # NEU: Befehlsklasse initialisieren
         self.parser = parser or SignalParser()
         self.message_callback = message_callback
         self.logger = logger or logging.getLogger(__name__)
@@ -44,6 +48,8 @@ class SignalduinoController:
         self._reader_thread: Optional[threading.Thread] = None
         self._parser_thread: Optional[threading.Thread] = None
         self._writer_thread: Optional[threading.Thread] = None
+
+        self._heartbeat_timer: Optional[threading.Timer] = None # NEU: Heartbeat Timer initialisieren
 
         self._stop_event = threading.Event()
         self._raw_message_queue: queue.Queue[str] = queue.Queue()
@@ -89,6 +95,10 @@ class SignalduinoController:
         # NEU: MQTT Publisher stoppen
         if self.mqtt_publisher:
             self.mqtt_publisher.stop()
+            
+        if self._heartbeat_timer: # NEU: Heartbeat Timer stoppen
+            self._heartbeat_timer.cancel()
+            self._heartbeat_timer = None
 
         # Wake up threads that might be waiting on queues
         self._raw_message_queue.put("")
@@ -119,7 +129,7 @@ class SignalduinoController:
     def _send_xq(self) -> None:
         try:
             self.logger.debug("Sending XQ to disable receiver during init")
-            self.send_command("XQ", expect_response=False)
+            self.commands.disable_receiver()
         except Exception as e:
             self.logger.warning("Failed to send XQ: %s", e)
 
@@ -142,15 +152,8 @@ class SignalduinoController:
 
         response = None
         try:
-            # Perl Regex: 'V\s.*SIGNAL(?:duino|ESP|STM).*(?:\s\d\d:\d\d:\d\d)'
-            version_pattern = re.compile(r"V\s.*SIGNAL(?:duino|ESP|STM).*", re.IGNORECASE)
-            # Use a short timeout here to speed up failed attempts
-            response = self.send_command(
-                "V",
-                expect_response=True,
-                timeout=2.0, # Shorter timeout for retries
-                response_pattern=version_pattern,
-            )
+            # Use commands class for version check
+            response = self.commands.get_version(timeout=2.0) # Shorter timeout for retries
         except Exception as e:
             self.logger.debug("StartInit: Exception during version check: %s", e)
 
@@ -161,11 +164,17 @@ class SignalduinoController:
             self.logger.info("Initialized %s", msg.strip())
             self.init_reset_flag = False
             self.init_retry_count = 0
+            self.init_version_response = msg # Speichern der Version
+
+            # NEU: Versionsmeldung per MQTT veröffentlichen (Schritt 5)
+            if self.mqtt_publisher:
+                # Topic: <mqtt_topic>/status/version
+                self.mqtt_publisher.publish_simple("status/version", msg.strip(), retain=True)
 
             # Enable Receiver XE
             try:
                 self.logger.info("Enabling receiver (XE)")
-                self.send_command("XE", expect_response=False)
+                self.commands.enable_receiver()
             except Exception as e:
                 self.logger.warning("Failed to enable receiver: %s", e)
 
@@ -173,6 +182,10 @@ class SignalduinoController:
             if "cc1101" in msg.lower():
                 self.logger.info("CC1101 detected")
                 # Here we could query ccconf and ccpatable like in Perl
+            
+            # NEU: Starte Heartbeat-Timer
+            self._start_heartbeat_timer()
+
         else:
             self.logger.warning("StartInit: No valid version response.")
             self.init_retry_count += 1
@@ -321,49 +334,6 @@ class SignalduinoController:
         """Queues a raw command and optionally waits for a specific response."""
         return self.send_command(payload=command, expect_response=expect_response, timeout=timeout)
 
-    def set_message_type_enabled(
-        self, message_type: Literal["MS", "MU", "MC"], enabled: bool
-    ) -> None:
-        """Enables or disables a specific message type in the firmware."""
-        if message_type not in {"MS", "MU", "MC"}:
-            raise ValueError(f"Invalid message type: {message_type}")
-
-        verb = "E" if enabled else "D"
-        noun = message_type[-1]  # S, U, or C
-        command = f"C{verb}{noun}"
-        self.send_command(command)
-
-    def _send_cc1101_command(self, command: str, value: Any) -> None:
-        """Helper to send a CC1101-specific command."""
-        full_command = f"{command}{value}"
-        self.send_command(full_command)
-
-    def set_bwidth(self, bwidth: int) -> None:
-        """Set the CC1101 bandwidth."""
-        self._send_cc1101_command("C10", bwidth)
-
-    def set_rampl(self, rampl: int) -> None:
-        """Set the CC1101 rAmpl."""
-        self._send_cc1101_command("W1D", rampl)
-
-    def set_sens(self, sens: int) -> None:
-        """Set the CC1101 sensitivity."""
-        self._send_cc1101_command("W1F", sens)
-
-    def set_patable(self, patable: str) -> None:
-        """Set the CC1101 PA table."""
-        self._send_cc1101_command("x", patable)
-
-    def set_freq(self, freq: float) -> None:
-        """Set the CC1101 frequency."""
-        # This is a simplified version. The Perl code has complex logic here.
-        command = f"W0F{int(freq):02X}"  # Example, not fully correct
-        self.send_command(command)
-
-    def send_message(self, message: str) -> None:
-        """Sends a pre-encoded message string."""
-        self.send_command(message)
-
     def send_command(
         self,
         payload: str,
@@ -419,50 +389,112 @@ class SignalduinoController:
             )
             raise SignalduinoCommandTimeout(f"Command '{payload}' timed out") from None
 
+    def _start_heartbeat_timer(self) -> None:
+        """Schedules the periodic status heartbeat."""
+        if not self.mqtt_publisher:
+            return
+
+        if self._heartbeat_timer:
+            self._heartbeat_timer.cancel()
+        
+        self._heartbeat_timer = threading.Timer(
+            SDUINO_STATUS_HEARTBEAT_INTERVAL,
+            self._publish_status_heartbeat
+        )
+        self._heartbeat_timer.name = "sd-heartbeat"
+        self._heartbeat_timer.start()
+        self.logger.info("Heartbeat timer started, interval: %d seconds.", SDUINO_STATUS_HEARTBEAT_INTERVAL)
+
+    def _publish_status_heartbeat(self) -> None:
+        """Publishes the current device status."""
+        if not self.mqtt_publisher or not self.mqtt_publisher.is_connected():
+            self.logger.warning("Cannot publish heartbeat; publisher not connected.")
+            self._start_heartbeat_timer() # Try again later
+            return
+            
+        try:
+            # 1. Heartbeat/Alive message (Retain: True)
+            self.mqtt_publisher.publish_simple("status/alive", "online", retain=True)
+            self.logger.debug("Published heartbeat status.")
+
+            # 2. Status data (version, ram, uptime)
+            # Fetch data from device (non-blocking call, runs in timer thread)
+            status_data = {}
+            
+            # Version (if not already known from init)
+            if self.init_version_response:
+                status_data["version"] = self.init_version_response.strip()
+            
+            # Free RAM
+            try:
+                ram_resp = self.commands.get_free_ram()
+                # Format: R: 1234
+                if ":" in ram_resp:
+                    status_data["free_ram"] = ram_resp.split(":")[-1].strip()
+                else:
+                    status_data["free_ram"] = ram_resp.strip()
+            except Exception as e:
+                self.logger.warning("Could not get free RAM for heartbeat: %s", e)
+                status_data["free_ram"] = "error"
+                
+            # Uptime
+            try:
+                uptime_resp = self.commands.get_uptime()
+                # Format: t: 1234
+                if ":" in uptime_resp:
+                    status_data["uptime"] = uptime_resp.split(":")[-1].strip()
+                else:
+                    status_data["uptime"] = uptime_resp.strip()
+            except Exception as e:
+                self.logger.warning("Could not get uptime for heartbeat: %s", e)
+                status_data["uptime"] = "error"
+            
+            # Publish all collected data to a single status/data topic
+            if status_data:
+                # Publish as JSON for structured data
+                payload = json.dumps(status_data)
+                self.mqtt_publisher.publish_simple("status/data", payload)
+            
+        except Exception as e:
+            self.logger.error("Error during status heartbeat: %s", e)
+
+        # Reschedule for next run
+        self._start_heartbeat_timer()
+
     def _handle_mqtt_command(self, command: str, payload: str) -> None:
         """Handles commands received via MQTT."""
         self.logger.info("Handling MQTT command: %s (payload: %s)", command, payload)
-        
-        if command == "version":
+
+        if not self.mqtt_publisher or not self.mqtt_publisher.is_connected():
+            self.logger.warning("Cannot handle MQTT command; publisher not connected.")
+            return
+
+        command_mapping = {
+            "version": self.commands.get_version,
+            "help": self.commands.get_help,
+            "free_ram": self.commands.get_free_ram,
+            "uptime": self.commands.get_uptime,
+        }
+
+        if command in command_mapping:
             try:
-                # Send 'V' command and wait for response matching version pattern
-                # Perl: 'V\s.*SIGNAL(?:duino|ESP|STM).*(?:\s\d\d:\d\d:\d\d)'
-                version_pattern = re.compile(
-                    r"V\s.*SIGNAL(?:duino|ESP|STM).*", re.IGNORECASE
-                )
+                # Execute the corresponding command method
+                response = command_mapping[command]()
+                
+                self.logger.info("Got response for %s: %s", command, response)
+                
+                # Publish result back to MQTT
+                # Topic: <mqtt_topic>/result/<command>
+                self.mqtt_publisher.publish_simple(f"result/{command}", response)
 
-                try:
-                    response = self.send_command(
-                        payload="V",
-                        expect_response=True,
-                        timeout=SDUINO_CMD_TIMEOUT,
-                        response_pattern=version_pattern,
-                    )
-                    self.logger.info("Got version response: %s", response)
-                    # Publish result back to MQTT
-                    # Topic: signalduino/messages/result/version
-                    # We need access to the client to publish ad-hoc messages or add a method to publisher
-                    if (
-                        self.mqtt_publisher
-                        and self.mqtt_publisher.client.is_connected()
-                    ):
-                        result_topic = (
-                            f"{self.mqtt_publisher.mqtt_topic}/result/{command}"
-                        )
-                        self.mqtt_publisher.client.publish(result_topic, response)
-
-                except SignalduinoCommandTimeout:
-                    self.logger.error("Timeout waiting for version response")
-                    if (
-                        self.mqtt_publisher
-                        and self.mqtt_publisher.client.is_connected()
-                    ):
-                        result_topic = (
-                            f"{self.mqtt_publisher.mqtt_topic}/error/{command}"
-                        )
-                        self.mqtt_publisher.client.publish(result_topic, "Timeout")
-
+            except SignalduinoCommandTimeout:
+                self.logger.error("Timeout waiting for command response: %s", command)
+                self.mqtt_publisher.publish_simple(f"error/{command}", "Timeout")
+                
             except Exception as e:
-                self.logger.error("Error executing version command: %s", e)
+                self.logger.error("Error executing command %s: %s", command, e)
+                self.mqtt_publisher.publish_simple(f"error/{command}", f"Error: {e}")
+
         else:
             self.logger.warning("Unknown MQTT command: %s", command)
+            self.mqtt_publisher.publish_simple(f"error/{command}", "Unknown command")

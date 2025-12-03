@@ -7,19 +7,21 @@ from typing import Optional, Any, Callable
 import paho.mqtt.client as mqtt
 
 from .types import DecodedMessage, RawFrame
+from .persistence import get_or_create_client_id
 
 class MqttPublisher:
     """Publishes DecodedMessage objects to an MQTT server and listens for commands."""
 
     def __init__(self, logger: Optional[logging.Logger] = None) -> None:
         self.logger = logger or logging.getLogger(__name__)
-        self.client = mqtt.Client()
+        client_id = get_or_create_client_id()
+        self.client = mqtt.Client(client_id=client_id)
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
 
         self.mqtt_host = os.environ.get("MQTT_HOST", "localhost")
         self.mqtt_port = int(os.environ.get("MQTT_PORT", 1883))
-        self.mqtt_topic = os.environ.get("MQTT_TOPIC", "signalduino/messages")
+        self.mqtt_topic = os.environ.get("MQTT_TOPIC", "signalduino")
         self.mqtt_username = os.environ.get("MQTT_USERNAME")
         self.mqtt_password = os.environ.get("MQTT_PASSWORD")
 
@@ -49,8 +51,8 @@ class MqttPublisher:
             
             if self.command_callback:
                 # Extract command from topic or payload
-                # Topic structure: signalduino/messages/commands/<command>
-                # Example: signalduino/messages/commands/version -> get version
+                # Topic structure: signalduino/commands/<command>
+                # Example: signalduino/commands/version -> get version
                 
                 parts = msg.topic.split("/")
                 if "commands" in parts:
@@ -99,14 +101,31 @@ class MqttPublisher:
         
         return json.dumps(message_dict, indent=4)
 
+    def is_connected(self) -> bool:
+        """Checks if the client is connected."""
+        return self.client.is_connected()
+
+    def publish_simple(self, subtopic: str, payload: str, retain: bool = False) -> None:
+        """Publishes a simple string payload to a subtopic of the main topic."""
+        if not self.is_connected():
+            self._connect_if_needed()
+        
+        if self.is_connected():
+            try:
+                topic = f"{self.mqtt_topic}/{subtopic}"
+                self.client.publish(topic, payload, retain=retain)
+                self.logger.debug("Published simple message to %s: %s", topic, payload)
+            except Exception:
+                self.logger.error("Failed to publish simple message to %s", subtopic, exc_info=True)
+
     def publish(self, message: DecodedMessage) -> None:
         """Publishes a DecodedMessage."""
-        if not self.client.is_connected():
+        if not self.is_connected():
             self._connect_if_needed()
 
-        if self.client.is_connected():
+        if self.is_connected():
             try:
-                topic = f"{self.mqtt_topic}/{message.protocol_id}"
+                topic = f"{self.mqtt_topic}/messages"
                 payload = self._message_to_json(message)
                 self.client.publish(topic, payload)
                 self.logger.debug("Published message for protocol %s to %s", message.protocol_id, topic)
