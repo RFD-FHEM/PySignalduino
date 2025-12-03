@@ -1,4 +1,4 @@
-name: Test on Pull Request
+name: Unittest on Pull Request
 
 on:
   pull_request:
@@ -9,10 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: '3.12'
         
@@ -24,12 +24,13 @@ jobs:
         
     - name: Run tests with coverage
       run: |
-        python -m pytest --cov=sd_protocols --cov-report=xml --cov-report=term-missing -v
-        
+        pytest --cov --cov-branch --cov-report=xml
+
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
       with:
         file: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: true
+        token: ${{ secrets.CODECOV_TOKEN }}
