@@ -3,5 +3,6 @@ pycache/
 .venv/
 .env/
 temp_repo/
+SIGNALDuino-Firmware/
 .devcontainer/devcontainer.env
 .devcontainer/.devcontainer.env
