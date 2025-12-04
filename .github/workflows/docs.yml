@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - '**' # Run on all branches for build/test
   workflow_dispatch:
 
 jobs:
@@ -40,6 +41,7 @@ jobs:
 
       # 4. Deployment zu gh-pages (peaceiris action, wie im Demo-Repo)
       - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
