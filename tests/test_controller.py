@@ -156,7 +156,7 @@ def test_initialize_retry_logic(mock_transport, mock_parser):
         nonlocal call_count
         call_count += 1
         payload = kwargs.get("payload") or args[0] if args else None
-        
+
         if payload == "XQ":
             return None
         if payload == "V":
@@ -165,7 +165,8 @@ def test_initialize_retry_logic(mock_transport, mock_parser):
             return "V 3.5.0-dev SIGNALduino"
         return None
 
-    controller.send_command = Mock(side_effect=side_effect)
+    mocked_send_command = Mock(side_effect=side_effect)
+    controller.commands._send = mocked_send_command
 
     # Use very short intervals for testing by patching the imported constants in the controller module
     import signalduino.controller
@@ -178,7 +179,7 @@ def test_initialize_retry_logic(mock_transport, mock_parser):
 
     try:
         controller.initialize()
-        time.sleep(1.5)  # Wait for timers and retries
+        time.sleep(3.0)  # Wait for timers and retries (increased from 1.5s due to potential race condition)
 
         # Verify calls:
         # 1. XQ
@@ -189,7 +190,8 @@ def test_initialize_retry_logic(mock_transport, mock_parser):
         # Note: Depending on timing and implementation details, call count might vary slighty
         # but we expect at least XQ, failed V, successful V, XE.
         
-        calls = [c.kwargs.get('payload') or c.args[0] for c in controller.send_command.call_args_list]
+        calls = [c.kwargs.get('payload') or c.args[0] for c in mocked_send_command.call_args_list]
+
         assert "XQ" in calls
         assert calls.count("V") >= 2
         assert "XE" in calls

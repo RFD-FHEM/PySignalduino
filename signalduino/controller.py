@@ -199,7 +199,10 @@ class SignalduinoController:
             # Wait briefly to ensure port is released/device resets
             threading.Event().wait(2.0)
             self.connect()
-            self.initialize()
+            # Manuell die Initialisierung starten, ohne die Zähler zurückzusetzen.
+            # XQ sollte direkt gesendet werden.
+            self._send_xq()
+            self._start_init()
         except Exception as e:
             self.logger.error("Failed to reset device: %s", e)
 
