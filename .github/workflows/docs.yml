@@ -31,7 +31,7 @@ jobs:
       # 2. docToolchain Wrapper herunterladen und ausführbar machen (dtcw)
       - name: Download docToolchain Wrapper
         run: |
-          curl -Lo dtcw https://raw.githubusercontent.com/docToolchain/docToolchain/master/dtcw
+          curl -Lo dtcw https://doctoolchain.org/dtcw
           chmod +x dtcw
 
       # 3. Dokumentation bauen (Build-Befehl aus docToolchain-Demo)
