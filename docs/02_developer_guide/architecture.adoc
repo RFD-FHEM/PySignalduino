@@ -1,0 +1,3 @@
+== Architektur
+
+Details zum Aufbau von PySignalduino, insbesondere der Manchester Parsing Chain und der Protokoll-Implementierung.

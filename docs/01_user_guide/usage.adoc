@@ -1,0 +1,3 @@
+== Verwendung und Konfiguration
+
+Beschreibung der grundlegenden API-Nutzung und der Konfigurationsmöglichkeiten.

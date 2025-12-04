@@ -1,0 +1,47 @@
+name: Documentation Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+    permissions:
+      contents: write # Für peaceiris/actions-gh-pages@v3
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 1. docToolchain benötigt Java (Gradle-Basis)
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 2. docToolchain Wrapper herunterladen und ausführbar machen (dtcw)
+      - name: Download docToolchain Wrapper
+        run: |
+          curl -Lo dtcw https://raw.githubusercontent.com/docToolchain/docToolchain/master/dtcw
+          chmod +x dtcw
+
+      # 3. Dokumentation bauen (Build-Befehl aus docToolchain-Demo)
+      # Die docToolchainConfig.groovy konfiguriert den Pfad auf 'docs'
+      - name: Build Documentation
+        run: ./dtcw buildHtml
+
+      # 4. Deployment zu gh-pages (peaceiris action, wie im Demo-Repo)
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/build/site/html # Ausgabepfad aus docToolchainConfig.groovy
+          publish_branch: gh-pages

@@ -1,0 +1,3 @@
+== Installation
+
+Details zur Installation von PySignalduino (z.B. mit pip, in FHEM).
