@@ -97,6 +97,24 @@ class SignalduinoCommands:
         """Set MC Min Bit Length (CSmcmbl=<val>)."""
         return self._send(f"CSmcmbl={length}", expect_response=True, timeout=2.0, response_pattern=None)
 
+    def set_message_type_enabled(self, message_type: str, enabled: bool) -> None:
+        """
+        Enable/disable reception for message types (C<FLAG><TYPE>).
+
+        Args:
+            message_type: One of 'MS', 'MU', 'MC' (or other 2-letter codes, e.g. 'MN').
+                          The second character is used as the type char in the command.
+            enabled: True to enable (E), False to disable (D).
+        """
+        if not message_type or len(message_type) != 2:
+             raise ValueError(f"Invalid message_type: {message_type}. Must be a 2-character string (e.g., 'MS').")
+
+        # The command structure seems to be C<E/D><S/U/C/N>, where <S/U/C/N> is the second char of message_type
+        cmd_char = message_type # 'S', 'U', 'C', 'N', etc.
+        flag_char = "E" if enabled else "D"
+        command = f"C{flag_char}{cmd_char}"
+        self._send(command, expect_response=False, timeout=0, response_pattern=None)
+
     def read_cc1101_register(self, register: int) -> str:
         """Read CC1101 register (C<reg>). Register is int, sent as 2-digit hex."""
         reg_hex = f"{register:02X}"
@@ -122,10 +140,29 @@ class SignalduinoCommands:
         addr_hex = f"{address:02X}"
         return self._send(f"r{addr_hex}n", expect_response=True, timeout=2.0, response_pattern=None)
 
-    def set_patable(self, value: int) -> str:
+    def set_patable(self, value: str | int) -> str:
         """Write PA Table (x<val>)."""
-        val_hex = f"{value:02X}"
+        if isinstance(value, int):
+            val_hex = f"{value:02X}"
+        else:
+            # Assume it's an already formatted hex string (e.g. 'C0')
+            val_hex = value
         return self._send(f"x{val_hex}", expect_response=True, timeout=2.0, response_pattern=None)
+
+    def set_bwidth(self, value: int) -> str:
+        """Set CC1101 Bandwidth (C10<val>)."""
+        val_str = str(value)
+        return self._send(f"C10{val_str}", expect_response=True, timeout=2.0, response_pattern=None)
+
+    def set_rampl(self, value: int) -> str:
+        """Set CC1101 PA_TABLE/ramp length (W1D<val>)."""
+        val_str = str(value)
+        return self._send(f"W1D{val_str}", expect_response=True, timeout=2.0, response_pattern=None)
+
+    def set_sens(self, value: int) -> str:
+        """Set CC1101 sensitivity/MCSM0 (W1F<val>)."""
+        val_str = str(value)
+        return self._send(f"W1F{val_str}", expect_response=True, timeout=2.0, response_pattern=None)
 
     # --- Send Commands ---
     # These typically don't expect a response, or the response is just an echo/OK which might be hard to sync with async rx
@@ -145,3 +182,10 @@ class SignalduinoCommands:
     def send_xfsk(self, params: str) -> None:
         """Send xFSK (SN...). params should be the full string after SN."""
         self._send(f"SN{params}", expect_response=False, timeout=0, response_pattern=None)
+
+    def send_message(self, message: str) -> None:
+        """
+        Sends a pre-encoded message (P..., S..., e.g. from an FHEM set command).
+        This command is sent without any additional prefix.
+        """
+        self._send(message, expect_response=False, timeout=0, response_pattern=None)
