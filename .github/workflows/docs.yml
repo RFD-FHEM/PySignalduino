@@ -20,18 +20,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      # 1. Dokumentation mit Asciidoctor bauen (unter Verwendung von Docker)
-      - name: Build Documentation
-        uses: docker://asciidoctor/docker-asciidoctor
-        with:
-          args: asciidoctor -R docs -D build/site/html -a docinfo=shared -a toc=left -a toclevels=2 'docs/index.adoc'
-
-      # 2. Deployment zu gh-pages
-      - name: Deploy to GitHub Pages
+   
+   
+   # Includes the AsciiDoctor GitHub Pages Action to convert adoc files to html and publish to gh-pages branch
+      - name: asciidoctor-ghpages
         if: github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v3
+        uses: manoelcampos/asciidoctor-ghpages-action@v2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build/site/html
-          publish_branch: gh-pages
+          pdf_build: false
+          source_dir: docs/ 
+          asciidoctor_attributes: "docinfo=shared toc=left toclevels=2"
+     
