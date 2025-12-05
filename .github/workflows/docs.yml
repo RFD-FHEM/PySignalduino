@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,14 +20,38 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-   
-   
-   # Includes the AsciiDoctor GitHub Pages Action to convert adoc files to html and publish to gh-pages branch
-      - name: asciidoctor-ghpages
-        if: github.ref == 'refs/heads/main'
-        uses: manoelcampos/asciidoctor-ghpages-action@v2
+
+      - uses: ruby/setup-ruby@v1
         with:
-          pdf_build: false
-          source_dir: docs/ 
-          asciidoctor_attributes: "docinfo=shared toc=left toclevels=2"
-     
+          ruby-version: 2.7
+
+      - uses: reitzig/actions-asciidoctor@v2.0.2
+        with:
+          version: 2.0.18
+
+      - name: run asciidoctor    
+        run:  asciidoctor -R docs -D build/site/html -a docinfo=shared -a toc=left -a toclevels=2 'docs/index.adoc'
+      
+      - name: Add CNAME file
+        if: github.ref != 'refs/heads/main'
+        run:  echo 'preview.rfd-fhem.github.io' > build/site/html/CNAME"
+
+      - name: Add CNAME file
+        if: github.ref == 'refs/heads/main'
+        run:  echo 'pysignalduino.rfd-fhem.github.io' > build/site/html/CNAME"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/site/html
+  
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
