@@ -12,11 +12,6 @@ jobs:
     runs-on: ubuntu-latest
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
-    permissions:
-      contents: write # Für peaceiris/actions-gh-pages@v3
-      pages: write
-      id-token: write
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,11 +29,11 @@ jobs:
       
       - name: Add CNAME file
         if: github.ref != 'refs/heads/main'
-        run:  echo 'preview.rfd-fhem.github.io' > build/site/html/CNAME"
+        run:  echo 'preview.rfd-fhem.github.io' > "build/site/html/CNAME"
 
       - name: Add CNAME file
         if: github.ref == 'refs/heads/main'
-        run:  echo 'pysignalduino.rfd-fhem.github.io' > build/site/html/CNAME"
+        run:  echo 'pysignalduino.rfd-fhem.github.io' > "build/site/html/CNAME"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
@@ -46,6 +41,10 @@ jobs:
           path: build/site/html
   
   deploy:
+    permissions:
+      contents: write 
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
