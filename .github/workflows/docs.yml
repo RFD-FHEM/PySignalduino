@@ -21,29 +21,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 1. docToolchain benötigt Java (Gradle-Basis)
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      # 2. docToolchain Wrapper herunterladen und ausführbar machen (dtcw)
-      - name: Download docToolchain Wrapper
-        run: |
-          curl -fsSL https://doctoolchain.org/dtcw -o dtcw
-          chmod +x dtcw
-
-      # 3. Dokumentation bauen (Build-Befehl aus docToolchain-Demo)
-      # Die docToolchainConfig.groovy konfiguriert den Pfad auf 'docs'
+      # 1. Dokumentation mit Asciidoctor bauen (unter Verwendung von Docker)
       - name: Build Documentation
-        run: ./dtcw buildHtml
+        uses: docker://asciidoctor/docker-asciidoctor
+        with:
+          args: asciidoctor -R docs -D build/site/html -a docinfo=shared -a toc=left -a toclevels=2 'docs/index.adoc'
 
-      # 4. Deployment zu gh-pages (peaceiris action, wie im Demo-Repo)
+      # 2. Deployment zu gh-pages
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/build/site/html # Ausgabepfad aus docToolchainConfig.groovy
+          publish_dir: ./build/site/html
           publish_branch: gh-pages
