@@ -1,0 +1,27 @@
+= Protokolldetails
+
+PySignalduino unterstützt eine Vielzahl von Funkprotokollen im 433 MHz und 868 MHz Bereich.
+
+== Protokolldefinition
+
+Die Datei `sd_protocols/protocols.json` ist die definitive Quelle für alle Protokollparameter (Timings, Preambles, Methoden).
+
+== Auszug unterstützter Protokolle
+
+* **ID 10:** Oregon Scientific v2/v3 (Manchester, 433 MHz)
+* **ID 13:** Flamingo FA21 Rauchmelder
+* **ID 58:** TFA Wettersensoren
+* **ID 70:** FHT80TF Tür-/Fensterkontakt (868 MHz)
+* **ID 80:** EM1000WZ Energiemonitor
+
+== Protokoll-Typen
+
+* **Manchester:** Selbsttaktend (z.B. Oregon, TFA).
+* **TwoState / PWM:** Kodierung über Pulslängen.
+* **FSK:** Frequenzumtastung (oft bei 868 MHz Geräten wie Lacrosse).
+
+== Neues Protokoll hinzufügen
+
+1. Definition in `protocols.json` ergänzen.
+2. Dekodierungsmethode implementieren (z.B. in `sd_protocols/manchester.py`).
+3. Tests hinzufügen.

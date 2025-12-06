@@ -1,0 +1,5 @@
+= Protokoll-Referenz
+
+Eine detaillierte Referenz aller unterstützten Protokolle, deren Implementierungsdetails und bekannten Einschränkungen.
+
+include::protocol_details.adoc[]

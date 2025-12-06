@@ -1,0 +1,31 @@
+= Architektur
+
+== Übersicht
+
+PySignalduino ist modular aufgebaut und trennt die Protokolldefinitionen (JSON) strikt von der Verarbeitungslogik (Python).
+
+== Kernkomponenten
+
+=== SDProtocols Klasse
+Die Klasse `SDProtocols` (`sd_protocols/sd_protocols.py`) ist der zentrale Einstiegspunkt. Sie vereint Funktionalitäten durch Mehrfachvererbung von Mixins:
+
+* **ProtocolHelpersMixin:** Grundlegende Bit-Operationen.
+* **ManchesterMixin:** Spezifische Logik für Manchester-kodierte Signale (`mcBit2*` Methoden).
+* **PostdemodulationMixin:** Nachbearbeitung dekodierter Daten (`postDemo_*` Methoden).
+* **RSLMixin:** Handler für das RSL-Protokoll.
+
+=== Protokolldefinition (JSON)
+Die Datei `sd_protocols/protocols.json` enthält die statischen Definitionen. Jedes Protokoll besitzt eine ID und Eigenschaften wie:
+
+* `format`: Kodierung (z.B. `manchester`, `twostate`, `pwm`).
+* `preamble`: Erkennungsmuster.
+* `method`: Mapping auf die Python-Methode zur Dekodierung.
+
+=== Parsing Chain (Manchester)
+
+Der Ablauf bei Manchester-Signalen ist wie folgt:
+1. **Erkennung:** Match anhand der Preamble/Muster.
+2. **Vorvalidierung:** `ManchesterMixin._demodulate_mc_data()` prüft Länge und Taktung.
+3. **Dekodierung:** Aufruf der spezifischen `mcBit2*`-Methode.
+
+*Hinweis:* Einige Protokolle wie TFA (`mcBit2TFA`) oder Grothe (`mcBit2Grothe`) haben spezielle Anforderungen an die Längenprüfung oder Duplikatfilterung.
