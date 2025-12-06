@@ -1,3 +1,20 @@
-== Beitrag leisten (Contributing)
+= Beitrag leisten (Contributing)
 
-Anleitung, wie man Code beitragen, Probleme melden und Tests schreiben kann.
+Beiträge zum Projekt sind willkommen!
+
+== Workflow
+
+1. **Fork & Clone:** Projekt forken und lokal klonen.
+2. **Branch:** Feature-Branch erstellen (`git checkout -b feature/mein-feature`).
+3. **Entwicklung:** Änderungen implementieren.
+4. **Tests:** Sicherstellen, dass alle Tests bestehen (`pytest`).
+5. **Pull Request:** PR auf GitHub öffnen.
+
+== Tests ausführen
+
+Das Projekt nutzt `pytest`. Stellen Sie sicher, dass `requirements-dev.txt` installiert ist.
+
+[source,bash]
+----
+pytest
+----

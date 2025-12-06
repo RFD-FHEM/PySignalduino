@@ -29,3 +29,13 @@ Detaillierte Informationen zu den unterstützten Geräten und Protokollen finden
 == Firmware
 
 Die Firmware wird kontinuierlich weiterentwickelt und ist nicht auf jedem prinzipiell geeigneten Gerät lauffähig, da spezifische Anpassungen an die Hardware erforderlich sind.
+
+include::01_user_guide/installation.adoc[]
+
+include::01_user_guide/usage.adoc[]
+
+include::02_developer_guide/architecture.adoc[]
+
+include::02_developer_guide/contribution.adoc[]
+
+include::03_protocol_reference/protocol_details.adoc[]
