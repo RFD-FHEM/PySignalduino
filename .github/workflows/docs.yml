@@ -22,7 +22,7 @@ jobs:
 
       - uses: reitzig/actions-asciidoctor@v2.0.2
         with:
-          version: 2.0.18
+          version: 2.0.26
 
       - name: run asciidoctor    
         run:  asciidoctor -R docs -D build/site/html -a docinfo=shared -a toc=left -a toclevels=2 'docs/index.adoc'
