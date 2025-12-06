@@ -8,3 +8,7 @@ This file provides guidance to agents when working with code in this repository.
 - **Grothe Constraint:** `mcBit2Grothe` enforces an *exact* 32-bit length, overriding general length checks.
 - **Test Mocking:** MC Parser tests mock `mock_protocols.demodulate` to simulate the output of the protocol layer, not `demodulate_mc` directly.
 - **Bit Conversion:** `_convert_mc_hex_to_bits` handles `polarity_invert` and firmware version toggling for polarity.
+
+## Verification Execution
+- Das Hauptprogramm für Verifizierungen sollte wie folgt gestartet werden:
+  `python3 main.py --timeout 1`

@@ -1,1 +1,4 @@
-pytest
+pyserial
+requests
+paho-mqtt
+python-dotenv

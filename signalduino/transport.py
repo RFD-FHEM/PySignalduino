@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import socket
+from socket import gaierror
 from typing import Optional
 
 from .exceptions import SignalduinoConnectionError
+
+logger = logging.getLogger(__name__)
 
 
 class BaseTransport:
@@ -65,7 +69,7 @@ class SerialTransport(BaseTransport):
     def write_line(self, data: str) -> None:
         if not self._serial or not self._serial.is_open:
             raise SignalduinoConnectionError("serial port is not open")
-        payload = (data + "\n").encode("ascii", errors="ignore")
+        payload = (data + "\n").encode("latin-1", errors="ignore")
         self._serial.write(payload)
 
     def readline(self, timeout: Optional[float] = None) -> Optional[str]:
@@ -74,7 +78,7 @@ class SerialTransport(BaseTransport):
         if timeout is not None:
             self._serial.timeout = timeout
         raw = self._serial.readline()
-        return raw.decode("ascii", errors="ignore") if raw else None
+        return raw.decode("latin-1", errors="ignore") if raw else None
 
 
 class TCPTransport(BaseTransport):
@@ -88,9 +92,14 @@ class TCPTransport(BaseTransport):
         self._buffer = bytearray()
 
     def open(self) -> None:
-        sock = socket.create_connection((self.host, self.port), timeout=5)
-        sock.settimeout(self.read_timeout)
-        self._sock = sock
+        try:
+            sock = socket.create_connection((self.host, self.port), timeout=5)
+            sock.settimeout(self.read_timeout)
+            self._sock = sock
+        except (OSError, gaierror) as exc:
+            # OSError fängt z.B. No route to host, Connection refused ab
+            # gaierror fängt z.B. Name or service not known ab
+            raise SignalduinoConnectionError(str(exc)) from exc
 
     def close(self) -> None:
         if self._sock:
@@ -107,7 +116,7 @@ class TCPTransport(BaseTransport):
     def write_line(self, data: str) -> None:
         if not self._sock:
             raise SignalduinoConnectionError("socket is not open")
-        payload = (data + "\n").encode("ascii", errors="ignore")
+        payload = (data + "\n").encode("latin-1", errors="ignore")
         self._sock.sendall(payload)
 
     def readline(self, timeout: Optional[float] = None) -> Optional[str]:
@@ -119,9 +128,16 @@ class TCPTransport(BaseTransport):
         while True:
             if b"\n" in self._buffer:
                 line, _, self._buffer = self._buffer.partition(b"\n")
-                return line.decode("ascii", errors="ignore")
+                return line.decode("latin-1", errors="ignore")
 
-            chunk = self._sock.recv(4096)
-            if not chunk:
+            try:
+                chunk = self._sock.recv(4096)
+            except socket.timeout:
                 return None
+
+            if chunk:
+                logger.debug("TCP RECV CHUNK: %r", chunk)
+
+            if not chunk:
+                raise SignalduinoConnectionError("Remote closed connection")
             self._buffer.extend(chunk)
