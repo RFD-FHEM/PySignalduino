@@ -26,28 +26,34 @@ class SignalduinoCommands:
 
     def get_version(self, timeout: float = 2.0) -> str:
         """Query firmware version (V)."""
-        pattern = re.compile(r"V\s.*SIGNAL(?:duino|ESP|STM).*", re.IGNORECASE)
+        pattern = re.compile(r"V\s.*SIGNAL(?:duino|ESP|STM).*(?:\s\d\d:\d\d:\d\d)", re.IGNORECASE)
         return self._send("V", expect_response=True, timeout=timeout, response_pattern=pattern)
 
     def get_help(self) -> str:
         """Show help (?)."""
+        # This is for internal use/legacy. The MQTT 'cmds' command uses a specific pattern.
         return self._send("?", expect_response=True, timeout=2.0, response_pattern=None)
 
+    def get_cmds(self) -> str:
+        """Show help/commands (?). Used for MQTT 'cmds' command."""
+        pattern = re.compile(r".*")
+        return self._send("?", expect_response=True, timeout=2.0, response_pattern=pattern)
+    
     def get_free_ram(self) -> str:
         """Query free RAM (R)."""
         # Response is typically a number (bytes)
-        pattern = re.compile(r"^\d+$")
+        pattern = re.compile(r"^[0-9]+")
         return self._send("R", expect_response=True, timeout=2.0, response_pattern=pattern)
 
     def get_uptime(self) -> str:
         """Query uptime in seconds (t)."""
         # Response is a number (seconds)
-        pattern = re.compile(r"^\d+$")
+        pattern = re.compile(r"^[0-9]+")
         return self._send("t", expect_response=True, timeout=2.0, response_pattern=pattern)
 
     def ping(self) -> str:
         """Ping device (P)."""
-        return self._send("P", expect_response=True, timeout=2.0, response_pattern=re.compile(r"OK"))
+        return self._send("P", expect_response=True, timeout=2.0, response_pattern=re.compile(r"^OK$"))
 
     def get_cc1101_status(self) -> str:
         """Query CC1101 status (s)."""
@@ -70,7 +76,7 @@ class SignalduinoCommands:
     def get_config(self) -> str:
         """Read configuration (CG)."""
         # Response format: MS=1;MU=1;...
-        pattern = re.compile(r"^MS=.*")
+        pattern = re.compile(r"^M[S|N]=.*")
         return self._send("CG", expect_response=True, timeout=2.0, response_pattern=pattern)
 
     def set_decoder_state(self, decoder: str, enabled: bool) -> None:
@@ -121,10 +127,24 @@ class SignalduinoCommands:
         command = f"C{flag_char}{cmd_char}"
         self._send(command, expect_response=False, timeout=0, response_pattern=None)
 
+    def get_ccconf(self) -> str:
+        """Query CC1101 configuration (C0DnF)."""
+        # Response format: C0Dnn=[A-F0-9a-f]+ (e.g., C0D11=0F)
+        pattern = re.compile(r"C0Dn11=[A-F0-9a-f]+")
+        return self._send("C0DnF", expect_response=True, timeout=2.0, response_pattern=pattern)
+
+    def get_ccpatable(self) -> str:
+        """Query CC1101 PA Table (C3E)."""
+        # Response format: C3E = ...
+        pattern = re.compile(r"^C3E\s=\s.*")
+        return self._send("C3E", expect_response=True, timeout=2.0, response_pattern=pattern)
+
     def read_cc1101_register(self, register: int) -> str:
         """Read CC1101 register (C<reg>). Register is int, sent as 2-digit hex."""
         reg_hex = f"{register:02X}"
-        return self._send(f"C{reg_hex}", expect_response=True, timeout=2.0, response_pattern=None)
+        # Response format: Cnn = vv or ccreg 00: ...
+        pattern = re.compile(r"^(?:C[A-Fa-f0-9]{2}\s=\s[0-9A-Fa-f]+$|ccreg 00:)")
+        return self._send(f"C{reg_hex}", expect_response=True, timeout=2.0, response_pattern=pattern)
 
     def write_register(self, register: int, value: int) -> str:
         """Write to EEPROM/CC1101 register (W<reg><val>)."""
@@ -189,6 +209,13 @@ class SignalduinoCommands:
         """Send Raw (SR...). params should be the full string after SR."""
         self._send(f"SR{params}", expect_response=False, timeout=0, response_pattern=None)
     
+    def send_raw_message(self, message: str) -> str:
+        """Send the raw message/command directly as payload. Expects a response."""
+        # The 'rawmsg' MQTT command sends the content of the payload directly as a command.
+        # It is assumed that it will get a response which is why we expect one.
+        # No specific pattern can be given here, rely on the default response matchers.
+        return self._send(message, expect_response=True, timeout=2.0, response_pattern=None)
+
     def send_xfsk(self, params: str) -> None:
         """Send xFSK (SN...). params should be the full string after SN."""
         self._send(f"SN{params}", expect_response=False, timeout=0, response_pattern=None)

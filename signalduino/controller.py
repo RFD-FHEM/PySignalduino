@@ -235,7 +235,11 @@ class SignalduinoController:
 
                 line_data = raw_line.strip()
                 
-                if self._handle_as_command_response(line_data):
+                # Messages starting with \x02 (STX) are sensor data and should never be treated as command responses.
+                # They are passed directly to the parser.
+                if line_data.startswith("\x02"):
+                    pass # Skip _handle_as_command_response and go to parsing
+                elif self._handle_as_command_response(line_data):
                     continue
 
                 if line_data.startswith("XQ") or line_data.startswith("XR"):
@@ -472,17 +476,41 @@ class SignalduinoController:
             self.logger.warning("Cannot handle MQTT command; publisher not connected.")
             return
 
+        # Mapping von MQTT-Befehl zu einer Methode (ohne Args) oder einer Lambda-Funktion (mit Args)
         command_mapping = {
             "version": self.commands.get_version,
-            "help": self.commands.get_help,
-            "free_ram": self.commands.get_free_ram,
+            "freeram": self.commands.get_free_ram,
             "uptime": self.commands.get_uptime,
+            # "help" wird durch "cmds" ersetzt, da der Serial Command "?" ignoriert werden sollte.
+            "cmds": self.commands.get_cmds, # Sendet Serial Command '?' mit Regex '.*'
+            "ping": self.commands.ping,
+            "config": self.commands.get_config,
+            "ccconf": self.commands.get_ccconf,
+            "ccpatable": self.commands.get_ccpatable,
+            "ccreg": lambda p: self.commands.read_cc1101_register(int(p, 16)),
+            "rawmsg": lambda p: self.commands.send_raw_message(p),
         }
 
+        # Der Befehl '?' soll ignoriert werden, aber 'cmds' wurde als Ersatz eingeführt.
+        if command == "help":
+            self.logger.warning("Ignoring deprecated 'help' MQTT command (use 'cmds').")
+            self.mqtt_publisher.publish_simple(f"error/{command}", "Deprecated command. Use 'cmds'.")
+            return
+        
         if command in command_mapping:
             try:
                 # Execute the corresponding command method
-                response = command_mapping[command]()
+                if command in ["ccreg", "rawmsg"]:
+                    # Befehle, die den Payload als Argument benötigen
+                    if not payload:
+                        self.logger.error("Command '%s' requires a payload argument.", command)
+                        self.mqtt_publisher.publish_simple(f"error/{command}", "Missing payload argument.")
+                        return
+                    
+                    response = command_mapping[command](payload)
+                else:
+                    # Befehle ohne Argumente
+                    response = command_mapping[command]()
                 
                 self.logger.info("Got response for %s: %s", command, response)
                 
