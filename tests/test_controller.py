@@ -95,10 +95,69 @@ def test_send_command_with_response(mock_transport, mock_parser):
     controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
     controller.connect()
     try:
-        response = controller.send_command("V", expect_response=True, timeout=1)
+        response = controller.commands.get_version(timeout=1)
         mock_transport.write_line.assert_called_with("V")
         assert response is not None
         assert "SIGNALduino" in response
+    finally:
+        controller.disconnect()
+
+
+def test_send_command_with_interleaved_message(mock_transport, mock_parser):
+    """
+    Test sending a command and receiving an irrelevant message before the
+    expected command response. The irrelevant message must not be consumed
+    as the response, and the correct response must still be received.
+    """
+    # Queue for all messages from the device
+    response_q = queue.Queue()
+
+    # The irrelevant message (e.g., an asynchronous received signal)
+    interleaved_message = "MU;P0=353;P1=-184;D=0123456789;CP=1;SP=0;R=248;\n"
+    # The expected command response
+    command_response = "V 3.5.0-dev SIGNALduino\n"
+
+    def write_line_side_effect(payload):
+        # When the controller writes "V", simulate the device responding with
+        # an interleaved message *then* the command response.
+        if payload == "V":
+            # 1. Interleaved message
+            response_q.put(interleaved_message)
+            # 2. Command response
+            response_q.put(command_response)
+
+    def readline_side_effect():
+        # Simulate blocking read that gets a value from the queue.
+        try:
+            return response_q.get(timeout=0.5)
+        except queue.Empty:
+            return None
+
+    mock_transport.write_line.side_effect = write_line_side_effect
+    mock_transport.readline.side_effect = readline_side_effect
+
+    # Mock the parser to track if the interleaved message is passed to it
+    mock_parser.parse_line = Mock(wraps=mock_parser.parse_line)
+
+    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+    controller.connect()
+    try:
+        response = controller.commands.get_version(timeout=1)
+        mock_transport.write_line.assert_called_with("V")
+        
+        # 1. Verify that the correct command response was received by send_command
+        assert response is not None
+        assert "SIGNALduino" in response
+        assert response.strip() == command_response.strip()
+
+        # 2. Verify that the interleaved message was passed to the parser
+        # The parser loop (_parser_loop) should attempt to parse the interleaved_message
+        # because _handle_as_command_response should return False for it.
+        mock_parser.parse_line.assert_called_with(interleaved_message.strip())
+
+        # Give the parser thread a moment to process the message
+        time.sleep(0.1)
+        
     finally:
         controller.disconnect()
 
@@ -110,7 +169,7 @@ def test_send_command_timeout(mock_transport, mock_parser):
     controller.connect()
     try:
         with pytest.raises(SignalduinoCommandTimeout):
-            controller.send_command("V", expect_response=True, timeout=0.2)
+            controller.commands.get_version(timeout=0.2)
     finally:
         controller.disconnect()
 

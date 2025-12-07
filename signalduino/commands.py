@@ -35,11 +35,15 @@ class SignalduinoCommands:
 
     def get_free_ram(self) -> str:
         """Query free RAM (R)."""
-        return self._send("R", expect_response=True, timeout=2.0, response_pattern=None)
+        # Response is typically a number (bytes)
+        pattern = re.compile(r"^\d+$")
+        return self._send("R", expect_response=True, timeout=2.0, response_pattern=pattern)
 
     def get_uptime(self) -> str:
         """Query uptime in seconds (t)."""
-        return self._send("t", expect_response=True, timeout=2.0, response_pattern=None)
+        # Response is a number (seconds)
+        pattern = re.compile(r"^\d+$")
+        return self._send("t", expect_response=True, timeout=2.0, response_pattern=pattern)
 
     def ping(self) -> str:
         """Ping device (P)."""
@@ -65,7 +69,9 @@ class SignalduinoCommands:
 
     def get_config(self) -> str:
         """Read configuration (CG)."""
-        return self._send("CG", expect_response=True, timeout=2.0, response_pattern=None)
+        # Response format: MS=1;MU=1;...
+        pattern = re.compile(r"^MS=.*")
+        return self._send("CG", expect_response=True, timeout=2.0, response_pattern=pattern)
 
     def set_decoder_state(self, decoder: str, enabled: bool) -> None:
         """
@@ -133,12 +139,16 @@ class SignalduinoCommands:
     def read_eeprom(self, address: int) -> str:
         """Read EEPROM byte (r<addr>)."""
         addr_hex = f"{address:02X}"
-        return self._send(f"r{addr_hex}", expect_response=True, timeout=2.0, response_pattern=None)
+        # Response format: EEPROM <addr> = <val>
+        pattern = re.compile(r"EEPROM.*", re.IGNORECASE)
+        return self._send(f"r{addr_hex}", expect_response=True, timeout=2.0, response_pattern=pattern)
 
     def read_eeprom_block(self, address: int) -> str:
         """Read EEPROM block (r<addr>n)."""
         addr_hex = f"{address:02X}"
-        return self._send(f"r{addr_hex}n", expect_response=True, timeout=2.0, response_pattern=None)
+        # Response format: EEPROM <addr> : <val> ...
+        pattern = re.compile(r"EEPROM.*", re.IGNORECASE)
+        return self._send(f"r{addr_hex}n", expect_response=True, timeout=2.0, response_pattern=pattern)
 
     def set_patable(self, value: str | int) -> str:
         """Write PA Table (x<val>)."""
