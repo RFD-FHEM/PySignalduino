@@ -2,10 +2,11 @@ import json
 import logging
 import os
 from dataclasses import asdict
-from typing import Optional, Any, Callable
+from typing import Optional, Any, Callable, Awaitable # NEU: Awaitable für async callbacks
 
-import paho.mqtt.client as mqtt
-
+import aiomqtt as mqtt
+import asyncio
+import paho.mqtt.client as paho_mqtt # Für topic_matches_sub
 from .types import DecodedMessage, RawFrame
 from .persistence import get_or_create_client_id
 
@@ -14,72 +15,112 @@ class MqttPublisher:
 
     def __init__(self, logger: Optional[logging.Logger] = None) -> None:
         self.logger = logger or logging.getLogger(__name__)
-        client_id = get_or_create_client_id()
-        self.client = mqtt.Client(client_id=client_id)
-        self.client.on_connect = self._on_connect
-        self.client.on_disconnect = self._on_disconnect
+        self.client_id = get_or_create_client_id()
+        self.client: Optional[mqtt.Client] = None # Will be set in __aenter__
 
         self.mqtt_host = os.environ.get("MQTT_HOST", "localhost")
         self.mqtt_port = int(os.environ.get("MQTT_PORT", 1883))
         self.mqtt_topic = os.environ.get("MQTT_TOPIC", "signalduino")
         self.mqtt_username = os.environ.get("MQTT_USERNAME")
         self.mqtt_password = os.environ.get("MQTT_PASSWORD")
-
-        if self.mqtt_username and self.mqtt_password:
-            self.client.username_pw_set(self.mqtt_username, self.mqtt_password)
         
-        self.command_callback: Optional[Callable[[str, str], None]] = None
-        self.client.on_message = self._on_message
+        # Callback ist jetzt ein awaitable
+        self.command_callback: Optional[Callable[[str, str], Awaitable[None]]] = None
+        self.command_topic = f"{self.mqtt_topic}/commands/#"
 
-        # Will connect on first publish attempt if not connected
 
-    def _on_connect(self, client: mqtt.Client, userdata: Any, flags: Any, rc: int) -> None:
-        if rc == 0:
-            self.logger.info("Connected to MQTT broker %s:%s", self.mqtt_host, self.mqtt_port)
-            # Subscribe to command topic
-            command_topic = f"{self.mqtt_topic}/commands/#"
-            self.client.subscribe(command_topic)
-            self.logger.info("Subscribed to %s", command_topic)
+    async def __aenter__(self) -> "MqttPublisher":
+        self.logger.debug("Initializing MQTT client...")
+        
+        if self.mqtt_username and self.mqtt_password:
+            self.client = mqtt.Client(
+                hostname=self.mqtt_host,
+                port=self.mqtt_port,
+                username=self.mqtt_username,
+                password=self.mqtt_password,
+            )
         else:
-            self.logger.error("Failed to connect to MQTT broker. Result code: %s", rc)
-
-    def _on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
-        """Handles incoming MQTT messages."""
+            self.client = mqtt.Client(
+                hostname=self.mqtt_host,
+                port=self.mqtt_port,
+            )
         try:
-            payload = msg.payload.decode("utf-8")
-            self.logger.debug("Received MQTT message on %s: %s", msg.topic, payload)
-            
-            if self.command_callback:
-                # Extract command from topic or payload
-                # Topic structure: signalduino/commands/<command>
-                # Example: signalduino/commands/version -> get version
-                
-                parts = msg.topic.split("/")
-                if "commands" in parts:
-                    cmd_index = parts.index("commands")
-                    if len(parts) > cmd_index + 1:
-                        command_name = parts[cmd_index + 1]
-                        self.command_callback(command_name, payload)
-                    else:
-                        self.logger.warning("Received command on generic command topic without specific command: %s", msg.topic)
-                
+            # Connect the client (asyncio-mqtt's connect is managed by __aenter__ of its own internal context manager)
+            # We use the internal context manager to ensure connection/disconnection happens
+            # The client property itself is the AsyncioMqttClient
+            # Connect the client (asyncio-mqtt's connect is managed by __aenter__ of its own internal context manager)
+            # We use the internal context manager to ensure connection/disconnection happens
+            # The client property itself is the AsyncioMqttClient
+            await self.client.__aenter__()
+            self.logger.info("Connected to MQTT broker %s:%s", self.mqtt_host, self.mqtt_port)
+            return self
         except Exception:
-            self.logger.exception("Error processing incoming MQTT message")
-
-    def _on_disconnect(self, client: mqtt.Client, userdata: Any, rc: int) -> None:
-        if rc != 0:
-            self.logger.warning("Disconnected from MQTT broker with result code: %s. Attempting auto-reconnect.", rc)
-        else:
+            self.client = None
+            self.logger.error("Could not connect to MQTT broker %s:%s", self.mqtt_host, self.mqtt_port, exc_info=True)
+            raise # Re-raise the exception to fail the async with block
+            
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        if self.client:
+            self.logger.info("Disconnecting from MQTT broker...")
+            # Disconnect the client
+            await self.client.__aexit__(exc_type, exc_val, exc_tb)
+            self.client = None
             self.logger.info("Disconnected from MQTT broker.")
 
-    def _connect_if_needed(self) -> None:
-        if not self.client.is_connected():
-            try:
-                self.logger.debug("Attempting to connect to MQTT broker...")
-                self.client.connect(self.mqtt_host, self.mqtt_port)
-                self.client.loop_start()  # Start a non-blocking loop
-            except Exception:
-                self.logger.error("Could not connect to MQTT broker %s:%s", self.mqtt_host, self.mqtt_port, exc_info=True)
+    async def is_connected(self) -> bool:
+        """Returns True if the MQTT client is connected."""
+        # asyncio_mqtt Client hat kein is_connected, aber der interne Client.
+        # Wir können prüfen, ob self.client existiert.
+        return self.client is not None
+        
+    async def _command_listener(self) -> None:
+        """Listens for commands on the command topic and calls the callback."""
+        if not self.client:
+            self.logger.error("MQTT client is not connected. Cannot start command listener.")
+            return
+
+        self.logger.info("Subscribing to %s", self.command_topic)
+        
+        try:
+            # Subscribe and then iterate over messages
+            # Subscribe and then iterate over messages. aiomqtt hat keine filtered_messages.
+            await self.client.subscribe(self.command_topic)
+
+            messages = self.client.messages # messages ist jetzt eine Property und kein Context Manager
+            self.logger.info("Command listener started for %s", self.command_topic)
+            async for message in messages:
+                # Manuelles Filtern des Topics, da aiomqtt kein filtered_messages hat
+                topic_str = str(message.topic)
+                if not paho_mqtt.topic_matches_sub(self.command_topic, topic_str):
+                    continue
+                try:
+                    # message.payload ist bytes und .decode("utf-8") ist korrekt
+                    payload = message.payload.decode("utf-8")
+                    self.logger.debug("Received MQTT message on %s: %s", topic_str, payload)
+
+                    if self.command_callback:
+                        # Extract command from topic
+                        # Topic structure: signalduino/commands/<command>
+                        parts = topic_str.split("/")
+                        if "commands" in parts:
+                            cmd_index = parts.index("commands")
+                            if len(parts) > cmd_index + 1:
+                                command_name = parts[cmd_index + 1]
+                                # Callback ist jetzt async
+                                await self.command_callback(command_name, payload)
+                            else:
+                                self.logger.warning("Received command on generic command topic without specific command: %s", topic_str)
+                            
+                except Exception:
+                    self.logger.exception("Error processing incoming MQTT message")
+                        
+        except mqtt.MqttError:
+            self.logger.warning("Command listener stopped due to MQTT error (e.g. disconnect).")
+        except asyncio.CancelledError:
+            self.logger.info("Command listener task cancelled.")
+        except Exception:
+            self.logger.exception("Unexpected error in command listener.")
+
 
     @staticmethod
     def _message_to_json(message: DecodedMessage) -> str:
@@ -101,46 +142,35 @@ class MqttPublisher:
         
         return json.dumps(message_dict, indent=4)
 
-    def is_connected(self) -> bool:
-        """Checks if the client is connected."""
-        return self.client.is_connected()
-
-    def publish_simple(self, subtopic: str, payload: str, retain: bool = False) -> None:
+    async def publish_simple(self, subtopic: str, payload: str, retain: bool = False) -> None:
         """Publishes a simple string payload to a subtopic of the main topic."""
-        if not self.is_connected():
-            self._connect_if_needed()
-        
-        if self.is_connected():
-            try:
-                topic = f"{self.mqtt_topic}/{subtopic}"
-                self.client.publish(topic, payload, retain=retain)
-                self.logger.debug("Published simple message to %s: %s", topic, payload)
-            except Exception:
-                self.logger.error("Failed to publish simple message to %s", subtopic, exc_info=True)
+        if not self.client:
+            self.logger.warning("Attempted to publish without an active MQTT client.")
+            return
+            
+        try:
+            topic = f"{self.mqtt_topic}/{subtopic}"
+            await self.client.publish(topic, payload, retain=retain)
+            self.logger.debug("Published simple message to %s: %s", topic, payload)
+        except Exception:
+            self.logger.error("Failed to publish simple message to %s", subtopic, exc_info=True)
 
-    def publish(self, message: DecodedMessage) -> None:
+    async def publish(self, message: DecodedMessage) -> None:
         """Publishes a DecodedMessage."""
-        if not self.is_connected():
-            self._connect_if_needed()
+        if not self.client:
+            self.logger.warning("Attempted to publish without an active MQTT client.")
+            return
 
-        if self.is_connected():
-            try:
-                topic = f"{self.mqtt_topic}/messages"
-                payload = self._message_to_json(message)
-                self.client.publish(topic, payload)
-                self.logger.debug("Published message for protocol %s to %s", message.protocol_id, topic)
-            except Exception:
-                self.logger.error("Failed to publish message", exc_info=True)
+        try:
+            topic = f"{self.mqtt_topic}/messages"
+            payload = self._message_to_json(message)
+            await self.client.publish(topic, payload)
+            self.logger.debug("Published message for protocol %s to %s", message.protocol_id, topic)
+        except Exception:
+            self.logger.error("Failed to publish message", exc_info=True)
 
-    def register_command_callback(self, callback: Callable[[str, str], None]) -> None:
-        """Registers a callback for incoming commands."""
+    def register_command_callback(self, callback: Callable[[str, str], Awaitable[None]]) -> None:
+        """Registers a callback for incoming commands (now an awaitable)."""
         self.command_callback = callback
 
-    def stop(self) -> None:
-        """Stops the MQTT client and disconnects."""
-        if self.client.is_connected():
-            self.logger.info("Disconnecting from MQTT broker...")
-            self.client.loop_stop()
-            self.client.disconnect()
-        
             

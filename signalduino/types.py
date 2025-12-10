@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from threading import Event
-from typing import Callable, Optional, Pattern
+from typing import Callable, Optional, Pattern, Awaitable, Any
+# threading.Event wird im asynchronen Controller ersetzt
+# von asyncio.Event, das dort erstellt werden muss.
 
 
 @dataclass(slots=True)
@@ -48,5 +49,5 @@ class PendingResponse:
 
     command: QueuedCommand
     deadline: datetime
-    event: Event = field(default_factory=Event)
+    event: Any # Wird durch asyncio.Event im Controller gesetzt
     response: Optional[str] = None
