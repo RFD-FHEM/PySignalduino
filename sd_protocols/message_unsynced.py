@@ -45,6 +45,7 @@ class MessageUnsyncedMixin:
         mu_protocols = self.get_keys('clockabs')
         
         for pid in mu_protocols:
+            self._logging(f"MU checking PID {pid}", 5)
             # Prepare working copy of raw_data and patterns
             # (Perl does this per protocol iteration because filterfunc might modify them)
             current_raw_data = raw_data
@@ -94,6 +95,7 @@ class MessageUnsyncedMixin:
             
             # Check one, zero, float
             for key in ['one', 'zero', 'float']:
+                # print(f"DEBUG: Checking {key} for PID {pid}")
                 prop_val = self.get_property(pid, key)
                 if not prop_val:
                     continue
@@ -200,13 +202,16 @@ class MessageUnsyncedMixin:
             regex_pattern = f"(?:{re.escape(start_str)})((?:{signal_group_inner}){{{length_min},}}{reconstruct_part})"
             
             try:
+                # print(f"DEBUG: Compiling regex for {pid}: {regex_pattern[:50]}...")
                 matcher = re.compile(regex_pattern)
             except re.error as e:
                 self._logging(f"MU Demod: Invalid regex for {pid}: {e}", 3)
                 continue
                 
             # Perl iterates with /g
+            # print(f"DEBUG: Executing finditer for {pid}")
             for match in matcher.finditer(current_raw_data):
+                # print(f"DEBUG: Match found for {pid}")
                 data_part = match.group(1)
                 
                 # Check length max

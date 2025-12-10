@@ -156,6 +156,12 @@ def main():
             # Endlosschleife, wenn kein Timeout gesetzt ist
             while True:
                 time.sleep(1)
+                if not controller.is_running:
+                    logger.error("Controller threads are dead. Exiting...")
+                    break
+            
+            controller.disconnect()
+            sys.exit(1)
 
     except SignalduinoConnectionError as e:
         # Wird ausgelöst, wenn die Verbindung beim Start fehlschlägt (z.B. falscher Port, Gerät nicht angeschlossen)

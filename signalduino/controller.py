@@ -3,6 +3,7 @@ import logging
 import queue
 import re
 import threading
+import time
 import os # NEU: Import für Umgebungsvariablen
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, List, Optional, Pattern
@@ -50,6 +51,8 @@ class SignalduinoController:
         self._writer_thread: Optional[threading.Thread] = None
 
         self._heartbeat_timer: Optional[threading.Timer] = None # NEU: Heartbeat Timer initialisieren
+        self._init_timer_xq: Optional[threading.Timer] = None
+        self._init_timer_start: Optional[threading.Timer] = None
 
         self._stop_event = threading.Event()
         self._raw_message_queue: queue.Queue[str] = queue.Queue()
@@ -59,6 +62,9 @@ class SignalduinoController:
 
         self.init_retry_count = 0
         self.init_reset_flag = False
+        
+        self._keep_alive = False
+        self._monitor_thread: Optional[threading.Thread] = None
 
     def connect(self) -> None:
         """Opens the transport and starts the worker threads."""
@@ -83,13 +89,33 @@ class SignalduinoController:
         self._writer_thread = threading.Thread(target=self._writer_loop, name="sd-writer")
         self._writer_thread.start()
 
-    def disconnect(self) -> None:
-        """Stops the worker threads and closes the transport."""
-        if not self.transport.is_open:
-            self.logger.warning("disconnect() called but transport is not open.")
-            return
+        self._keep_alive = True
+        if not self._monitor_thread or not self._monitor_thread.is_alive():
+            self._monitor_thread = threading.Thread(target=self._monitor_loop, name="sd-monitor", daemon=True)
+            self._monitor_thread.start()
 
-        self.logger.info("Disconnecting...")
+    @property
+    def is_running(self) -> bool:
+        """Checks if the controller is running and threads are alive."""
+        if self._stop_event.is_set():
+            return False
+        
+        # If threads are initialized, they must be alive
+        if self._reader_thread and not self._reader_thread.is_alive():
+            return False
+        if self._parser_thread and not self._parser_thread.is_alive():
+            return False
+        if self._writer_thread and not self._writer_thread.is_alive():
+            return False
+            
+        return True
+
+    def disconnect(self, reconnect: bool = False) -> None:
+        """Stops the worker threads and closes the transport."""
+        if not reconnect:
+            self._keep_alive = False
+
+        self.logger.info("Disconnecting... (reconnect=%s)", reconnect)
         self._stop_event.set()
 
         # NEU: MQTT Publisher stoppen
@@ -99,6 +125,14 @@ class SignalduinoController:
         if self._heartbeat_timer: # NEU: Heartbeat Timer stoppen
             self._heartbeat_timer.cancel()
             self._heartbeat_timer = None
+
+        if self._init_timer_xq:
+            self._init_timer_xq.cancel()
+            self._init_timer_xq = None
+
+        if self._init_timer_start:
+            self._init_timer_start.cancel()
+            self._init_timer_start = None
 
         # Wake up threads that might be waiting on queues
         self._raw_message_queue.put("")
@@ -111,8 +145,28 @@ class SignalduinoController:
         if self._writer_thread:
             self._writer_thread.join(timeout=1)
 
-        self.transport.close()
+        try:
+            self.transport.close()
+        except Exception as e:
+            self.logger.warning("Error closing transport: %s", e)
         self.logger.info("Transport closed.")
+
+    def _monitor_loop(self) -> None:
+        """Monitors connection state and reconnects if enabled."""
+        self.logger.info("Monitor loop started.")
+        while True:
+            time.sleep(5)
+            if self._keep_alive and not self.is_running:
+                self.logger.warning("Connection lost. Attempting auto-reconnect...")
+                try:
+                    # Ensure everything is stopped before reconnecting
+                    self.disconnect(reconnect=True)
+                    time.sleep(2)
+                    self.connect()
+                    # Trigger init sequence
+                    self.initialize()
+                except Exception as e:
+                    self.logger.error("Auto-reconnect failed: %s", e)
 
     def initialize(self) -> None:
         """Starts the initialization process."""
@@ -120,13 +174,21 @@ class SignalduinoController:
         self.init_retry_count = 0
         self.init_reset_flag = False
 
+        if self._stop_event.is_set():
+            self.logger.warning("initialize called but stop event is set.")
+            return
+
         # Schedule Disable Receiver (XQ) and wait briefly
-        threading.Timer(SDUINO_INIT_WAIT_XQ, self._send_xq).start()
+        self._init_timer_xq = threading.Timer(SDUINO_INIT_WAIT_XQ, self._send_xq)
+        self._init_timer_xq.start()
         
         # Schedule StartInit (Get Version)
-        threading.Timer(SDUINO_INIT_WAIT, self._start_init).start()
+        self._init_timer_start = threading.Timer(SDUINO_INIT_WAIT, self._start_init)
+        self._init_timer_start.start()
 
     def _send_xq(self) -> None:
+        if self._stop_event.is_set():
+            return
         try:
             self.logger.debug("Sending XQ to disable receiver during init")
             self.commands.disable_receiver()
@@ -134,6 +196,9 @@ class SignalduinoController:
             self.logger.warning("Failed to send XQ: %s", e)
 
     def _start_init(self) -> None:
+        if self._stop_event.is_set():
+            return
+
         self.logger.info("StartInit, get version, retry = %d", self.init_retry_count)
 
         if self.init_retry_count == 0:
@@ -160,6 +225,9 @@ class SignalduinoController:
         self._check_version_resp(response)
 
     def _check_version_resp(self, msg: Optional[str]) -> None:
+        if self._stop_event.is_set():
+            return
+
         if msg:
             self.logger.info("Initialized %s", msg.strip())
             self.init_reset_flag = False
@@ -263,6 +331,8 @@ class SignalduinoController:
             except queue.Empty:
                 continue
             except Exception:
+                import traceback
+                traceback.print_exc()
                 if not self._stop_event.is_set():
                     self.logger.exception("Unhandled exception in parser loop")
         self.logger.debug("Parser loop finished.")
@@ -422,7 +492,7 @@ class SignalduinoController:
         try:
             # 1. Heartbeat/Alive message (Retain: True)
             self.mqtt_publisher.publish_simple("status/alive", "online", retain=True)
-            self.logger.debug("Published heartbeat status.")
+            self.logger.info("Heartbeat executed. Status: alive")
 
             # 2. Status data (version, ram, uptime)
             # Fetch data from device (non-blocking call, runs in timer thread)
@@ -443,6 +513,13 @@ class SignalduinoController:
             except Exception as e:
                 self.logger.warning("Could not get free RAM for heartbeat: %s", e)
                 status_data["free_ram"] = "error"
+                # NEU: Wenn Heartbeat wegen Verbindungsfehler fehlschlägt, überprüfen und Disconnect initiieren.
+                # Dies ist der erste Schritt zur Selbstheilung / Reconnect-Vorbereitung.
+                if not self.transport.is_open and not self._stop_event.is_set():
+                    self.logger.error(
+                        "Heartbeat failed: Transport is closed. Triggering disconnect to stop worker threads."
+                    )
+                    self.disconnect(reconnect=True) # Stoppt Threads, setzt self._stop_event, erlaubt Reconnect
                 
             # Uptime
             try:
@@ -455,6 +532,12 @@ class SignalduinoController:
             except Exception as e:
                 self.logger.warning("Could not get uptime for heartbeat: %s", e)
                 status_data["uptime"] = "error"
+                # NEU: Auch hier prüfen und Disconnect initiieren, falls Verbindung noch nicht bemerkt wurde
+                if not self.transport.is_open and not self._stop_event.is_set():
+                    self.logger.error(
+                        "Heartbeat failed: Transport is closed. Triggering disconnect to stop worker threads."
+                    )
+                    self.disconnect(reconnect=True) # Stoppt Threads, setzt self._stop_event, erlaubt Reconnect
             
             # Publish all collected data to a single status/data topic
             if status_data:

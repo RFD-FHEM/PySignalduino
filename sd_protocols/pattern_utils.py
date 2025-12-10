@@ -87,6 +87,18 @@ def pattern_exists(search_pattern: List[float], pattern_list: Dict[str, float], 
     # 2. Generate cartesian product of candidates
     # This gives us all possible assignments of Pattern IDs to the Unique Search Values
     # e.g. search=[1, -1], candidates(1)=['0'], candidates(-1)=['1'] -> product=[['0', '1']]
+    
+    # Check for explosion risk
+    total_combinations = 1
+    for c in candidates_list:
+        total_combinations *= len(c)
+        
+    if total_combinations > 10000:
+        if debug_callback:
+            debug_callback(f"Too many combinations: {total_combinations}. Aborting pattern match.")
+        print(f"DEBUG: Too many combinations: {total_combinations} for {search_pattern}")
+        return -1
+
     product = cartesian_product(candidates_list)
     
     if debug_callback:

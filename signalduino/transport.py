@@ -84,7 +84,7 @@ class SerialTransport(BaseTransport):
 class TCPTransport(BaseTransport):
     """TCP transport talking to firmware via sockets."""
 
-    def __init__(self, host: str, port: int, read_timeout: float = 0.5):
+    def __init__(self, host: str, port: int, read_timeout: float = 10.0):
         self.host = host
         self.port = port
         self.read_timeout = read_timeout
