@@ -7,7 +7,7 @@ from typing import Optional, List, Tuple
 
 from ..exceptions import SignalduinoParserError
 
-_STX_ETX = re.compile(r"^\x02(M[s|u|o];.*;)\x03$")
+_STX_ETX = re.compile(r"^\x02(M[sSuUcCNOo];.*;)\x03$")
 
 
 def decompress_payload(compressed_payload: str) -> str:
@@ -16,7 +16,23 @@ def decompress_payload(compressed_payload: str) -> str:
 
     The Perl logic is in 00_SIGNALduino.pm around line 1784.
     """
-    if not compressed_payload.upper().startswith(("MS;", "MU;", "MO;")):
+    # Check if the message is actually compressed (contains high-bit chars)
+    # The Perl logic runs a decompression loop on any MS/MU/MO, but the compression
+    # logic only works if high-bit chars are present, otherwise it mangles standard fields.
+    # We will only run decompression if we detect at least one high-bit character (ord > 127)
+    # in any part that is not the header (first 3 chars).
+    if not compressed_payload.upper().startswith(("MS;", "MU;", "MO;", "MN;")):
+        return compressed_payload
+    
+    # Check for compression marker (a character with high-bit set)
+    is_compressed = False
+    if len(compressed_payload) > 3:
+        for char in compressed_payload[3:]:
+            if ord(char) > 127:
+                is_compressed = True
+                break
+
+    if not is_compressed:
         return compressed_payload
 
     # Split message parts by ';'
