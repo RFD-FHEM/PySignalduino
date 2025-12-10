@@ -80,7 +80,7 @@ def test_send_command_with_response(mock_transport, mock_parser):
     def write_line_side_effect(payload):
         # When the controller writes "V", simulate the device responding.
         if payload == "V":
-            response_q.put("V 3.5.0-dev SIGNALduino\n")
+            response_q.put("V 3.5.0-dev SIGNALduino - compiled at Mar 10 2017 22:54:50\n")
 
     def readline_side_effect():
         # Simulate blocking read that gets a value after write_line is called.
@@ -95,10 +95,70 @@ def test_send_command_with_response(mock_transport, mock_parser):
     controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
     controller.connect()
     try:
-        response = controller.send_command("V", expect_response=True, timeout=1)
+        response = controller.commands.get_version(timeout=1)
         mock_transport.write_line.assert_called_with("V")
         assert response is not None
         assert "SIGNALduino" in response
+    finally:
+        controller.disconnect()
+
+
+def test_send_command_with_interleaved_message(mock_transport, mock_parser):
+    """
+    Test sending a command and receiving an irrelevant message before the
+    expected command response. The irrelevant message must not be consumed
+    as the response, and the correct response must still be received.
+    """
+    # Queue for all messages from the device
+    response_q = queue.Queue()
+
+    # The irrelevant message (e.g., an asynchronous received signal)
+    interleaved_message = "MU;P0=353;P1=-184;D=0123456789;CP=1;SP=0;R=248;\n"
+    # The expected command response
+    command_response = "V 3.5.0-dev SIGNALduino - compiled at Mar 10 2017 22:54:50\n"
+
+    def write_line_side_effect(payload):
+        # When the controller writes "V", simulate the device responding with
+        # an interleaved message *then* the command response.
+        if payload == "V":
+            # 1. Interleaved message
+            response_q.put(interleaved_message)
+            # 2. Command response
+            response_q.put(command_response)
+
+    def readline_side_effect():
+        # Simulate blocking read that gets a value from the queue.
+        try:
+            return response_q.get(timeout=0.5)
+        except queue.Empty:
+            return None
+
+    mock_transport.write_line.side_effect = write_line_side_effect
+    mock_transport.readline.side_effect = readline_side_effect
+
+    # Mock the parser to track if the interleaved message is passed to it
+    mock_parser.parse_line = Mock(wraps=mock_parser.parse_line)
+
+    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+    controller.connect()
+    time.sleep(0.2) # Give threads time to start
+    try:
+        response = controller.commands.get_version(timeout=2.0)
+        mock_transport.write_line.assert_called_with("V")
+        
+        # 1. Verify that the correct command response was received by send_command
+        assert response is not None
+        assert "SIGNALduino" in response
+        assert response.strip() == command_response.strip()
+
+        # 2. Verify that the interleaved message was passed to the parser
+        # The parser loop (_parser_loop) should attempt to parse the interleaved_message
+        # because _handle_as_command_response should return False for it.
+        mock_parser.parse_line.assert_called_with(interleaved_message.strip())
+
+        # Give the parser thread a moment to process the message
+        time.sleep(0.2)
+        
     finally:
         controller.disconnect()
 
@@ -110,7 +170,7 @@ def test_send_command_timeout(mock_transport, mock_parser):
     controller.connect()
     try:
         with pytest.raises(SignalduinoCommandTimeout):
-            controller.send_command("V", expect_response=True, timeout=0.2)
+            controller.commands.get_version(timeout=0.2)
     finally:
         controller.disconnect()
 
@@ -140,5 +200,117 @@ def test_message_callback(mock_transport, mock_parser):
 
     try:
         callback_mock.assert_called_once_with(decoded_msg)
+    finally:
+        controller.disconnect()
+
+
+def test_initialize_retry_logic(mock_transport, mock_parser):
+    """Test the retry logic during initialization."""
+    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+    controller.connect()
+
+    # Mock send_command to fail initially and then succeed
+    call_count = 0
+
+    def side_effect(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        payload = kwargs.get("payload") or args[0] if args else None
+
+        if payload == "XQ":
+            return None
+        if payload == "V":
+            if call_count <= 2:  # Fail first attempt (XQ is 1st call)
+                raise SignalduinoCommandTimeout("Timeout")
+            return "V 3.5.0-dev SIGNALduino"
+        return None
+
+    mocked_send_command = Mock(side_effect=side_effect)
+    controller.commands._send = mocked_send_command
+
+    # Use very short intervals for testing by patching the imported constants in the controller module
+    import signalduino.controller
+    
+    original_wait = signalduino.controller.SDUINO_INIT_WAIT
+    original_wait_xq = signalduino.controller.SDUINO_INIT_WAIT_XQ
+    
+    signalduino.controller.SDUINO_INIT_WAIT = 0.1
+    signalduino.controller.SDUINO_INIT_WAIT_XQ = 0.05
+
+    try:
+        controller.initialize()
+        time.sleep(3.0)  # Wait for timers and retries (increased from 1.5s due to potential race condition)
+
+        # Verify calls:
+        # 1. XQ
+        # 2. V (fails)
+        # 3. V (retry, succeeds)
+        # 4. XE (enabled after success)
+        
+        # Note: Depending on timing and implementation details, call count might vary slighty
+        # but we expect at least XQ, failed V, successful V, XE.
+        
+        calls = [c.kwargs.get('payload') or c.args[0] for c in mocked_send_command.call_args_list]
+
+        assert "XQ" in calls
+        assert calls.count("V") >= 2
+        assert "XE" in calls
+
+    finally:
+        signalduino.controller.SDUINO_INIT_WAIT = original_wait
+        signalduino.controller.SDUINO_INIT_WAIT_XQ = original_wait_xq
+        controller.disconnect()
+
+def test_stx_message_bypasses_command_response(mock_transport, mock_parser):
+    """
+    Test that messages starting with STX (\x02) are NOT treated as command responses,
+    even if the command's regex (like .* for cmds) would match them.
+    They should be passed directly to the parser.
+    """
+    # Queue for responses
+    response_q = queue.Queue()
+    
+    # STX message (Sensor data)
+    stx_message = "\x02SomeSensorData\x03\n"
+    # Expected response for 'cmds' (?)
+    cmd_response = "V X t R C S U P G r W x E Z\n"
+    
+    def write_line_side_effect(payload):
+        if payload == "?":
+            # Simulate STX message followed by real response
+            response_q.put(stx_message)
+            response_q.put(cmd_response)
+            
+    def readline_side_effect():
+        try:
+            return response_q.get(timeout=0.5)
+        except queue.Empty:
+            return None
+            
+    mock_transport.write_line.side_effect = write_line_side_effect
+    mock_transport.readline.side_effect = readline_side_effect
+    
+    # Mock parser to verify STX message is parsed
+    mock_parser.parse_line = Mock(wraps=mock_parser.parse_line)
+    
+    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+    controller.connect()
+    time.sleep(0.2)
+    
+    try:
+        # get_cmds uses pattern r".*", which would normally match the STX message
+        # if we didn't have the special handling in the controller.
+        response = controller.commands.get_cmds()
+        
+        # Verify we got the correct response, not the STX message
+        assert response is not None
+        assert response.strip() == cmd_response.strip()
+        
+        # Verify STX message was sent to parser
+        mock_parser.parse_line.assert_any_call(stx_message.strip())
+        
+        # Give parser thread some time
+        time.sleep(0.2)
+        
     finally:
         controller.disconnect()

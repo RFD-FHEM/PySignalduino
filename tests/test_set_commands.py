@@ -17,8 +17,18 @@ def mock_transport():
 def controller(mock_transport):
     """Fixture for a SignalduinoController with a mocked transport."""
     ctrl = SignalduinoController(transport=mock_transport)
+
+    def mock_put(queued_command):
+        # Simulate an immediate response for commands that expect one.
+        # This is necessary because we mock the internal thread queue.
+        if queued_command.expect_response and queued_command.on_response:
+            # For Set-Commands, the response is often an echo of the command itself or 'OK'.
+            # We use the command payload as the response.
+            queued_command.on_response(queued_command.payload)
+
     # We don't want to test the full threading model here, so we mock the queue
     ctrl._write_queue = MagicMock()
+    ctrl._write_queue.put.side_effect = mock_put
     return ctrl
 
 
@@ -38,17 +48,17 @@ def test_send_raw_command(controller):
 @pytest.mark.parametrize(
     "message_type, enabled, expected_command",
     [
-        ("MS", True, "CES"),
-        ("MS", False, "CDS"),
-        ("MU", True, "CEU"),
-        ("MU", False, "CDU"),
-        ("MC", True, "CEC"),
-        ("MC", False, "CDC"),
+        ("MS", True, "CEMS"),
+        ("MS", False, "CDMS"),
+        ("MU", True, "CEMU"),
+        ("MU", False, "CDMU"),
+        ("MC", True, "CEMC"),
+        ("MC", False, "CDMC"),
     ],
 )
 def test_set_message_type_enabled(controller, message_type, enabled, expected_command):
     """Test enabling and disabling message types."""
-    controller.set_message_type_enabled(message_type, enabled)
+    controller.commands.set_message_type_enabled(message_type, enabled)
 
     controller._write_queue.put.assert_called_once()
     queued_command = controller._write_queue.put.call_args[0][0]
@@ -66,7 +76,7 @@ def test_set_message_type_enabled(controller, message_type, enabled, expected_co
 )
 def test_cc1101_commands(controller, method_name, value, expected_command_prefix):
     """Test various CC1101 set commands."""
-    method = getattr(controller, method_name)
+    method = getattr(controller.commands, method_name)
     method(value)
 
     controller._write_queue.put.assert_called_once()
@@ -77,7 +87,7 @@ def test_cc1101_commands(controller, method_name, value, expected_command_prefix
 def test_send_message(controller):
     """Test sending a pre-encoded message."""
     message = "P3#is11111000000F#R6"
-    controller.send_message(message)
+    controller.commands.send_message(message)
 
     controller._write_queue.put.assert_called_once()
     queued_command = controller._write_queue.put.call_args[0][0]

@@ -6,9 +6,11 @@ from .helpers import ProtocolHelpersMixin
 from .manchester import ManchesterMixin
 from .postdemodulation import PostdemodulationMixin
 from .rsl_handler import RSLMixin
+from .message_synced import MessageSyncedMixin
+from .message_unsynced import MessageUnsyncedMixin
 
 
-class SDProtocols(ProtocolHelpersMixin, ManchesterMixin, PostdemodulationMixin, RSLMixin):
+class SDProtocols(ProtocolHelpersMixin, ManchesterMixin, PostdemodulationMixin, RSLMixin, MessageSyncedMixin, MessageUnsyncedMixin):
     """Main protocol handling class with helper methods from multiple mixins.
     
     Inherits from:
@@ -16,6 +18,8 @@ class SDProtocols(ProtocolHelpersMixin, ManchesterMixin, PostdemodulationMixin, 
     - ManchesterMixin: Manchester signal protocol handlers (mcBit2* methods)
     - PostdemodulationMixin: Post-demodulation processors (postDemo_* methods)
     - RSLMixin: RSL protocol handlers (decode_rsl, encode_rsl methods)
+    - MessageSyncedMixin: Synchronous (MS) signal decoding
+    - MessageUnsyncedMixin: Unsynchronous (MU) signal decoding
     """
 
     def __init__(self):
@@ -52,6 +56,59 @@ class SDProtocols(ProtocolHelpersMixin, ManchesterMixin, PostdemodulationMixin, 
 
     def get_property(self, pid: str, value_name: str):
         return self._protocols.get(pid, {}).get(value_name)
+
+    def demodulate(self, msg_data: Dict[str, Any], msg_type: str) -> list:
+        """
+        Generic demodulation entry point.
+        """
+        if msg_type == 'MS':
+            return self.demodulate_ms(msg_data, msg_type)
+        elif msg_type == 'MC':
+            return self.demodulate_mc(msg_data, msg_type)
+        elif msg_type == 'MN':
+            return self.demodulate_mn(msg_data, msg_type)
+        elif msg_type == 'MU':
+            return self.demodulate_mu(msg_data, msg_type)
+        
+        self._logging(f"Unknown message type {msg_type}", 3)
+        return []
+
+    def demodulate_mc(self, msg_data: Dict[str, Any], msg_type: str, version: str | None = None) -> list:
+        """Attempts to demodulate an MC message using registered protocols."""
+        
+        protocol_id = msg_data.get("protocol_id")
+        
+        if not protocol_id or not self.protocol_exists(protocol_id):
+            self._logging(f"MC Demodulation failed: Protocol ID {protocol_id} not found or missing.", 3)
+            return []
+            
+        # Get data from msg_data
+        raw_hex = msg_data.get('data', '')
+        clock = msg_data.get('clock', 0)
+        mcbitnum = msg_data.get('bit_length', 0)
+        
+        # We assume the caller (MCParser) ensures we have D, C, L
+        
+        rcode, dmsg, metadata = self._demodulate_mc_data(
+            name=f"Protocol {protocol_id}", # Using protocol name as a simple name for logging
+            protocol_id=protocol_id,
+            clock=clock,
+            raw_hex=raw_hex,
+            mcbitnum=mcbitnum,
+            messagetype=msg_type,
+            version=version
+        )
+        
+        if rcode == 1:
+            # The payload will be inside dmsg, and protocol id in metadata
+            # We assume dmsg contains the HEX payload (mcRaw/mcBit2* methods return this)
+            return [{
+                "protocol_id": str(protocol_id),
+                "payload": dmsg,
+                "meta": metadata
+            }]
+            
+        return []
 
     def demodulate_mn(self, msg_data: Dict[str, Any], msg_type: str) -> list:
         """Attempts to demodulate an MN message using registered protocols."""

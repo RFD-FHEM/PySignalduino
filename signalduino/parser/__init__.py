@@ -26,6 +26,7 @@ class SignalParser:
     ):
         self.protocols = protocols or SDProtocols()
         self.logger = logger or logging.getLogger(__name__)
+        self.protocols.register_log_callback(self._log_adapter)
         self.rfmode = rfmode
         self.ms_parser = MSParser(self.protocols, self.logger)
         self.mu_parser = MUParser(self.protocols, self.logger)
@@ -46,6 +47,20 @@ class SignalParser:
             return []
 
         return list(parser.parse(frame))
+
+    def _log_adapter(self, message: str, level: int):
+        """Adapts SDProtocols custom log levels to python logging."""
+        # FHEM levels: 1=Error, 2=Warn, 3=Info, 4=More Info, 5=Debug
+        if level <= 1:
+            self.logger.error(message)
+        elif level == 2:
+            self.logger.warning(message)
+        elif level == 3:
+            self.logger.info(message)
+        elif level == 4:
+            self.logger.debug(message) # or info? keeping debug for now
+        else:
+            self.logger.debug(message)
 
     def _select_parser(self, message_type: str | None):
         if not message_type:

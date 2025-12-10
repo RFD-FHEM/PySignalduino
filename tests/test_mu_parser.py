@@ -39,9 +39,10 @@ def test_mu_parser_valid_messages(mu_parser, mock_protocols, line, expected_prot
 @pytest.mark.parametrize(
     "line, log_message",
     [
-        ("MU;P0=-370;D=1;CP=4;R=foo;", "Could not parse RSSI value: foo"),
-        ("MU;P0=-370;CP=4;R=42;", "Ignoring MU message without data (D)"),
+        ("MU;P0=-370;D=1;CP=4;R=foo;", "MU message failed regex validation"),
+        ("MU;P0=-370;CP=4;R=42;", "MU message failed regex validation"),
         ("FOO;P0=1;D=1;", "Not an MU message"),
+        ("MU;P0=-1440;P1=432;P2=-357;P3=635;P4=-559;D=012121212123412343412123434121234343412123412343434341234343412123434121212121212341231212343412341212121;CP=1;V=139;", "MU message failed regex validation"),
     ],
 )
 def test_mu_parser_corrupt_messages(mu_parser, mock_protocols, caplog, line, log_message):

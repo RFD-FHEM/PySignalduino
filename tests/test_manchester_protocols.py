@@ -231,7 +231,7 @@ class TestMcBit2TFAPerl:
                   "11111111111010100010111001000000101000100001101001110110010010000"
         rc, hexres = proto.mcBit2TFA(None, bitdata, pid)  # 64 Bits pro Teil
         # In Python mit Doppelsendungs-Erkennung ist rc==1 erwartet
-        assert hexres[0]  "45C814434EC90"
+        assert hexres[0] == "45C814434EC90"
         assert rc == 1
         # Erwarteter Hex-Wert für die erste Bitfolge
         
@@ -250,7 +250,7 @@ class TestMcBit2TFAPerl:
                   "01111111111101010001011100100001"
         rc, hexres = proto.mcBit2TFA("some_name", bitdata, pid)  # 64 Bits pro Teil
         # In Python mit Doppelsendungs-Erkennung ist rc==1 erwartet
-        assert hexres == "45C814434EC90"
+        assert hexres[0] == "45C814434EC90"
         assert rc == 1
         # Erwarteter Hex-Wert für die erste Bitfolge
         
