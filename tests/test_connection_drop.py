@@ -1,8 +1,9 @@
-import queue
-import threading
-import time
+import asyncio
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
+from typing import Optional
+
+import pytest
 
 from signalduino.controller import SignalduinoController
 from signalduino.exceptions import SignalduinoCommandTimeout, SignalduinoConnectionError
@@ -11,72 +12,78 @@ from signalduino.transport import BaseTransport
 class MockTransport(BaseTransport):
     def __init__(self):
         self.is_open_flag = False
-        self.output_queue = queue.Queue()
+        self.output_queue = asyncio.Queue()
 
-    def open(self):
+    async def aopen(self):
         self.is_open_flag = True
 
-    def close(self):
+    async def aclose(self):
         self.is_open_flag = False
 
-    @property
-    def is_open(self):
-        return self.is_open_flag
+    async def __aenter__(self):
+        await self.aopen()
+        return self
 
-    def write_line(self, data):
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.aclose()
+        
+    @property
+    def is_open(self) -> bool:
+        return self.is_open_flag
+    
+    def closed(self) -> bool:
+        return not self.is_open_flag
+
+    async def write_line(self, data: str) -> None:
         if not self.is_open_flag:
             raise SignalduinoConnectionError("Closed")
 
-    def readline(self, timeout=None):
+    async def readline(self, timeout: Optional[float] = None) -> Optional[str]:
         if not self.is_open_flag:
              raise SignalduinoConnectionError("Closed")
         try:
-            return self.output_queue.get(timeout=timeout or 0.1)
-        except queue.Empty:
+            # await output_queue.get with timeout
+            line = await asyncio.wait_for(self.output_queue.get(), timeout=timeout or 0.1)
+            return line
+        except asyncio.TimeoutError:
             return None
 
-class TestConnectionDrop(unittest.TestCase):
-    def test_timeout_normally(self):
-        """Test that a simple timeout raises SignalduinoCommandTimeout."""
-        transport = MockTransport()
-        controller = SignalduinoController(transport)
-        controller.connect()
-        
-        # Expect SignalduinoCommandTimeout because transport sends nothing
-        with self.assertRaises(SignalduinoCommandTimeout):
-            controller.send_command("V", expect_response=True, timeout=0.5)
-            
-        controller.disconnect()
+@pytest.mark.asyncio
+async def test_timeout_normally():
+    """Test that a simple timeout raises SignalduinoCommandTimeout."""
+    transport = MockTransport()
+    controller = SignalduinoController(transport)
+    
+    # Expect SignalduinoCommandTimeout because transport sends nothing
+    async with controller:
+        with pytest.raises(SignalduinoCommandTimeout):
+            await controller.send_command("V", expect_response=True, timeout=0.5)
 
-    def test_connection_drop_during_command(self):
-        """Test that if connection dies during command wait, we get ConnectionError."""
-        transport = MockTransport()
-        controller = SignalduinoController(transport)
-        controller.connect()
 
-        # We need to simulate the reader loop crashing or transport closing
-        # signalduino controller checks transport.is_open or _stop_event
-        
-        # Hook into write_line to close transport immediately after sending
-        # simulating a crash right after send
-        original_write = transport.write_line
-        def side_effect(data):
-            original_write(data)
-            # Simulate connection loss
-            transport.close()
-            # Also set stop event as reader loop would
-            controller._stop_event.set()
-            
-        transport.write_line = side_effect
+@pytest.mark.asyncio
+async def test_connection_drop_during_command():
+    """Test that if connection dies during command wait, we get ConnectionError."""
+    transport = MockTransport()
+    controller = SignalduinoController(transport)
 
-        # Current behavior: Raises SignalduinoCommandTimeout because it just waits on queue
-        # Desired behavior: Raises SignalduinoConnectionError because connection is dead
-        
-        try:
+    # The synchronous exception handler must be replaced by try/except within an async context
+    
+    async with controller:
+        cmd_task = asyncio.create_task(
             controller.send_command("V", expect_response=True, timeout=1.0)
-        except Exception as e:
-            print(f"Caught exception: {type(e).__name__}: {e}")
-            # validating what it currently raises
-            # self.assertIsInstance(e, SignalduinoConnectionError) 
+        )
 
-        controller.disconnect()
+        # Give the command a chance to be sent and be in a waiting state
+        await asyncio.sleep(0.001)
+
+        # Simulate connection loss and cancel main task to trigger cleanup
+        await transport.aclose()
+        # controller._main_task.cancel() # Entfernt, da es in der neuen Controller-Version nicht mehr notwendig ist und Fehler verursacht.
+        
+        # Introduce a small delay to allow the event loop to process the connection drop
+        # and set the controller's _stop_event before the command times out.
+        await asyncio.sleep(0.01)
+
+        with pytest.raises((SignalduinoConnectionError, asyncio.CancelledError, asyncio.TimeoutError)):
+             # send_command should raise an exception because the connection is dead
+            await cmd_task

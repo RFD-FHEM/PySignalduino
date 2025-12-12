@@ -15,3 +15,6 @@ dependencies = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.pytest-asyncio]
+mode = "auto"

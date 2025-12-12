@@ -105,7 +105,8 @@ class MqttPublisher:
                         if "commands" in parts:
                             cmd_index = parts.index("commands")
                             if len(parts) > cmd_index + 1:
-                                command_name = parts[cmd_index + 1]
+                                # Nimm den Rest des Pfades als Command-Name (für Unterbefehle wie set/XE)
+                                command_name = "/".join(parts[cmd_index + 1:])
                                 # Callback ist jetzt async
                                 await self.command_callback(command_name, payload)
                             else:

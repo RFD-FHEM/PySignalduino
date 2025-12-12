@@ -60,6 +60,7 @@ class SignalduinoController:
         self._write_queue: asyncio.Queue[QueuedCommand] = asyncio.Queue()
         self._pending_responses: List[PendingResponse] = []
         self._pending_responses_lock = asyncio.Lock()
+        self._init_complete_event = asyncio.Event() # NEU: Event für den Abschluss der Initialisierung
 
         # Timer-Handles (jetzt asyncio.Task anstelle von threading.Timer)
         self._heartbeat_task: Optional[asyncio.Task[Any]] = None
@@ -150,6 +151,8 @@ class SignalduinoController:
         self.logger.info("Initializing device...")
         self.init_retry_count = 0
         self.init_reset_flag = False
+        self.init_version_response = None
+        self._init_complete_event.clear() # NEU: Event für erneute Initialisierung zurücksetzen
 
         if self._stop_event.is_set():
             self.logger.warning("initialize called but stop event is set.")
@@ -255,6 +258,9 @@ class SignalduinoController:
             
             # NEU: Starte Heartbeat-Task
             await self._start_heartbeat_task()
+            
+            # NEU: Signalisiere den Abschluss der Initialisierung
+            self._init_complete_event.set()
 
         else:
             self.logger.warning("StartInit: No valid version response.")
@@ -273,8 +279,11 @@ class SignalduinoController:
         await asyncio.sleep(2.0)
         # NEU: Der Controller ist neu gestartet und muss wieder in den async Kontext eintreten
         await self.__aenter__()
-
+        
         # Manuell die Initialisierung starten
+        self.init_version_response = None
+        self._init_complete_event.clear() # NEU: Event für erneute Initialisierung zurücksetzen
+        
         try:
             await self._send_xq()
             await self._start_init()
@@ -491,21 +500,25 @@ class SignalduinoController:
             # Warte auf das Future mit Timeout
             return await asyncio.wait_for(response_future, timeout=timeout)
         except asyncio.TimeoutError:
+            await asyncio.sleep(0)  # Gib dem Event-Loop eine Chance, _stop_event zu setzen.
             # Code Refactor: Timeout vs. dead connection
-            if self._stop_event.is_set():
+            self.logger.debug("Command timeout reached for %s", payload)
+            # Differentiate between connection drop and normal command timeout
+            # Check for a closed transport or a stopped controller
+            if self._stop_event.is_set() or (self.transport and self.transport.closed()):
                 self.logger.error(
-                    "Command '%s' timed out. Connection appears to be dead (controller stopping).", payload
+                    "Command '%s' timed out. Connection appears to be dead (transport closed or controller stopping).", payload
                 )
                 raise SignalduinoConnectionError(
                     f"Command '{payload}' failed: Connection dropped."
                 ) from None
-            
-            # Annahme: Transport-API wirft SignalduinoConnectionError bei Trennung.
-            # Wenn dies nicht der Fall ist, wird ein Timeout angenommen.
-            self.logger.warning(
-                "Command '%s' timed out. Treating as no response from device.", payload
-            )
-            raise SignalduinoCommandTimeout(f"Command '{payload}' timed out") from None
+            else:
+                # Annahme: Transport-API wirft SignalduinoConnectionError bei Trennung.
+                # Wenn dies nicht der Fall ist, wird ein Timeout angenommen.
+                self.logger.warning(
+                    "Command '%s' timed out. Treating as no response from device.", payload
+                )
+                raise SignalduinoCommandTimeout(f"Command '{payload}' timed out") from None
 
     async def _start_heartbeat_task(self) -> None:
         """Schedules the periodic status heartbeat task."""
@@ -670,17 +683,29 @@ class SignalduinoController:
         """
         self.logger.info("Starting main controller tasks...")
 
-        # 1. Initialisierung starten (führt Versionsprüfung durch und startet Heartbeat)
-        await self.initialize()
-
-        # 2. Haupt-Tasks erstellen und starten
+        # 1. Haupt-Tasks erstellen und starten (Muss VOR initialize() erfolgen, damit der Reader
+        # die Initialisierungsantwort empfangen kann)
         reader_task = asyncio.create_task(self._reader_task(), name="sd-reader")
         parser_task = asyncio.create_task(self._parser_task(), name="sd-parser")
         writer_task = asyncio.create_task(self._writer_task(), name="sd-writer")
         
         self._main_tasks = [reader_task, parser_task, writer_task]
+        
+        # 2. Initialisierung starten (führt Versionsprüfung durch und startet Heartbeat)
+        await self.initialize()
+        
+        # 3. Auf den Abschluss der Initialisierung warten (mit zusätzlichem Timeout)
+        try:
+            self.logger.info("Waiting for initialization to complete...")
+            await asyncio.wait_for(self._init_complete_event.wait(), timeout=SDUINO_CMD_TIMEOUT * 2)
+            self.logger.info("Initialization complete.")
+        except asyncio.TimeoutError:
+            self.logger.error("Initialization timed out after %s seconds.", SDUINO_CMD_TIMEOUT * 2)
+            # Wenn die Initialisierung fehlschlägt, stoppen wir den Controller (aexit)
+            self._stop_event.set()
+            # Der Timeout kann dazu führen, dass die await-Kette unterbrochen wird. Wir fahren fort.
 
-        # 3. Auf eine der Haupt-Tasks warten (Reader/Writer werden bei Verbindungsabbruch beendet)
+        # 4. Auf eine der kritischen Haupt-Tasks warten (Reader/Writer werden bei Verbindungsabbruch beendet)
         # Parser sollte weiterlaufen, bis die Queue leer ist. Reader/Writer sind die kritischen Tasks.
         critical_tasks = [reader_task, writer_task]
 

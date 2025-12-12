@@ -34,6 +34,10 @@ class BaseTransport:
         # Wir entfernen das Timeout-Argument, da wir dies mit asyncio.wait_for im Controller handhaben
         raise NotImplementedError
     
+    def closed(self) -> bool:  # pragma: no cover - interface
+        """Returns True if the transport is closed, False otherwise."""
+        raise NotImplementedError
+
     # is_open wird entfernt, da es in async-Umgebungen schwer zu implementieren ist
     # und die Transportfehler (SignalduinoConnectionError) zur Beendigung führen.
 
@@ -66,6 +70,9 @@ class SerialTransport(BaseTransport):
         await asyncio.Future() # Hängt die Coroutine auf
         raise NotImplementedError("Asynchronous serial transport is not implemented yet.")
 
+    def closed(self) -> bool:
+        return self._serial is None
+
         
 class TCPTransport(BaseTransport):
     """Asynchronous TCP transport using asyncio streams."""
@@ -92,6 +99,9 @@ class TCPTransport(BaseTransport):
             self._writer = None
             self._reader = None
             logger.info("TCPTransport closed.")
+
+    def closed(self) -> bool:
+        return self._writer is None
 
     async def write_line(self, data: str) -> None:
         if not self._writer:
