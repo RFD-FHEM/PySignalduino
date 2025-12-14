@@ -30,6 +30,15 @@ Detaillierte Informationen zu den unterstützten Geräten und Protokollen finden
 
 Die Firmware wird kontinuierlich weiterentwickelt und ist nicht auf jedem prinzipiell geeigneten Gerät lauffähig, da spezifische Anpassungen an die Hardware erforderlich sind.
 
+[[section-migration]]
+== Migration
+
+PySignalduino wurde von einer Thread-basierten Architektur zu einer asynchronen asyncio-Architektur migriert. Falls Sie von einer Version vor 0.9.0 upgraden, lesen Sie die Migrationsleitfäden:
+
+* link:ASYNCIO_MIGRATION.md[Asyncio-Migrationsleitfaden] – Detaillierte Anleitung zur Anpassung Ihrer Skripte und Callbacks.
+* link:MANCHESTER_MIGRATION.md[Manchester-Migrationsleitfaden] – Informationen zur Integration der Manchester‑Protokoll‑Verarbeitung.
+* link:METHODS_MIGRATION_COMPLETE.md[Methoden‑Migrations‑Übersicht] – Liste aller geänderten Methoden und Klassen.
+
 include::01_user_guide/installation.adoc[]
 
 include::01_user_guide/usage.adoc[]

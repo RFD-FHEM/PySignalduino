@@ -2,17 +2,16 @@ import argparse
 import logging
 import signal
 import sys
-import time
 import os
-import re
-from typing import Optional
+from typing import Optional, Awaitable
+import asyncio # NEU: Für asynchrone Logik
 from dotenv import load_dotenv
 
 from signalduino.constants import SDUINO_CMD_TIMEOUT
 from signalduino.controller import SignalduinoController
-from signalduino.exceptions import SignalduinoConnectionError
+from signalduino.exceptions import SignalduinoConnectionError, SignalduinoCommandTimeout
 from signalduino.transport import SerialTransport, TCPTransport
-from signalduino.types import DecodedMessage
+from signalduino.types import DecodedMessage, RawFrame # NEU: RawFrame
 
 # Konfiguration des Loggings
 def initialize_logging(log_level_str: str):
@@ -35,7 +34,8 @@ initialize_logging(os.environ.get("LOG_LEVEL", "INFO"))
 
 logger = logging.getLogger("main")
 
-def message_callback(message: DecodedMessage):
+# NEU: Callback ist jetzt async
+async def message_callback(message: DecodedMessage):
     """Callback-Funktion, die aufgerufen wird, wenn eine Nachricht dekodiert wurde."""
     model = message.metadata.get("model", "Unknown")
     logger.info(
@@ -44,9 +44,65 @@ def message_callback(message: DecodedMessage):
         f"payload={message.payload}"
     )
     logger.debug(f"Full Metadata: {message.metadata}")
-    if message.raw:
-        logger.debug(f"Raw Frame: {message.raw}")
+    # NEU: Überprüfe, ob RawFrame vorhanden ist und das Attribut 'line' hat
+    if message.raw and isinstance(message.raw, RawFrame):
+        logger.debug(f"Raw Frame: {message.raw.line}")
 
+
+# NEU: Die asynchrone Hauptlogik, die von asyncio.run() aufgerufen wird
+async def _async_run(args: argparse.Namespace):
+    
+    # Transport initialisieren
+    transport = None
+    if args.serial:
+        logger.info(f"Initialisiere serielle Verbindung auf {args.serial} mit {args.baud} Baud...")
+        transport = SerialTransport(port=args.serial, baudrate=args.baud)
+    elif args.tcp:
+        logger.info(f"Initialisiere TCP Verbindung zu {args.tcp}:{args.port}...")
+        transport = TCPTransport(host=args.tcp, port=args.port)
+
+    # Wenn weder --serial noch --tcp (oder deren ENV-Defaults) gesetzt sind
+    if not transport:
+        logger.error("Kein gültiger Transport konfiguriert. Bitte geben Sie --serial oder --tcp an oder setzen Sie SIGNALDUINO_SERIAL_PORT / SIGNALDUINO_TCP_HOST in der Umgebung.")
+        sys.exit(1)
+
+    # Controller initialisieren
+    controller = SignalduinoController(
+        transport=transport,
+        message_callback=message_callback,
+        logger=logger
+    )
+    
+    # Starten
+    try:
+        logger.info("Verbinde zum Signalduino...")
+        # NEU: Verwende async with Block
+        async with controller:
+            logger.info("Verbunden! Starte Initialisierung und Hauptschleife...")
+            
+            # Starte die Hauptschleife, warte auf deren Beendigung oder ein Timeout
+            await controller.run(timeout=args.timeout)
+            
+            logger.info("Hauptschleife beendet.")
+
+    except SignalduinoConnectionError as e:
+        # Wird ausgelöst, wenn die Verbindung beim Start fehlschlägt
+        logger.error(f"Verbindungsfehler: {e}")
+        logger.error("Das Programm wird beendet.")
+        sys.exit(1)
+
+    except asyncio.CancelledError:
+        # Wird bei SIGINT/SIGTERM durch loop.stop() ausgelöst
+        logger.info("Asynchrone Hauptschleife abgebrochen.")
+        sys.exit(0) # Erfolgreiches Beenden
+
+    except Exception as e:
+        # Wird ausgelöst, wenn ein unerwarteter Fehler auftritt (z.B. im Controller)
+        logger.error(f"Ein unerwarteter Fehler ist aufgetreten: {e}", exc_info=True)
+        sys.exit(1)
+
+
+# Die synchrone Hauptfunktion
 def main():
     # .env-Datei laden. Umgebungsvariablen werden gesetzt, aber CLI-Argumente überschreiben diese.
     load_dotenv()
@@ -89,7 +145,8 @@ def main():
     # Logging Einstellung
     parser.add_argument("--log-level", default=DEFAULT_LOG_LEVEL, choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help=f"Logging Level. Standard: {DEFAULT_LOG_LEVEL}")
     
-    parser.add_argument("--timeout", type=int, default=None, help="Beendet das Programm nach N Sekunden (optional)")
+    # Timeout ist jetzt float
+    parser.add_argument("--timeout", type=float, default=None, help="Beendet das Programm nach N Sekunden (optional)")
     
     args = parser.parse_args()
 
@@ -98,82 +155,31 @@ def main():
         initialize_logging(args.log_level)
         logger.debug(f"Logging Level auf {args.log_level.upper()} angepasst.")
     
-    # Manuelle Zuweisung von MQTT ENV Variablen ist nicht mehr nötig, da argparse sie für die gesamte Laufzeit setzt
-
-    # Transport initialisieren
-    transport = None
-    if args.serial:
-        logger.info(f"Initialisiere serielle Verbindung auf {args.serial} mit {args.baud} Baud...")
-        transport = SerialTransport(port=args.serial, baudrate=args.baud)
-    elif args.tcp:
-        logger.info(f"Initialisiere TCP Verbindung zu {args.tcp}:{args.port}...")
-        transport = TCPTransport(host=args.tcp, port=args.port)
-
-    # Wenn weder --serial noch --tcp (oder deren ENV-Defaults) gesetzt sind
-    if not transport:
-        logger.error("Kein gültiger Transport konfiguriert. Bitte geben Sie --serial oder --tcp an oder setzen Sie SIGNALDUINO_SERIAL_PORT / SIGNALDUINO_TCP_HOST in der Umgebung.")
-        sys.exit(1)
-
-    # Controller initialisieren
-    controller = SignalduinoController(
-        transport=transport,
-        message_callback=message_callback,
-        logger=logger
-    )
-
-    # Graceful Shutdown Handler
+    # Signal-Handler zum Beenden des asyncio-Loops
     def signal_handler(sig, frame):
         logger.info("Programm wird beendet...")
-        controller.disconnect()
-        sys.exit(0)
+        # Stoppe den Event Loop anstatt nur sys.exit zu machen
+        try:
+            loop = asyncio.get_running_loop()
+            loop.call_soon_threadsafe(loop.stop)
+        except RuntimeError:
+            # Loop läuft nicht, z.B. bei schnellem Beenden
+            sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-
-    # Starten
+    
+    # Starte die asynchrone Hauptlogik
     try:
-        logger.info("Verbinde zum Signalduino...")
-        controller.connect()
-        logger.info("Verbunden! Starte Initialisierung...")
-        
-        # Starte Initialisierung, welche die Versionsabfrage inkl. Retry-Logik durchführt
-        controller.initialize()
-        logger.info("Initialisierung abgeschlossen! Drücke Ctrl+C zum Beenden.")
-        
-        # Hauptschleife
-        if args.timeout is not None:
-            logger.info(f"Programm wird nach {args.timeout} Sekunden beendet.")
-            start_time = time.time()
-            # Der `while` Block mit `time.sleep(0.1)` wird verwendet, um auf das Timeout zu warten,
-            # während das Controller-Thread im Hintergrund Nachrichten verarbeitet.
-            while (time.time() - start_time) < args.timeout:
-                time.sleep(0.1)
-            # Timeout erreicht, Controller trennen (signal_handler wird nicht aufgerufen)
-            logger.info("Timeout erreicht. Programm wird beendet.")
-            controller.disconnect()
-            sys.exit(0)
-        else:
-            # Endlosschleife, wenn kein Timeout gesetzt ist
-            while True:
-                time.sleep(1)
-                if not controller.is_running:
-                    logger.error("Controller threads are dead. Exiting...")
-                    break
-            
-            controller.disconnect()
-            sys.exit(1)
-
-    except SignalduinoConnectionError as e:
-        # Wird ausgelöst, wenn die Verbindung beim Start fehlschlägt (z.B. falscher Port, Gerät nicht angeschlossen)
-        logger.error(f"Verbindungsfehler: {e}")
-        logger.error("Das Programm wird beendet.")
-        controller.disconnect()
-        sys.exit(1)
-
+        asyncio.run(_async_run(args))
+    except KeyboardInterrupt:
+        # Fängt den KeyboardInterrupt ab, der nach loop.stop() auftreten kann
+        logger.info("Programm beendet durch KeyboardInterrupt.")
     except Exception as e:
-        logger.error(f"Ein unerwarteter Fehler ist aufgetreten: {e}", exc_info=True)
-        controller.disconnect()
-        sys.exit(1)
+        # Diese Exception wird von _async_run ausgelöst, wenn dort sys.exit(1) aufgerufen wird.
+        if not isinstance(e, SystemExit):
+            logger.critical("Ein kritischer, ungefangener Fehler ist aufgetreten: %s", e, exc_info=True)
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()

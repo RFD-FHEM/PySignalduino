@@ -9,9 +9,16 @@ description = "SignalDuino Protocols in Python with MQTT bridge"
 authors = [{name="Sven"}]
 dependencies = [
     "requests",
-    "pyserial",
-    "paho-mqtt"
+    "pyserial-asyncio",
+    "aiomqtt",
+    "python-dotenv"
 ]
+
+[tool.setuptools.packages.find]
+include = ["signalduino", "sd_protocols"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.pytest-asyncio]
+mode = "auto"
