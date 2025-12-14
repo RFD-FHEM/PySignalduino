@@ -111,3 +111,56 @@ Die Architektur wurde von einer threading‑basierten Implementierung (Version 0
 * Asynchrone Kontextmanager für Ressourcenverwaltung
 
 Details zur Migration sind im Dokument `ASYNCIO_MIGRATION.md` zu finden.
+
+== Dokumentations-Infrastruktur (Sitemap & SEO)
+
+Die PySignalduino-Dokumentation wird automatisch mit einer dynamischen Sitemap und branch-spezifischen robots.txt-Dateien versehen, um die Auffindbarkeit in Suchmaschinen zu verbessern.
+
+=== Sitemap-Generierung
+
+Die Sitemap wird durch das Python-Skript `tools/generate_sitemap.py` generiert, das:
+
+1. Den Build-Output-Ordner (`build/site/html`) nach HTML-Dateien scannt
+2. Prioritäten (0.1–1.0) und Update-Frequenzen (`changefreq`) basierend auf Dateipfaden zuweist
+3. Branch-spezifische Base-URLs unterstützt (main: `pysignalduino.rfd-fhem.github.io`, preview: `preview.rfd-fhem.github.io`)
+4. Gültige XML-Sitemap gemäß sitemaps.org-Schema generiert
+5. Fehlerbehandlung und Logging enthält
+
+Das Skript kann manuell ausgeführt werden:
+
+```bash
+python tools/generate_sitemap.py --build-dir build/site/html --output sitemap.xml --branch main
+```
+
+=== robots.txt-Konfiguration
+
+Die Datei `docs/robots.txt` wird im CI/CD-Workflow branch-spezifisch angepasst:
+
+* **main-Branch:** Erlaubt Crawling aller Pfade, schließt Preview-/Develop-Pfade aus
+* **preview-Branch:** Verbietet Crawling des `/preview/`-Pfads
+* **develop-Branch:** Verbietet Crawling des `/develop/`-Pfads
+
+Zusätzlich wird ein `Crawl-delay: 2` gesetzt, um Serverlast zu reduzieren.
+
+=== Integration in den CI/CD-Workflow
+
+Der GitHub Actions Workflow `.github/workflows/docs.yml` wurde erweitert, um:
+
+1. Nach dem Asciidoctor-Build das Sitemap-Generierungsskript auszuführen
+2. Die robots.txt in das Ausgabeverzeichnis zu kopieren und branch-spezifisch anzupassen
+3. Bei Fehlern der Sitemap-Generierung nicht den gesamten Build fehlschlagen zu lassen (`continue-on-error: true`)
+
+=== Statische Fallback-Dateien
+
+Für den Fall, dass die dynamische Generierung fehlschlägt, stehen statische Vorlagen bereit:
+
+* `docs/sitemap_template.xml` – Grundlegende Sitemap mit den wichtigsten URLs
+* `docs/robots.txt` – Generische robots.txt-Vorlage
+
+Diese Dateien werden automatisch durch den CI/CD-Workflow verwendet.
+
+=== SEO-Empfehlungen
+
+* Die Sitemap wird unter `https://pysignalduino.rfd-fhem.github.io/sitemap.xml` verfügbar sein
+* Die robots.txt wird unter `https://pysignalduino.rfd-fhem.github.io/robots.txt` verfügbar sein
+* Es wird empfohlen, die Sitemap in der Google Search Console und Bing Webmaster Tools einzureichen

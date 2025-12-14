@@ -1,0 +1,1 @@
+pytest --cov=signalduino --cov-report=html

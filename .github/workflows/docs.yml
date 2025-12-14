@@ -24,8 +24,54 @@ jobs:
         with:
           version: 2.0.26
 
-      - name: run asciidoctor    
+      - name: run asciidoctor
         run:  asciidoctor -R docs -D build/site/html -a docinfo=shared -a toc=left -a toclevels=2 'docs/index.adoc'
+      
+      - name: Setup Python for Sitemap Generation
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Generate Sitemap
+        id: generate-sitemap
+        continue-on-error: true
+        run: |
+          python tools/generate_sitemap.py \
+            --build-dir build/site/html \
+            --output build/site/html/sitemap.xml \
+            --branch ${{ github.ref_name }}
+        env:
+          GITHUB_REF: ${{ github.ref }}
+      
+      - name: Copy robots.txt
+        run: |
+          # Branch-spezifische robots.txt generieren
+          BRANCH="${{ github.ref_name }}"
+          ROBOTS_SRC="docs/robots.txt"
+          ROBOTS_DST="build/site/html/robots.txt"
+          
+          cp "$ROBOTS_SRC" "$ROBOTS_DST"
+          
+          # Sitemap-URL je nach Branch anpassen
+          if [[ "$BRANCH" == "main" || "$BRANCH" == "gh-pages" ]]; then
+            sed -i 's|Sitemap: .*|Sitemap: https://pysignalduino.rfd-fhem.github.io/sitemap.xml|' "$ROBOTS_DST"
+            # Preview/Develop-Branches disallow
+            echo -e "\n# Production branch - disallow preview/develop paths" >> "$ROBOTS_DST"
+            echo "Disallow: /preview/" >> "$ROBOTS_DST"
+            echo "Disallow: /develop/" >> "$ROBOTS_DST"
+            echo "Disallow: /staging/" >> "$ROBOTS_DST"
+          elif [[ "$BRANCH" == "preview" || "$BRANCH" == "gh-pages-preview" ]]; then
+            sed -i 's|Sitemap: .*|Sitemap: https://preview.rfd-fhem.github.io/PySignalduino/sitemap.xml|' "$ROBOTS_DST"
+            echo -e "\n# Preview branch - disallow preview path" >> "$ROBOTS_DST"
+            echo "Disallow: /preview/" >> "$ROBOTS_DST"
+          elif [[ "$BRANCH" == "develop" ]]; then
+            sed -i 's|Sitemap: .*|Sitemap: https://develop.rfd-fhem.github.io/PySignalduino/sitemap.xml|' "$ROBOTS_DST"
+            echo -e "\n# Develop branch - disallow develop path" >> "$ROBOTS_DST"
+            echo "Disallow: /develop/" >> "$ROBOTS_DST"
+          fi
+          
+          echo "Generated robots.txt for branch: $BRANCH"
+          cat "$ROBOTS_DST"
       
       - name: Add CNAME file
         if: github.ref != 'refs/heads/main'
