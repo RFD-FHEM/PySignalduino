@@ -4,3 +4,9 @@ Dieser Abschnitt beschreibt die Architektur, wie man zur Entwicklung beitragen k
 
 include::architecture.adoc[]
 include::contribution.adoc[]
+
+== Weitere Ressourcen
+
+* link:../ASYNCIO_MIGRATION.md[Asyncio-Migrationsleitfaden] – Detaillierte Anleitung zur Migration von Thread-basierter zu asynchroner Architektur.
+* link:../MANCHESTER_MIGRATION.md[Manchester-Migrationsleitfaden] – Informationen zur Integration der Manchester‑Protokoll‑Verarbeitung.
+* link:../METHODS_MIGRATION_COMPLETE.md[Methoden‑Migrations‑Übersicht] – Liste aller geänderten Methoden und Klassen.

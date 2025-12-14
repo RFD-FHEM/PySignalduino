@@ -35,8 +35,20 @@ class MCParser:
             return
 
         # Example: MC;LL=-10;LH=10;SL=-10;SH=10;D=AAAA9555555AA9555;C=450;L=128;(?:R=48;)?
-        msg_data = self._parse_to_dict(frame.line)
-
+        try:
+            msg_data = self._parse_to_dict(frame.line)
+        except SignalduinoParserError as e:
+            self.logger.debug("Ignoring corrupt MC message: %s - %s", e, frame.line)
+            return
+            
+        # Check for invalid keys that indicate a corrupted header
+        valid_mc_keys = {"LL", "LH", "SL", "SH", "D", "C", "L", "R", "F", "M", "MC", "Mc"}
+        if any(key not in valid_mc_keys for key in msg_data.keys()):
+            self.logger.debug(
+                "Ignoring MC message with invalid key in header: %s", frame.line
+            )
+            return
+            
         if "D" not in msg_data or "C" not in msg_data or "L" not in msg_data:
             self.logger.debug(
                 "Ignoring MC message missing required fields (D, C, or L): %s", frame.line
@@ -54,7 +66,11 @@ class MCParser:
             self.logger.warning("Ignoring MC message with non-hexadecimal raw_hex: %s", raw_hex)
             return
             
-        self._extract_metadata(frame, msg_data)
+        try:
+            self._extract_metadata(frame, msg_data)
+        except SignalduinoParserError as e:
+            self.logger.debug("Ignoring MC message with corrupt metadata: %s - %s", e, frame.line)
+            return
 
         try:
             # Replace generic demodulate with MC-specific processing in the protocol layer
@@ -84,10 +100,42 @@ class MCParser:
             if not part:
                 continue
             if "=" in part:
-                key, value = part.split("=", 1)
+                # Split part into key and value once
+                parts_kv = part.split("=", 1)
+                if len(parts_kv) != 2:
+                    # This handles cases like LL=-2872:LH=2985 which are corrupted.
+                    raise SignalduinoParserError(f"Malformed key-value pair (missing '=') in message: {part}")
+                
+                key, value = parts_kv
+                    
+                # Basic validation of key content: keys are uppercase, 1-2 chars
+                if not re.fullmatch(r"[A-Z]{1,2}", key):
+                     raise SignalduinoParserError(f"Invalid key in message: {key}")
+                
+                # Basic validation of value content: allow numbers, signs, and A-F for hex values
+                # This is a heuristic to catch special chars like '{' or ':' in values where they shouldn't be
+                # We are conservative and allow number/hex/sign
+                if not re.fullmatch(r"[-+]?[0-9a-fA-F]+", value):
+                    raise SignalduinoParserError(f"Invalid value in message: {value}")
+
+                # Check for duplicate key (Perl-like check for corruption)
+                if key in msg_data:
+                    raise SignalduinoParserError(f"Duplicate key in message: {key}")
+                    
                 msg_data[key] = value
             else:
+                # Part without '=' must be the message type (e.g., 'MC')
+                if part in msg_data:
+                    raise SignalduinoParserError(f"Duplicate key in message: {part}")
+                
+                # Further check for malformed parts that should contain '='
+                is_first_part = not msg_data
+                if not is_first_part and part not in ['MC', 'Mc']:
+                    # This is a part without '=', and it's not the initial 'MC' or 'Mc'
+                    raise SignalduinoParserError(f"Malformed non-key-value pair in message: {part}")
+                       
                 msg_data[part] = ""
+                
         return msg_data
 
     def _extract_metadata(self, frame: RawFrame, msg_data: Dict[str, Any]) -> None:
@@ -95,11 +143,13 @@ class MCParser:
         if "R" in msg_data:
             try:
                 frame.rssi = calc_rssi(int(msg_data["R"]))
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as e:
                 self.logger.warning("Could not parse RSSI value: %s", msg_data["R"])
+                raise SignalduinoParserError(f"Could not parse RSSI value: {msg_data['R']}") from e
 
         if "F" in msg_data:
             try:
                 frame.freq_afc = calc_afc(int(msg_data["F"]))
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as e:
                 self.logger.warning("Could not parse AFC value: %s", msg_data["F"])
+                raise SignalduinoParserError(f"Could not parse AFC value: {msg_data['F']}") from e

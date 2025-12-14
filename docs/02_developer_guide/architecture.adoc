@@ -2,7 +2,7 @@
 
 == Übersicht
 
-PySignalduino ist modular aufgebaut und trennt die Protokolldefinitionen (JSON) strikt von der Verarbeitungslogik (Python).
+PySignalduino ist modular aufgebaut und trennt die Protokolldefinitionen (JSON) strikt von der Verarbeitungslogik (Python). Seit der Migration zu asyncio (Version 0.9.0) folgt das System einer ereignisgesteuerten, asynchronen Architektur, die auf asyncio-Tasks und -Queues basiert. Dies ermöglicht eine effiziente Verarbeitung von Sensordaten, Kommandos und MQTT-Nachrichten ohne Blockierung.
 
 == Kernkomponenten
 
@@ -29,3 +29,85 @@ Der Ablauf bei Manchester-Signalen ist wie folgt:
 3. **Dekodierung:** Aufruf der spezifischen `mcBit2*`-Methode.
 
 *Hinweis:* Einige Protokolle wie TFA (`mcBit2TFA`) oder Grothe (`mcBit2Grothe`) haben spezielle Anforderungen an die Längenprüfung oder Duplikatfilterung.
+
+== Asyncio-Architektur
+
+PySignalduino verwendet asyncio für alle E/A-Operationen, um parallele Verarbeitung ohne Thread-Overhead zu ermöglichen. Die Architektur basiert auf drei Haupt-Tasks, die über asynchrone Queues kommunizieren:
+
+* **Reader-Task:** Liest kontinuierlich Zeilen vom Transport (Seriell/TCP) und legt sie in der `_raw_message_queue` ab.
+* **Parser-Task:** Entnimmt Rohzeilen aus der Queue, dekodiert sie über den `SignalParser` und veröffentlicht Ergebnisse via MQTT oder ruft den `message_callback` auf.
+* **Writer-Task:** Verarbeitet Kommandos aus der `_write_queue`, sendet sie an das Gerät und wartet bei Bedarf auf Antworten.
+
+Zusätzlich gibt es spezielle Tasks für Initialisierung, Heartbeat und MQTT-Command-Listener.
+
+=== Asynchrone Queues und Synchronisation
+
+* `_raw_message_queue` (`asyncio.Queue[str]`): Rohdaten vom Reader zum Parser.
+* `_write_queue` (`asyncio.Queue[QueuedCommand]`): Ausstehende Kommandos vom Controller zum Writer.
+* `_pending_responses` (`List[PendingResponse]`): Verwaltet erwartete Antworten mit asyncio.Event für jede.
+* `_stop_event` (`asyncio.Event`): Signalisiert allen Tasks, dass sie beenden sollen.
+* `_init_complete_event` (`asyncio.Event`): Wird gesetzt, sobald die Geräteinitialisierung erfolgreich abgeschlossen ist.
+
+=== Asynchrone Kontextmanager
+
+Alle Ressourcen (Transport, MQTT-Client) implementieren `__aenter__`/`__aexit__` und werden mittels `async with` verwaltet. Der `SignalduinoController` selbst ist ein Kontextmanager, der die Lebensdauer der Verbindung steuert.
+
+== MQTT-Integration
+
+Die MQTT-Integration erfolgt über die Klasse `MqttPublisher` (`signalduino/mqtt.py`), die auf `aiomqtt` basiert und asynchrone Veröffentlichung und Abonnement unterstützt.
+
+=== Verbindungsaufbau
+
+Der MQTT-Client wird automatisch gestartet, wenn die Umgebungsvariable `MQTT_HOST` gesetzt ist. Im `__aenter__` des Controllers wird der Publisher mit dem Broker verbunden und ein Command-Listener-Task gestartet.
+
+=== Topics und Nachrichtenformat
+
+* **Sensordaten:** `{MQTT_TOPIC}/messages` – JSON‑Serialisierte `DecodedMessage`-Objekte.
+* **Kommandos:** `{MQTT_TOPIC}/commands/{command}` – Ermöglicht die Steuerung des Signalduino via MQTT (z.B. `version`, `freeram`, `rawmsg`).
+* **Status:** `{MQTT_TOPIC}/status/{alive,data,version}` – Heartbeat- und Gerätestatus.
+
+=== Command-Listener
+
+Ein separater asynchroner Loop (`_command_listener`) lauscht auf Kommando‑Topics, ruft den registrierten Callback (im Controller `_handle_mqtt_command`) auf und führt die entsprechende Aktion aus. Die Antwort wird unter `result/{command}` oder `error/{command}` zurückveröffentlicht.
+
+== Komponentendiagramm (Übersicht)
+
+```
++-------------------+      +-------------------+      +-------------------+
+|   Transport       |      |   Controller      |      |   MQTT Publisher  |
+|   (Serial/TCP)    |----->|   (asyncio Tasks) |----->|   (aiomqtt)       |
++-------------------+      +-------------------+      +-------------------+
+         ^                          |                          |
+         |                          v                          v
++-------------------+      +-------------------+      +-------------------+
+|   SIGNALDuino     |      |   Parser          |      |   MQTT Broker     |
+|   Hardware        |<-----|   (SDProtocols)   |<-----|   (extern)        |
++-------------------+      +-------------------+      +-------------------+
+```
+
+* **Transport:** Abstrahiert die physikalische Verbindung (asynchrone Lese-/Schreiboperationen).
+* **Controller:** Orchestriert die drei Haupt-Tasks und verwaltet die Queues.
+* **Parser:** Wendet die Protokoll‑Definitions‑JSON an und dekodiert Rohdaten.
+* **MQTT Publisher:** Stellt die Verbindung zum Broker her, publiziert Nachrichten und empfängt Kommandos.
+
+== Datenfluss mit asynchronen Queues
+
+1. **Empfang:** Hardware sendet Rohdaten → Transport liest Zeile → Reader‑Task legt Zeile in `_raw_message_queue`.
+2. **Verarbeitung:** Parser‑Task entnimmt Zeile, erkennt Protokoll, dekodiert Nachricht.
+3. **Ausgabe:** Dekodierte Nachricht wird an `message_callback` übergeben und/oder via MQTT publiziert.
+4. **Kommando:** Externe Quelle (MQTT oder API) ruft `send_command` auf → Kommando landet in `_write_queue` → Writer‑Task sendet es an Hardware.
+5. **Antwort:** Falls Antwort erwartet wird, wartet der Controller auf das passende Event in `_pending_responses`.
+
+Alle Schritte sind asynchron und nicht‑blockierend; Tasks können parallel laufen, solange die Queues nicht leer sind.
+
+== Migration von Threading zu Asyncio
+
+Die Architektur wurde von einer threading‑basierten Implementierung (Version 0.8.x) zu einer reinen asyncio‑Implementierung migriert. Wichtige Änderungen:
+
+* Ersetzung von `threading.Thread` durch `asyncio.Task`
+* Ersetzung von `queue.Queue` durch `asyncio.Queue`
+* Ersetzung von `threading.Event` durch `asyncio.Event`
+* `async`/`await` in allen E/A‑Methoden
+* Asynchrone Kontextmanager für Ressourcenverwaltung
+
+Details zur Migration sind im Dokument `ASYNCIO_MIGRATION.md` zu finden.

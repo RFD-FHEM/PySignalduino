@@ -10,11 +10,151 @@ Beiträge zum Projekt sind willkommen!
 4. **Tests:** Sicherstellen, dass alle Tests bestehen (`pytest`).
 5. **Pull Request:** PR auf GitHub öffnen.
 
+== Entwicklungsumgebung
+
+=== Abhängigkeiten installieren
+
+Das Projekt verwendet `poetry` für die Abhängigkeitsverwaltung. Installieren Sie die Entwicklungsabhängigkeiten mit:
+
+[source,bash]
+----
+include::../../examples/bash/install_dev_deps.sh[]
+----
+
+Oder verwenden Sie `poetry install` (falls Poetry konfiguriert ist).
+
+Die wichtigsten Entwicklungsabhängigkeiten sind:
+
+* `pytest` – Testframework
+* `pytest-mock` – Mocking-Unterstützung
+* `pytest-asyncio` – Asyncio-Testunterstützung
+* `pytest-cov` – Code-Coverage
+* `aiomqtt` – Asynchrone MQTT-Client-Bibliothek (für Tests gemockt)
+
+=== Code-Stil und Linting
+
+Das Projekt folgt PEP 8. Verwenden Sie `black` für automatische Formatierung und `ruff` für Linting.
+
+[source,bash]
+----
+include::../../examples/bash/format_code.sh[]
+----
+
+Es gibt keine strikte CI-Prüfung, aber konsistenter Stil wird erwartet.
+
 == Tests ausführen
 
 Das Projekt nutzt `pytest`. Stellen Sie sicher, dass `requirements-dev.txt` installiert ist.
 
 [source,bash]
 ----
-pytest
+include::../../examples/bash/run_pytest.sh[]
 ----
+
+Für spezifische Testmodule:
+
+[source,bash]
+----
+include::../../examples/bash/run_specific_tests.sh[]
+----
+
+=== Asyncio-Tests
+
+Seit der Migration zu asyncio (Version 0.9.0) sind alle Tests asynchron und verwenden `pytest-asyncio`. Testfunktionen müssen mit `@pytest.mark.asyncio` dekoriert sein und `async def` verwenden.
+
+Beispiel:
+
+[source,python]
+----
+include::../../tests/test_controller.py[lines=81..91]
+----
+
+=== Mocking asynchroner Objekte
+
+Verwenden Sie `AsyncMock` aus `unittest.mock`, um asynchrone Methoden zu mocken. Achten Sie darauf, asynchrone Kontextmanager (`__aenter__`, `__aexit__`) korrekt zu mocken.
+
+[source,python]
+----
+include::../../tests/conftest.py[lines=32..49]
+----
+
+In Fixtures (siehe `tests/conftest.py`) werden Transport- und MQTT-Client-Mocks bereitgestellt.
+
+=== Test-Coverage
+
+Coverage-Bericht generieren:
+
+[source,bash]
+----
+include::../../examples/bash/coverage_report.sh[]
+----
+
+Der Bericht wird im Verzeichnis `htmlcov/` erstellt.
+
+== Code-Stil und Best Practices für asyncio
+
+=== Allgemeine Richtlinien
+
+* Verwenden Sie `async`/`await` für alle E/A-Operationen.
+* Vermeiden Sie blockierende Aufrufe (z.B. `time.sleep`, synchrones Lesen/Schreiben) in asynchronen Kontexten. Nutzen Sie stattdessen `asyncio.sleep`.
+* Nutzen Sie asynchrone Iteratoren (`async for`) und Kontextmanager (`async with`), wo passend.
+
+=== Asynchrone Queues
+
+* Verwenden Sie `asyncio.Queue` für die Kommunikation zwischen Tasks.
+* Achten Sie auf korrekte Behandlung von `Queue.task_done()` und `await queue.join()`.
+* Setzen Sie angemessene Timeouts, um Deadlocks zu vermeiden.
+
+=== Fehlerbehandlung
+
+* Fangen Sie `asyncio.CancelledError` in Tasks, um saubere Beendigung zu ermöglichen.
+* Verwenden Sie `asyncio.TimeoutError` für Timeouts bei `asyncio.wait_for`.
+* Protokollieren Sie Ausnahmen mit `logger.exception` in `except`-Blöcken.
+
+=== Ressourcenverwaltung
+
+* Implementieren Sie `__aenter__`/`__aexit__` für Ressourcen, die geöffnet/geschlossen werden müssen (Transport, MQTT-Client).
+* Stellen Sie sicher, dass `__aexit__` auch bei Ausnahmen korrekt aufgeräumt wird.
+
+=== Performance
+
+* Vermeiden Sie das Erstellen zu vieler gleichzeitiger Tasks; nutzen Sie `asyncio.gather` mit angemessener Begrenzung.
+* Verwenden Sie `asyncio.create_task` für Hintergrundtasks, aber behalten Sie Referenzen, um sie später abbrechen zu können.
+
+== Pull-Request Prozess
+
+1. **Vor dem Einreichen:** Stellen Sie sicher, dass Ihr Branch auf dem neuesten Stand von `main` ist und alle Tests bestehen.
+2. **Beschreibung:** Geben Sie im PR eine klare Beschreibung der Änderungen, des Problems und der Lösung an.
+3. **Review:** Mindestens ein Maintainer muss den PR reviewen und genehmigen.
+4. **Merge:** Nach Genehmigung wird der PR gemergt (Squash-Merge bevorzugt).
+
+=== Checkliste für PRs
+
+* [ ] Tests hinzugefügt/aktualisiert und alle bestehenden Tests bestehen.
+* [ ] Code folgt PEP 8 (Black/Ruff).
+* [ ] Dokumentation aktualisiert (falls nötig).
+* [ ] Keine neuen Warnungen oder Fehler im Linter.
+* [ ] Changelog aktualisiert (optional, wird vom Maintainer übernommen).
+
+== AI‑Agenten Richtlinien
+
+Für AI‑Agenten, die Code oder Systemkonfigurationen ändern, gelten zusätzliche verbindliche Vorgaben. Jede Änderung **muss** eine vollständige Analyse der Auswirkungen auf die zugehörige Dokumentation und die Testsuite umfassen.
+
+Die detaillierten Richtlinien sind in `AGENTS.md` dokumentiert. Die wichtigsten Pflichten sind:
+
+* **Dokumentationspflicht:** Die Dokumentation muss synchron zu allen vorgenommenen Änderungen aktualisiert werden. Betroffen sind das `docs/`‑Verzeichnis, Inline‑Kommentare, Docstrings, README.md und andere Markdown‑Dateien.
+* **Test‑Pflicht:** Bestehende Tests sind zu überprüfen und anzupassen; bei Bedarf sind neue Tests zu erstellen, um eine vollständige Testabdeckung der neuen oder modifizierten Logik zu gewährleisten.
+* **Verbindlichkeit:** Diese Praxis ist für jede Änderung verbindlich und nicht verhandelbar. Ein Commit, der die Dokumentation oder Tests nicht entsprechend anpasst, ist unzulässig.
+
+Vor dem Commit ist die Checkliste in `AGENTS.md` (Abschnitt „Mandatory Documentation and Test Maintenance“) abzuarbeiten.
+
+== Hinweise für Protokoll-Entwicklung
+
+Falls Sie ein neues Funkprotokoll hinzufügen möchten:
+
+1. Fügen Sie die Definition in `sd_protocols/protocols.json` hinzu.
+2. Implementieren Sie die Dekodierungsmethode in der entsprechenden Mixin-Klasse (`ManchesterMixin`, `PostdemodulationMixin`, etc.).
+3. Schreiben Sie Tests für das Protokoll in `tests/test_manchester_protocols.py` oder ähnlich.
+4. Dokumentieren Sie das Protokoll in `docs/03_protocol_reference/protocol_details.adoc`.
+
+Weitere Details finden Sie in der Architektur-Dokumentation (`architecture.adoc`).

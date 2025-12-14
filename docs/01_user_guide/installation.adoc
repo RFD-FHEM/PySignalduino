@@ -1,25 +1,83 @@
 = Installation
 
 == Voraussetzungen
+
 * Python 3.8 oder höher
 * pip (Python Package Installer)
+* Ein SIGNALDuino-Gerät mit serieller oder TCP-Verbindung
+* Optional: Ein MQTT-Broker (z.B. Mosquitto) für die MQTT-Integration
 
-== Installation via pip
+== Abhängigkeiten
 
-Am einfachsten installieren Sie PySignalduino direkt aus dem Repository:
+PySignalduino benötigt folgende Python-Pakete:
+
+* `pyserial` – Serielle Kommunikation
+* `pyserial-asyncio` – Asynchrone serielle Unterstützung
+* `aiomqtt` – Asynchroner MQTT-Client (ersetzt `paho-mqtt` in der asynchronen Version)
+* `python-dotenv` – Laden von Umgebungsvariablen aus `.env`-Dateien
+* `requests` – HTTP-Anfragen (für Firmware-Download)
+
+Diese Abhängigkeiten werden automatisch installiert, wenn Sie das Paket mit `pip install -e .` installieren.
+
+== Installation via pip (empfohlen)
+
+Die einfachste Methode ist die Installation aus dem geklonten Repository im Entwicklermodus:
 
 [source,bash]
 ----
-git clone https://github.com/Ein-Einfaches-Beispiel/PySignalduino.git
-cd PySignalduino
-pip install -r requirements.txt
+include::../examples/bash/install_via_pip.sh[]
 ----
+
+Dadurch wird das Paket `signalduino-mqtt` in Ihrer Python-Umgebung installiert und alle Runtime-Abhängigkeiten werden erfüllt.
+
+== Alternative: Installation nur der Abhängigkeiten
+
+Falls Sie das Paket nicht installieren, sondern nur die Abhängigkeiten nutzen möchten (z.B. für Skripte im Projektverzeichnis):
+
+[source,bash]
+----
+include::../examples/bash/install_requirements.sh[]
+----
+
+Die Datei `requirements.txt` enthält die gleichen Pakete wie oben aufgelistet.
 
 == Entwicklungsumgebung einrichten
 
-Für Entwickler empfehlen wir die Installation der zusätzlichen Abhängigkeiten (z.B. für Tests):
+Für Beiträge zum Projekt oder zum Ausführen der Tests installieren Sie zusätzlich die Entwicklungsabhängigkeiten:
 
 [source,bash]
 ----
-pip install -r requirements-dev.txt
+include::../examples/bash/install_dev_requirements.sh[]
 ----
+
+Dies installiert:
+
+* `pytest` – Testframework
+* `pytest-mock` – Mocking-Unterstützung
+* `pytest-asyncio` – Asynchrone Testunterstützung
+* `pytest-cov` – Coverage-Berichte
+
+== Verifikation der Installation
+
+Überprüfen Sie, ob die Installation erfolgreich war, indem Sie die Hilfe des Hauptprogramms aufrufen:
+
+[source,bash]
+----
+include::../examples/bash/verify_installation.sh[]
+----
+
+Sie sollten eine Ausgabe mit allen verfügbaren Kommandozeilenoptionen sehen.
+
+== Docker / DevContainer
+
+Für eine konsistente Entwicklungsumgebung steht eine DevContainer-Konfiguration bereit. Öffnen Sie das Projekt in Visual Studio Code mit der Remote-Containers-Erweiterung, um automatisch alle Abhängigkeiten in einem isolierten Container zu installieren.
+
+Details finden Sie in der [DevContainer-Dokumentation](devcontainer_env.md).
+
+== Nächste Schritte
+
+Nach der Installation können Sie:
+
+1. Die [Schnellstart-Anleitung](../index.adoc#_schnellstart) befolgen.
+2. Die [Konfiguration über Umgebungsvariablen](../usage.adoc#_konfiguration) einrichten.
+3. Die [MQTT-Integration](../usage.adoc#_mqtt_integration) testen.

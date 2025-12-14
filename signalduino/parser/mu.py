@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Dict, Iterable
 
 from sd_protocols import SDProtocols
@@ -32,6 +33,23 @@ class MUParser:
         except SignalduinoParserError as e:
             self.logger.debug("Not an MU message: %s", e)
             return
+
+        # Regex check for validity (ported from Perl)
+        # ^(?=.*D=\d+)(?:MU;(?:P[0-7]=-?[0-9]{1,5};){2,8}((?:D=\d{2,};)|(?:CP=\d;)|(?:R=\d+;)?|(?:O;)?|(?:e;)?|(?:p;)?|(?:w=\d;)?)*)$
+        # Note: The Perl regex allows 'R=' with optional value? No, 'R=\d+;'.
+        # The Perl regex groups are:
+        # ((?:D=\d{2,};)|(?:CP=\d;)|(?:R=\d+;)?|(?:O;)?|(?:e;)?|(?:p;)?|(?:w=\d;)?)*
+        # Wait, (?:R=\d+;)? means R=123; is optional match, but if present must match R=\d+;
+        # But if it matches empty string? The outer loop * repeats.
+        # So essentially it allows empty strings between semicolons?
+        # Let's use the exact logic:
+        # It ensures that AFTER the P patterns, ONLY the specified keys appear.
+        
+        regex = r"^(?=.*D=\d+)(?:MU;(?:P[0-7]=-?[0-9]{1,5};){2,8}((?:D=\d{2,};)|(?:CP=\d;)|(?:R=\d+;)|(?:O;)|(?:e;)|(?:p;)|(?:w=\d;))*)$"
+        
+        if not re.match(regex, frame.line):
+             self.logger.debug("MU message failed regex validation: %s", frame.line)
+             return
 
         # Example: MU;P0=-1508;P1=476;D=0121;CP=1;R=43;
         msg_data = self._parse_to_dict(frame.line)

@@ -1,127 +1,131 @@
-"""Transport abstractions for serial and TCP Signalduino connections."""
-
 from __future__ import annotations
 
+import logging
 import socket
-from typing import Optional
+from socket import gaierror
+from typing import Optional, Any
+import asyncio # NEU: Für asynchrone I/O und Kontextmanager
 
 from .exceptions import SignalduinoConnectionError
 
+logger = logging.getLogger(__name__)
+
 
 class BaseTransport:
-    """Minimal interface shared by all transports."""
+    """Minimal asynchronous interface shared by all transports."""
 
-    def open(self) -> None:  # pragma: no cover - interface
+    async def __aenter__(self) -> "BaseTransport":  # pragma: no cover
+        await self.open()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:  # pragma: no cover
+        await self.close()
+
+    async def open(self) -> None:  # pragma: no cover - interface
         raise NotImplementedError
 
-    def close(self) -> None:  # pragma: no cover - interface
+    async def close(self) -> None:  # pragma: no cover - interface
         raise NotImplementedError
 
-    def write_line(self, data: str) -> None:  # pragma: no cover - interface
+    async def write_line(self, data: str) -> None:  # pragma: no cover - interface
         raise NotImplementedError
 
-    def readline(self, timeout: Optional[float] = None) -> Optional[str]:  # pragma: no cover - interface
+    async def readline(self) -> Optional[str]:  # pragma: no cover - interface
+        # Wir entfernen das Timeout-Argument, da wir dies mit asyncio.wait_for im Controller handhaben
+        raise NotImplementedError
+    
+    def closed(self) -> bool:  # pragma: no cover - interface
+        """Returns True if the transport is closed, False otherwise."""
         raise NotImplementedError
 
-    @property
-    def is_open(self) -> bool:  # pragma: no cover - interface
-        raise NotImplementedError
+    # is_open wird entfernt, da es in async-Umgebungen schwer zu implementieren ist
+    # und die Transportfehler (SignalduinoConnectionError) zur Beendigung führen.
 
 
 class SerialTransport(BaseTransport):
-    """Serial transport backed by pyserial."""
+    """Placeholder for asynchronous serial transport."""
 
     def __init__(self, port: str, baudrate: int = 115200, read_timeout: float = 0.5):
         self.port = port
         self.baudrate = baudrate
         self.read_timeout = read_timeout
-        self._serial = None
+        self._serial: Any = None # Placeholder für asynchrones Serial-Objekt
 
-    def open(self) -> None:
-        try:
-            import serial  # type: ignore
-        except ModuleNotFoundError as exc:  # pragma: no cover - import guard
-            raise SignalduinoConnectionError("pyserial is required for SerialTransport") from exc
+    async def open(self) -> None:
+        # Hier wäre die Logik für `async_serial.to_serial_port()` oder ähnliches
+        raise NotImplementedError("Asynchronous serial transport is not implemented yet.")
 
-        try:
-            self._serial = serial.Serial(
-                self.port,
-                self.baudrate,
-                timeout=self.read_timeout,
-                write_timeout=1,
-            )
-        except serial.SerialException as exc:  # type: ignore[attr-defined]
-            raise SignalduinoConnectionError(str(exc)) from exc
+    async def close(self) -> None:
+        # Hier wäre die Logik für das Schließen des asynchronen Ports
+        pass
 
-    def close(self) -> None:
-        if self._serial and self._serial.is_open:
-            self._serial.close()
-        self._serial = None
+    async def write_line(self, data: str) -> None:
+        # Platzhalter: Müsste zu `await self._writer.write(payload)` werden
+        await asyncio.sleep(0) # Nicht-blockierende Wartezeit
+        raise NotImplementedError("Asynchronous serial transport is not implemented yet.")
 
-    @property
-    def is_open(self) -> bool:
-        return bool(self._serial and self._serial.is_open)
+    async def readline(self) -> Optional[str]:
+        # Platzhalter: Müsste zu `await self._reader.readline()` werden
+        # Simuliere das Warten auf eine Zeile (blockiert effektiv)
+        await asyncio.Future() # Hängt die Coroutine auf
+        raise NotImplementedError("Asynchronous serial transport is not implemented yet.")
 
-    def write_line(self, data: str) -> None:
-        if not self._serial or not self._serial.is_open:
-            raise SignalduinoConnectionError("serial port is not open")
-        payload = (data + "\n").encode("ascii", errors="ignore")
-        self._serial.write(payload)
+    def closed(self) -> bool:
+        return self._serial is None
 
-    def readline(self, timeout: Optional[float] = None) -> Optional[str]:
-        if not self._serial or not self._serial.is_open:
-            raise SignalduinoConnectionError("serial port is not open")
-        if timeout is not None:
-            self._serial.timeout = timeout
-        raw = self._serial.readline()
-        return raw.decode("ascii", errors="ignore") if raw else None
-
-
+        
 class TCPTransport(BaseTransport):
-    """TCP transport talking to firmware via sockets."""
+    """Asynchronous TCP transport using asyncio streams."""
 
-    def __init__(self, host: str, port: int, read_timeout: float = 0.5):
+    def __init__(self, host: str, port: int, read_timeout: float = 10.0):
         self.host = host
         self.port = port
         self.read_timeout = read_timeout
-        self._sock: Optional[socket.socket] = None
-        self._buffer = bytearray()
+        self._reader: Optional[asyncio.StreamReader] = None
+        self._writer: Optional[asyncio.StreamWriter] = None
 
-    def open(self) -> None:
-        sock = socket.create_connection((self.host, self.port), timeout=5)
-        sock.settimeout(self.read_timeout)
-        self._sock = sock
+    async def open(self) -> None:
+        try:
+            # Das `read_timeout` wird im Controller mit `asyncio.wait_for` gehandhabt
+            self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
+            logger.info("TCPTransport connected to %s:%s", self.host, self.port)
+        except (OSError, gaierror) as exc:
+            raise SignalduinoConnectionError(str(exc)) from exc
 
-    def close(self) -> None:
-        if self._sock:
-            try:
-                self._sock.close()
-            finally:
-                self._sock = None
-        self._buffer.clear()
+    async def close(self) -> None:
+        if self._writer:
+            self._writer.close()
+            await self._writer.wait_closed()
+            self._writer = None
+            self._reader = None
+            logger.info("TCPTransport closed.")
 
-    @property
-    def is_open(self) -> bool:
-        return self._sock is not None
+    def closed(self) -> bool:
+        return self._writer is None
 
-    def write_line(self, data: str) -> None:
-        if not self._sock:
-            raise SignalduinoConnectionError("socket is not open")
-        payload = (data + "\n").encode("ascii", errors="ignore")
-        self._sock.sendall(payload)
+    async def write_line(self, data: str) -> None:
+        if not self._writer:
+            raise SignalduinoConnectionError("TCPTransport is not open")
+        payload = (data + "\n").encode("latin-1", errors="ignore")
+        self._writer.write(payload)
+        await self._writer.drain()
 
-    def readline(self, timeout: Optional[float] = None) -> Optional[str]:
-        if not self._sock:
-            raise SignalduinoConnectionError("socket is not open")
-        if timeout is not None:
-            self._sock.settimeout(timeout)
+    async def readline(self) -> Optional[str]:
+        if not self._reader:
+            raise SignalduinoConnectionError("TCPTransport is not open")
+        try:
+            # readline liest bis zum Trennzeichen oder EOF
+            raw = await self._reader.readline()
+            if not raw:
+                # Verbindung geschlossen (EOF erreicht)
+                raise SignalduinoConnectionError("Remote closed connection")
+            # Wir verwenden strip(), um das Zeilenende zu entfernen, da der Controller dies erwartet
+            return raw.decode("latin-1", errors="ignore").strip()
+        except ConnectionResetError as exc:
+             raise SignalduinoConnectionError("Connection reset by peer") from exc
+        except Exception as exc:
+            # Re-raise andere Exceptions als Verbindungsfehler
+            if 'socket is closed' in str(exc) or 'cannot reuse' in str(exc):
+                raise SignalduinoConnectionError(str(exc)) from exc
+            raise
 
-        while True:
-            if b"\n" in self._buffer:
-                line, _, self._buffer = self._buffer.partition(b"\n")
-                return line.decode("ascii", errors="ignore")
-
-            chunk = self._sock.recv(4096)
-            if not chunk:
-                return None
-            self._buffer.extend(chunk)
