@@ -12,3 +12,38 @@ This file provides guidance to agents when working with code in this repository.
 ## Verification Execution
 - Das Hauptprogramm für Verifizierungen sollte wie folgt gestartet werden:
   `python3 main.py --timeout 1`
+
+## Mandatory Documentation and Test Maintenance
+
+Diese Richtlinie gilt für alle AI-Agenten, die Code oder Systemkonfigurationen in diesem Repository ändern. Jede Änderung **muss** eine vollständige Analyse der Auswirkungen auf die zugehörige Dokumentation und die Testsuite umfassen.
+
+### 1. Dokumentationspflicht
+- **Synchronisierung:** Die Dokumentation muss synchron zu allen vorgenommenen Änderungen aktualisiert werden, um deren Genauigkeit und Vollständigkeit sicherzustellen.
+- **Bereiche:** Betroffene Dokumentationsbereiche umfassen:
+  - `docs/`‑Verzeichnis (AsciiDoc‑Dateien)
+  - Inline‑Kommentare und Docstrings
+  - README.md und andere Markdown‑Dateien
+  - API‑Referenzen und Benutzerhandbücher
+- **Prüfung:** Vor dem Abschluss einer Änderung ist zu verifizieren, dass alle dokumentationsrelevanten Aspekte berücksichtigt wurden.
+
+### 2. Test‑Pflicht
+- **Bestehende Tests:** Die bestehenden Tests sind zu überprüfen und anzupassen, um die geänderten Funktionalitäten korrekt abzudecken.
+- **Neue Tests:** Bei Bedarf sind neue Tests zu erstellen, um eine vollständige Testabdeckung der neuen oder modifizierten Logik zu gewährleisten.
+- **Test‑Verzeichnis:** Alle Tests befinden sich im `tests/`‑Verzeichnis und müssen nach der Änderung weiterhin erfolgreich ausführbar sein.
+- **Test‑Ausführung:** Vor dem Commit ist die Testsuite mit `pytest` (oder dem projektspezifischen Testrunner) auszuführen, um Regressionen auszuschließen.
+
+### 3. Verbindlichkeit
+- Diese Praxis ist für **jede** Änderung verbindlich und nicht verhandelbar.
+- Ein Commit, der die Dokumentation oder Tests nicht entsprechend anpasst, ist unzulässig.
+- Agenten müssen sicherstellen, dass ihre Änderungen den etablierten Qualitätsstandards des Projekts entsprechen.
+
+### 4. Checkliste vor dem Commit
+- [ ] Dokumentation im `docs/`‑Verzeichnis aktualisiert
+- [ ] Inline‑Kommentare und Docstrings angepasst
+- [ ] README.md und andere Markdown‑Dateien geprüft
+- [ ] Bestehende Tests angepasst und erfolgreich ausgeführt
+- [ ] Neue Tests für geänderte/neue Logik erstellt
+- [ ] Gesamte Testsuite (`pytest`) ohne Fehler durchgelaufen
+- [ ] Änderungen mit den Projekt‑Konventionen konsistent
+
+Diese Richtlinie gewährleistet, dass Code‑Änderungen nicht isoliert, sondern im Kontext des gesamten Projekts betrachtet werden und die langfristige Wartbarkeit sowie die Zuverlässigkeit der Software erhalten bleibt.
