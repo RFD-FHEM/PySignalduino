@@ -1,0 +1,32 @@
+# robots.txt für PySignalduino-Dokumentation
+# Diese Datei wird automatisch basierend auf dem Branch generiert.
+# 
+# Branch-spezifische Konfigurationen:
+# - main/gh-pages: Erlaube Crawling, zeige Produktions-Sitemap
+# - preview: Disallow /preview/, zeige Preview-Sitemap
+# - develop/staging: Disallow für Suchmaschinen
+
+User-agent: *
+Crawl-delay: 2
+
+# Standardmäßig alles erlauben (wird je nach Branch überschrieben)
+Allow: /
+
+# Sitemap-URL (wird je nach Branch ersetzt)
+Sitemap: https://pysignalduino.rfd-fhem.github.io/sitemap.xml
+
+# Hinweis: Die folgenden Zeilen werden automatisch durch den CI/CD-Workflow
+# basierend auf dem aktuellen Branch angepasst.
+# 
+# Für den main-Branch:
+#   Disallow: /preview/
+#   Disallow: /develop/
+#   Disallow: /staging/
+#
+# Für den preview-Branch:
+#   Disallow: /preview/
+#   Sitemap: https://preview.rfd-fhem.github.io/PySignalduino/sitemap.xml
+#
+# Für den develop-Branch:
+#   Disallow: /develop/
+#   Sitemap: https://develop.rfd-fhem.github.io/PySignalduino/sitemap.xml
