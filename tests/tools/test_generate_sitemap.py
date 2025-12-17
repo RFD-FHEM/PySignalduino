@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from datetime import datetime
 from xml.etree import ElementTree as ET
+from unittest.mock import patch, MagicMock
 
 # Das zu testende Modul importieren
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -24,6 +25,9 @@ from tools.generate_sitemap import (
     generate_sitemap_urls,
     create_xml_sitemap,
     BRANCH_URLS,
+    get_lastmod_for_file,
+    get_git_root,
+    main,
 )
 
 class TestPriorityMapping:
@@ -42,13 +46,13 @@ class TestPriorityMapping:
         assert get_priority_for_path('protocol-reference/index.html') == 0.8
     
     def test_developer_guide_architecture(self):
-        assert get_priority_for_path('developer-guide/architecture.html') == 0.7
+        assert get_priority_for_path('developer-guide/architecture.html') == 0.8
     
     def test_examples_general(self):
-        assert get_priority_for_path('examples/some-example.html') == 0.2
+        assert get_priority_for_path('examples/some-example.html') == 0.3
     
     def test_migration_general(self):
-        assert get_priority_for_path('migration/some-doc.html') == 0.1
+        assert get_priority_for_path('migration/some-doc.html') == 0.2
     
     def test_unknown_path(self):
         assert get_priority_for_path('unknown/path.html') == 0.5
@@ -238,6 +242,197 @@ class TestBranchUrls:
     
     def test_preview_branch_url(self):
         assert BRANCH_URLS['preview'] == 'https://preview.rfd-fhem.github.io/PySignalduino'
+
+
+class TestScanHtmlFilesEdgeCases:
+    """Tests für Edge Cases beim Scannen von HTML-Dateien."""
+    
+    def test_nonexistent_directory(self):
+        """Teste, dass scan_html_files mit nicht existierendem Verzeichnis umgeht."""
+        non_existent = Path('/nonexistent/path')
+        files = scan_html_files(non_existent)
+        assert len(files) == 0
+    
+    def test_non_html_files_ignored(self):
+        """Teste, dass nur .html-Dateien gescannt werden."""
+        with tempfile.TemporaryDirectory() as tmp:
+            build_dir = Path(tmp) / 'build' / 'site' / 'html'
+            build_dir.mkdir(parents=True)
+            (build_dir / 'index.txt').write_text('text')
+            (build_dir / 'image.png').write_text('png')
+            (build_dir / 'index.html').write_text('<html></html>')
+            
+            files = scan_html_files(build_dir)
+            paths = [f['path'] for f in files]
+            assert 'index.html' in paths
+            assert len(files) == 1
+
+
+class TestLastModFunction:
+    """Tests für die get_lastmod_for_file Funktion."""
+    
+    @patch('tools.generate_sitemap.get_git_root')
+    @patch('tools.generate_sitemap.subprocess.run')
+    def test_get_lastmod_for_file_with_git(self, mock_run, mock_get_git_root):
+        """Teste, dass Git-Log verwendet wird, wenn verfügbar."""
+        with tempfile.NamedTemporaryFile(suffix='.html') as f:
+            file_path = Path(f.name)
+            # Mock get_git_root, um das Elternverzeichnis der Datei zurückzugeben
+            mock_get_git_root.return_value = file_path.parent
+            # Mock subprocess.run für git log
+            mock_git_log = MagicMock()
+            mock_git_log.returncode = 0
+            mock_git_log.stdout = '2025-12-14\n'
+            mock_run.return_value = mock_git_log
+            
+            result = get_lastmod_for_file(file_path)
+        
+        assert result == '2025-12-14'
+        # Überprüfe, dass get_git_root aufgerufen wurde
+        mock_get_git_root.assert_called_once()
+        # Überprüfe, dass subprocess.run für git log aufgerufen wurde
+        mock_run.assert_called_once()
+    
+    @patch('tools.generate_sitemap.subprocess.run')
+    def test_get_lastmod_for_file_without_git(self, mock_run):
+        """Teste Fallback auf Dateisystem-Modifikationszeit."""
+        mock_run.return_value.returncode = 1  # Git nicht verfügbar
+        
+        with tempfile.NamedTemporaryFile(suffix='.html') as f:
+            file_path = Path(f.name)
+            # Setze eine bekannte Modifikationszeit
+            import os
+            import time
+            test_time = time.mktime((2025, 12, 13, 12, 0, 0, 0, 0, 0))
+            os.utime(f.name, (test_time, test_time))
+            
+            result = get_lastmod_for_file(file_path)
+        
+        assert result == '2025-12-13'
+    
+    @patch('tools.generate_sitemap.subprocess.run')
+    def test_get_lastmod_for_file_git_error(self, mock_run):
+        """Teste, dass Git-Fehler abgefangen werden."""
+        mock_run.side_effect = FileNotFoundError()  # Git nicht installiert
+        
+        with tempfile.NamedTemporaryFile(suffix='.html') as f:
+            file_path = Path(f.name)
+            import os
+            import time
+            test_time = time.mktime((2025, 12, 10, 12, 0, 0, 0, 0, 0))
+            os.utime(f.name, (test_time, test_time))
+            
+            result = get_lastmod_for_file(file_path)
+        
+        assert result == '2025-12-10'
+
+
+class TestMainFunction:
+    """Tests für die Hauptfunktion main()."""
+    
+    @patch('tools.generate_sitemap.sys.exit')
+    @patch('tools.generate_sitemap.logger')
+    def test_main_missing_build_dir(self, mock_logger, mock_exit):
+        """Teste, dass main bei fehlendem Build-Verzeichnis mit Fehler beendet."""
+        import sys
+        sys.argv = ['generate_sitemap.py', '--build-dir', '/nonexistent']
+        
+        main()
+        
+        # Überprüfe, dass sys.exit(1) aufgerufen wurde
+        mock_exit.assert_called_with(1)
+        # Überprüfe, dass eine Fehlermeldung geloggt wurde
+        assert mock_logger.error.called
+    
+    @patch('tools.generate_sitemap.scan_html_files')
+    @patch('tools.generate_sitemap.generate_sitemap_urls')
+    @patch('tools.generate_sitemap.create_xml_sitemap')
+    @patch('tools.generate_sitemap.write_sitemap')
+    @patch('tools.generate_sitemap.Path')
+    def test_main_with_branch_arg(self, mock_path, mock_write, mock_create, mock_generate, mock_scan):
+        """Teste, dass --branch korrekt verarbeitet wird."""
+        import sys
+        sys.argv = [
+            'generate_sitemap.py',
+            '--branch', 'preview',
+            '--build-dir', 'build/site/html',
+            '--output', 'sitemap.xml'
+        ]
+        
+        # Mock Path.exists() um True zurückzugeben
+        mock_path_instance = MagicMock()
+        mock_path_instance.exists.return_value = True
+        mock_path.return_value = mock_path_instance
+        
+        # Mock die Abhängigkeiten
+        mock_scan.return_value = []
+        mock_generate.return_value = []
+        mock_create.return_value = MagicMock()
+        
+        main()
+        
+        # Überprüfe, dass generate_sitemap_urls mit der korrekten Base-URL aufgerufen wurde
+        mock_generate.assert_called_once()
+        # Die Base-URL sollte die für 'preview' sein
+        call_args = mock_generate.call_args
+        assert call_args[0][1] == 'https://preview.rfd-fhem.github.io/PySignalduino'
+    
+    @patch('tools.generate_sitemap.scan_html_files')
+    @patch('tools.generate_sitemap.generate_sitemap_urls')
+    @patch('tools.generate_sitemap.create_xml_sitemap')
+    @patch('tools.generate_sitemap.write_sitemap')
+    @patch('tools.generate_sitemap.Path')
+    def test_main_with_base_url_arg(self, mock_path, mock_write, mock_create, mock_generate, mock_scan):
+        """Teste, dass --base-url Vorrang vor --branch hat."""
+        import sys
+        sys.argv = [
+            'generate_sitemap.py',
+            '--branch', 'preview',
+            '--base-url', 'https://custom.example.com',
+            '--build-dir', 'build/site/html',
+            '--output', 'sitemap.xml'
+        ]
+        
+        # Mock Path.exists()
+        mock_path_instance = MagicMock()
+        mock_path_instance.exists.return_value = True
+        mock_path.return_value = mock_path_instance
+        
+        mock_scan.return_value = []
+        mock_generate.return_value = []
+        mock_create.return_value = MagicMock()
+        
+        main()
+        
+        call_args = mock_generate.call_args
+        assert call_args[0][1] == 'https://custom.example.com'
+
+
+class TestPriorityChangefreqMappingUpdates:
+    """Tests für aktualisierte Mapping-Tabellen."""
+    
+    def test_new_priority_mappings(self):
+        """Teste neue Einträge in PRIORITY_MAP."""
+        # devcontainer-environment.html
+        assert get_priority_for_path('devcontainer-environment.html') == 0.3
+        # agents.html
+        assert get_priority_for_path('agents.html') == 0.3
+        # readme.html
+        assert get_priority_for_path('readme.html') == 0.3
+        # migration/asyncio-migration.html
+        assert get_priority_for_path('migration/asyncio-migration.html') == 0.2
+    
+    def test_new_changefreq_mappings(self):
+        """Teste neue Einträge in CHANGEFREQ_MAP."""
+        # devcontainer-environment.html
+        assert get_changefreq_for_path('devcontainer-environment.html') == 'yearly'
+        # agents.html
+        assert get_changefreq_for_path('agents.html') == 'monthly'
+        # readme.html
+        assert get_changefreq_for_path('readme.html') == 'monthly'
+        # migration/asyncio-migration.html
+        assert get_changefreq_for_path('migration/asyncio-migration.html') == 'never'
+
 
 def test_integration_with_cli(tmp_path):
     """Integrationstest: Führe das Skript mit einem temporären Build-Verzeichnis aus."""

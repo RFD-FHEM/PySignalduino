@@ -31,46 +31,68 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Mapping von Dateipfad-Mustern zu Prioritäten und Update-Frequenzen
+# Basierend auf der tatsächlichen Dokumentationsstruktur und erwarteten HTML-Dateien
 PRIORITY_MAP = {
     'index.html': 1.0,
     'user-guide/installation.html': 0.9,
     'user-guide/usage.html': 0.9,
     'user-guide/index.html': 0.8,
+    'developer-guide/architecture.html': 0.8,
+    'developer-guide/contribution.html': 0.7,
+    'developer-guide/index.html': 0.8,
+    'protocol-reference/protocol-details.html': 0.7,
     'protocol-reference/index.html': 0.8,
-    'developer-guide/architecture.html': 0.7,
-    'developer-guide/index.html': 0.7,
-    'migration/asyncio-migration.html': 0.6,
     'examples/basic-usage.html': 0.6,
     'examples/mqtt-integration.html': 0.6,
-    'readme.html': 0.5,
-    'developer-guide/contribution.html': 0.5,
-    'migration/manchester-migration.html': 0.4,
-    'migration/methods-migration-complete.html': 0.4,
-    'examples/index.html': 0.4,
-    'protocol-reference/protocol-details.html': 0.4,
-    'examples/bash/index.html': 0.3,
+    'examples/command-api-example.html': 0.5,
+    'examples/logging-callback.html': 0.5,
+    'examples/logging-debug.html': 0.5,
+    'examples/mocking-async.html': 0.5,
+    'examples/mqtt-publisher-example.html': 0.5,
+    'examples/nested-context-manager.html': 0.5,
+    'examples/test-example.html': 0.5,
+    'examples/bash/coverage-report.html': 0.4,
+    'examples/bash/format-code.html': 0.4,
+    'examples/bash/install-dev-deps.html': 0.4,
+    'examples/bash/install-dev-requirements.html': 0.4,
+    'examples/bash/install-requirements.html': 0.4,
+    'examples/bash/install-via-pip.html': 0.4,
+    'examples/bash/mosquitto-pub-example.html': 0.4,
+    'examples/bash/run-pytest.html': 0.4,
+    'examples/bash/run-specific-tests.html': 0.4,
+    'examples/bash/update-dependencies.html': 0.4,
+    'examples/bash/verify-installation.html': 0.4,
+    'examples/': 0.3,  # Allgemeine Beispiele
+    'examples/bash/': 0.3,
+    'migration/': 0.2,  # Migrationsdokumente (falls generiert)
+    'migration/asyncio-migration.html': 0.2,
+    'migration/manchester-migration.html': 0.2,
+    'migration/methods-migration-complete.html': 0.2,
+    'migration/signalduino-migration-plan.html': 0.2,
+    'migration/manchester-integration-complete.html': 0.2,
     'devcontainer-environment.html': 0.3,
-    'agents.html': 0.2,
-    'changelog.html': 0.2,
-    'examples/': 0.2,  # Allgemeine Beispiele
-    'migration/': 0.1,  # Weitere Migrationsdokumente
+    'agents.html': 0.3,
+    'changelog.html': 0.3,
+    'readme.html': 0.3,
 }
 
 CHANGEFREQ_MAP = {
     'index.html': 'monthly',
     'user-guide/installation.html': 'yearly',
     'user-guide/usage.html': 'yearly',
-    'protocol-reference/index.html': 'monthly',
+    'user-guide/index.html': 'yearly',
     'developer-guide/architecture.html': 'yearly',
-    'readme.html': 'monthly',
-    'changelog.html': 'weekly',
-    'migration/asyncio-migration.html': 'never',
-    'migration/manchester-migration.html': 'never',
-    'migration/methods-migration-complete.html': 'never',
+    'developer-guide/contribution.html': 'yearly',
+    'developer-guide/index.html': 'yearly',
+    'protocol-reference/protocol-details.html': 'monthly',
+    'protocol-reference/index.html': 'monthly',
     'examples/': 'yearly',
     'examples/bash/': 'yearly',
+    'migration/': 'never',
     'devcontainer-environment.html': 'yearly',
     'agents.html': 'monthly',
+    'changelog.html': 'weekly',
+    'readme.html': 'monthly',
 }
 
 # Branch-spezifische Base-URLs
@@ -135,20 +157,42 @@ def get_changefreq_for_path(file_path: str) -> str:
     else:
         return 'yearly'
 
-def get_lastmod_for_file(file_path: Path) -> str:
-    """Ermittle das letzte Änderungsdatum einer Datei."""
+def get_git_root(start_path: Path) -> Path | None:
+    """Finde das Git-Repository-Root-Verzeichnis."""
     try:
-        # Versuche, den Git-Änderungszeitpunkt zu ermitteln (falls verfügbar)
         result = subprocess.run(
-            ['git', 'log', '-1', '--format=%cd', '--date=short', '--', str(file_path)],
+            ['git', 'rev-parse', '--show-toplevel'],
             capture_output=True,
             text=True,
-            cwd=file_path.parent
+            cwd=start_path,
+            check=False
         )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
+        if result.returncode == 0:
+            return Path(result.stdout.strip())
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass
+    return None
+
+def get_lastmod_for_file(file_path: Path) -> str:
+    """Ermittle das letzte Änderungsdatum einer Datei."""
+    # Versuche, den Git-Änderungszeitpunkt zu ermitteln (falls verfügbar)
+    # Zuerst das Git-Repository-Root finden
+    git_root = get_git_root(file_path.parent)
+    if git_root:
+        try:
+            # Pfad relativ zum Git-Root
+            rel_path = file_path.relative_to(git_root)
+            result = subprocess.run(
+                ['git', 'log', '-1', '--format=%cd', '--date=short', '--', str(rel_path)],
+                capture_output=True,
+                text=True,
+                cwd=git_root
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except (ValueError, subprocess.CalledProcessError, FileNotFoundError):
+            # Datei nicht innerhalb des Git-Repos oder anderer Fehler
+            pass
     
     # Fallback: Dateisystem-Modifikationszeit
     mtime = file_path.stat().st_mtime
@@ -354,12 +398,8 @@ def main():
     build_dir = Path(args.build_dir)
     if not build_dir.exists():
         logger.error(f"Build-Verzeichnis existiert nicht: {build_dir}")
-        logger.info("Erstelle Beispiel-HTML-Dateien für Testzwecke...")
-        # Für Testzwecke: Erstelle ein minimales Build-Verzeichnis
-        build_dir.mkdir(parents=True, exist_ok=True)
-        (build_dir / 'index.html').write_text('<!DOCTYPE html><html></html>')
-        (build_dir / 'user-guide').mkdir(exist_ok=True)
-        (build_dir / 'user-guide' / 'installation.html').write_text('<!DOCTYPE html><html></html>')
+        logger.error("Bitte führen Sie zuerst den Dokumentations-Build aus (z.B. 'make html' oder 'antora site.yml').")
+        sys.exit(1)
     
     # HTML-Dateien scannen
     html_files = scan_html_files(build_dir)
