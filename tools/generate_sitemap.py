@@ -367,7 +367,6 @@ def main():
     )
     parser.add_argument(
         '--branch',
-        choices=list(BRANCH_URLS.keys()),
         help='Git-Branch zur Bestimmung der Base-URL'
     )
     parser.add_argument(
@@ -386,7 +385,15 @@ def main():
     if args.base_url:
         base_url = args.base_url.rstrip('/')
     elif args.branch:
-        base_url = BRANCH_URLS.get(args.branch, BRANCH_URLS['main'])
+        if args.branch in BRANCH_URLS:
+            base_url = BRANCH_URLS[args.branch]
+        else:
+            # Fallback für unbekannte Branches (Feature-Branches)
+            base_url = BRANCH_URLS['preview']
+            logger.warning(
+                f"Unbekannter Branch '{args.branch}'. "
+                f"Verwende Preview-URL als Fallback: {base_url}"
+            )
     else:
         # Standard-URL für main-Branch
         base_url = BRANCH_URLS['main']

@@ -158,6 +158,16 @@ Beiträge sind willkommen! Bitte erstelle einen Pull‑Request oder öffne ein I
 *   [Protokollreferenz](docs/03_protocol_reference/protocol_details.adoc)
 *   [Befehlsreferenz](docs/01_user_guide/usage.adoc#_command_interface)
 
+## SEO & Sitemap
+
+Die Dokumentation wird automatisch mit einer dynamischen Sitemap (`sitemap.xml`) und branch‑spezifischen `robots.txt`‑Dateien versehen, um die Auffindbarkeit in Suchmaschinen zu verbessern.
+
+*   **Sitemap‑Generierung:** Das Skript `tools/generate_sitemap.py` scannt den Build‑Output, weist Prioritäten und Update‑Frequenzen zu und generiert eine valide XML‑Sitemap gemäß sitemaps.org.
+*   **Branch‑spezifische URLs:** Für die Branches `main`, `preview` und `develop` werden unterschiedliche Base‑URLs verwendet.
+*   **Integration in CI/CD:** Der GitHub Actions Workflow `.github/workflows/docs.yml` generiert die Sitemap automatisch nach jedem Build und passt die `robots.txt` entsprechend an.
+
+Weitere Details zur Architektur finden Sie im [Architektur‑Dokument](docs/02_developer_guide/architecture.adoc#dokumentations-infrastruktur-sitemap--seo).
+
 ## Lizenz
 
 Dieses Projekt steht unter der MIT‑Lizenz – siehe [LICENSE](LICENSE) für Details.
