@@ -87,8 +87,9 @@ jobs:
           path: build/site/html
   
   deploy:
+    if: github.ref == 'refs/heads/main'
     permissions:
-      contents: write 
+      contents: write
       pages: write
       id-token: write
     environment:
