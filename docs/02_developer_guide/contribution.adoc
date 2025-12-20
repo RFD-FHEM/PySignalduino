@@ -1,5 +1,10 @@
 = Beitrag leisten (Contributing)
 
+[NOTE]
+====
+Da PySignalduino noch in aktiver Entwicklung ist, können sich Code-Strukturen und APIs schnell ändern. Bitte synchronisieren Sie Ihren Fork regelmäßig mit dem upstream-Repository.
+====
+
 Beiträge zum Projekt sind willkommen!
 
 == Workflow

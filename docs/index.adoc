@@ -19,6 +19,48 @@ Die verfügbare Hardware-Basis reicht von einfachen Arduino/nanoCUL-Lösungen bi
 
 image::images/signalduino_uebersicht.png[SIGNALduino Übersicht - Hardware und Funktion]
 
+[[section-historie]]
+== Projektgeschichte und Entwicklung
+
+Das SIGNALduino-Projekt entstand in der **RFD-FHEM**-Community als Open-Source-Initiative zur kostengünstigen Funkkommunikation im Smart-Home-Bereich.
+
+=== Ursprung und Meilensteine
+- **2010er Jahre**: Entwicklung erster Arduino-basierter Transceiver mit CC1101-Chips für 433/868 MHz.
+- **Perl-Ära**: Die Protokollimplementierung erfolgte zunächst als FHEM-Modul `00_SIGNALduino.pm` in Perl.
+- **Community-Wachstum**: Eine aktive Entwickler- und Anwendergemeinschaft trieb die Erweiterung der unterstützten Protokolle voran.
+
+=== Migration zu Python
+- **PySignalduino**: Mit dem Aufkommen moderner IoT-Architekturen wurde eine Python-Implementierung notwendig.
+- **Asynchrone Verarbeitung**: PySignalduino nutzt `asyncio` für effiziente, nicht-blockierende Verarbeitung.
+- **MQTT-Integration**: Eingebaute MQTT-Bridge für nahtlose Integration in moderne Smart-Home-Systeme.
+
+=== Firmware-Entwicklung
+Die SIGNALDuino-Firmware wird kontinuierlich im separaten Repository weiterentwickelt:
+
+- **GitHub Repository**: https://github.com/RFD-FHEM/SIGNALDuino
+- **Aktuelle Version**: v3.5.0 (Stand Dezember 2025)
+- **Unterstützte Plattformen**:
+  * Arduino Nano mit CC1101
+  * ESP32 (mit WiFi-Unterstützung)
+  * STM32 (Maple Mini)
+- **Build-System**: PlatformIO und Arduino-IDE Projekte sind im Repository enthalten.
+
+=== PySignalduino vs. Original
+PySignalduino ist keine direkte Portierung, sondern eine Neuimplementierung mit folgenden Schwerpunkten:
+- **Moderne Python-Praktiken**: Typisierung, strukturierte Logging, Konfiguration über Umgebungsvariablen.
+- **Erweiterte Transporte**: Unterstützung für serielle und TCP-Verbindungen.
+- **Testabdeckung**: Umfangreiche Testsuite zur Gewährleistung der Codequalität.
+
+[[section-status]]
+== Entwicklungsstatus
+
+[WARNING]
+====
+**Entwicklungsstatus**
+
+PySignalduino befindet sich noch in aktiver Entwicklung und hat noch kein offizielles Release veröffentlicht. Die API kann sich zwischen Versionen ändern. Entwickler sollten bei der Verwendung Vorsicht walten lassen und auf mögliche Breaking Changes vorbereitet sein.
+====
+
 [[section-protokolle]]
 == Unterstützte Protokolle
 

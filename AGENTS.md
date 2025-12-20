@@ -12,6 +12,8 @@ This file provides guidance to agents when working with code in this repository.
 ## Verification Execution
 - Das Hauptprogramm für Verifizierungen sollte wie folgt gestartet werden:
   `python3 main.py --timeout 1`
+  oder um eine längere Laufzeit zu analysieren:
+  `python3 main.py --timeout 30`
 
 ## Mandatory Documentation and Test Maintenance
 

@@ -1,5 +1,10 @@
 = Installation
 
+[NOTE]
+====
+PySignalduino ist noch in Entwicklung. Es gibt bisher keine stabile Version – nutzen Sie die Software mit entsprechender Vorsicht.
+====
+
 == Voraussetzungen
 
 * Python 3.8 oder höher
