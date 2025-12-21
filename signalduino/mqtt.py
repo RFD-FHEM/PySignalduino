@@ -20,13 +20,18 @@ class MqttPublisher:
 
         self.mqtt_host = os.environ.get("MQTT_HOST", "localhost")
         self.mqtt_port = int(os.environ.get("MQTT_PORT", 1883))
-        self.mqtt_topic = os.environ.get("MQTT_TOPIC", "signalduino")
+        
+        # NEU: Verwende versioniertes Topic als Basis für alle Publishes/Subs
+        self.base_topic = f"{os.environ.get('MQTT_TOPIC', 'signalduino')}/v1"
         self.mqtt_username = os.environ.get("MQTT_USERNAME")
         self.mqtt_password = os.environ.get("MQTT_PASSWORD")
         
         # Callback ist jetzt ein awaitable
         self.command_callback: Optional[Callable[[str, str], Awaitable[None]]] = None
-        self.command_topic = f"{self.mqtt_topic}/commands/#"
+        self.command_topic = f"{self.base_topic}/commands/#"
+        self.response_topic = f"{self.base_topic}/responses" # Basis für Response Publishes
+        self.error_topic = f"{self.base_topic}/errors" # Basis für Error Publishes
+
 
 
     async def __aenter__(self) -> "MqttPublisher":
@@ -150,7 +155,7 @@ class MqttPublisher:
             return
             
         try:
-            topic = f"{self.mqtt_topic}/{subtopic}"
+            topic = f"{self.base_topic}/{subtopic}"
             await self.client.publish(topic, payload, retain=retain)
             self.logger.debug("Published simple message to %s: %s", topic, payload)
         except Exception:
@@ -163,7 +168,7 @@ class MqttPublisher:
             return
 
         try:
-            topic = f"{self.mqtt_topic}/messages"
+            topic = f"{self.base_topic}/state/messages"
             payload = self._message_to_json(message)
             await self.client.publish(topic, payload)
             self.logger.debug("Published message for protocol %s to %s", message.protocol_id, topic)

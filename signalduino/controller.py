@@ -12,10 +12,12 @@ from typing import (
     List,
     Optional,
     Pattern,
+    Dict,
+    Tuple,
 )
 
 # threading, queue, time entfernt
-from .commands import SignalduinoCommands
+from .commands import SignalduinoCommands, MqttCommandDispatcher
 from .constants import (
     SDUINO_CMD_TIMEOUT,
     SDUINO_INIT_MAXRETRY,
@@ -23,7 +25,7 @@ from .constants import (
     SDUINO_INIT_WAIT_XQ,
     SDUINO_STATUS_HEARTBEAT_INTERVAL,
 )
-from .exceptions import SignalduinoCommandTimeout, SignalduinoConnectionError
+from .exceptions import SignalduinoCommandTimeout, SignalduinoConnectionError, CommandValidationError
 from .mqtt import MqttPublisher # Muss jetzt async sein
 from .parser import SignalParser
 from .transport import BaseTransport # Muss jetzt async sein
@@ -49,8 +51,10 @@ class SignalduinoController:
         self.logger = logger or logging.getLogger(__name__)
 
         self.mqtt_publisher: Optional[MqttPublisher] = None
+        self.mqtt_dispatcher: Optional[MqttCommandDispatcher] = None # NEU
         if os.environ.get("MQTT_HOST"):
             self.mqtt_publisher = MqttPublisher(logger=self.logger)
+            self.mqtt_dispatcher = MqttCommandDispatcher(self) # NEU: Initialisiere Dispatcher
             # handle_mqtt_command muss jetzt async sein
             self.mqtt_publisher.register_command_callback(self._handle_mqtt_command)
 
@@ -608,73 +612,452 @@ class SignalduinoController:
         except Exception as e:
             self.logger.error("Error during status heartbeat: %s", e)
 
-    async def _handle_mqtt_command(self, command: str, payload: str) -> None:
-        """Handles commands received via MQTT."""
-        self.logger.info("Handling MQTT command: %s (payload: %s)", command, payload)
+    # --- INTERNE HELPER FÜR SEND MSG (PHASE 2) ---
 
-        if not self.mqtt_publisher or not await self.mqtt_publisher.is_connected():
-            self.logger.warning("Cannot handle MQTT command; publisher not connected.")
-            return
+    def _hex_to_bits(self, hex_str: str) -> str:
+        """Converts a hex string to a binary string."""
+        scale = 16
+        num_of_bits = len(hex_str) * 4
+        return bin(int(hex_str, scale))[2:].zfill(num_of_bits)
 
-        # Mapping von MQTT-Befehl zu einer async-Methode (ohne Args) oder einer Lambda-Funktion (mit Args)
-        # Alle Methoden sind jetzt awaitables
-        command_mapping = {
-            "version": self.commands.get_version,
-            "freeram": self.commands.get_free_ram,
-            "uptime": self.commands.get_uptime,
-            "cmds": self.commands.get_cmds,
-            "ping": self.commands.ping,
-            "config": self.commands.get_config,
-            "ccconf": self.commands.get_ccconf,
-            "ccpatable": self.commands.get_ccpatable,
-            # lambda muss jetzt awaitables zurückgeben
-            "ccreg": lambda p: self.commands.read_cc1101_register(int(p, 16)),
-            "rawmsg": lambda p: self.commands.send_raw_message(p),
-        }
+    def _tristate_to_bit(self, tristate_str: str) -> str:
+        """Converts IT V1 tristate (0, 1, F) to binary bits."""
+        # Placeholder: This logic needs access to the protocols implementation, 
+        # which is not available in the controller.
+        # We assume for now that if the data contains non-binary characters, it's invalid.
+        return tristate_str
+            
+    # --- INTERNE HELPER FÜR CC1101 BERECHNUNGEN (PHASE 2) ---
 
-        if command == "help":
-            self.logger.warning("Ignoring deprecated 'help' MQTT command (use 'cmds').")
-            await self.mqtt_publisher.publish_simple(f"error/{command}", "Deprecated command. Use 'cmds'.")
+    def _calc_data_rate_regs(self, target_datarate: float, mdcfg4_hex: str) -> Tuple[str, str]:
+        """Calculates MDMCFG4 (4:0) and MDMCFG3 (7:0) from target data rate (kBaud). (0x10, 0x11)"""
+        F_XOSC = 26000000 
+        target_dr_hz = target_datarate * 1000 # target in Hz
+        
+        drate_e = 0
+        drate_m = 0
+        best_diff = float('inf')
+        best_drate_e = 0
+        best_drate_m = 0
+
+        for drate_e_test in range(16): # DRATE_E von 0 bis 15
+            for drate_m_test in range(256): # DRATE_M von 0 bis 255
+                calculated_dr = (256 + drate_m_test) * (2**drate_e_test) * F_XOSC / (2**28)
+                
+                diff = abs(calculated_dr - target_dr_hz)
+                
+                if diff < best_diff:
+                    best_diff = diff
+                    best_drate_e = drate_e_test
+                    best_drate_m = drate_m_test
+
+        # Setze MDMCFG4 (Bits 3:0 sind DRATE_E)
+        mdcfg4_current = int(mdcfg4_hex, 16)
+        mdcfg4_new_val = (mdcfg4_current & 0xF0) | best_drate_e
+        
+        return f"{mdcfg4_new_val:02X}", f"{best_drate_m:02X}"
+
+    def _calc_bandwidth_reg(self, target_bw: float, mdcfg4_hex: str) -> str:
+        """Calculates MDMCFG4 (BITS 7:4) from target bandwidth (kHz). (0x10)"""
+        
+        # BW = 26000 / (8 * (4 + M) * 2^E)
+        # M = MDMCFG4[5:4], E = MDMCFG4[7:6]
+        
+        best_diff = float('inf')
+        best_e = 0
+        best_m = 0
+
+        for e in range(4): # E von 0 bis 3
+            for m in range(4): # M von 0 bis 3
+                calculated_bw = 26000 / (8 * (4 + m) * (2**e))
+                diff = abs(calculated_bw - target_bw)
+                
+                if diff < best_diff:
+                    best_diff = diff
+                    best_e = e
+                    best_m = m
+        
+        # Die Registerbits 7:4 setzen
+        bits = (best_e << 6) + (best_m << 4)
+
+        # Setze MDMCFG4 (Bits 7:4 sind E und M)
+        mdcfg4_current = int(mdcfg4_hex, 16)
+        mdcfg4_new_val = (mdcfg4_current & 0x0F) | bits # Bewahre Bits 3:0
+        
+        return f"{mdcfg4_new_val:02X}" 
+
+    def _calc_deviation_reg(self, target_dev: float) -> str:
+        """Calculates DEVIATN (15) register value from target deviation (kHz)."""
+        
+        # DEVIATION = (8 + M) * 2^E * F_XOSC / 2^17
+        # M = DEVIATN[2:0], E = DEVIATN[6:4]
+        
+        best_diff = float('inf')
+        best_e = 0
+        best_m = 0
+
+        for e in range(8): # E von 0 bis 7 (3 Bits)
+            for m in range(8): # M von 0 bis 7 (3 Bits)
+                calculated_dev = (8 + m) * (2**e) * 26000 / (2**17)
+                diff = abs(calculated_dev - target_dev)
+                
+                if diff < best_diff:
+                    best_diff = diff
+                    best_e = e
+                    best_m = m
+        
+        # Die Registerbits setzen: M (3:0) und E (7:4)
+        bits = best_m + (best_e << 4)
+        
+        return f"{bits:02X}"
+
+    def _extract_req_id_from_payload(self, payload: str) -> Optional[str]:
+        """Tries to extract the req_id from a raw JSON payload string for error correlation."""
+        try:
+            payload_dict = json.loads(payload)
+            return payload_dict.get("req_id")
+        except json.JSONDecodeError:
+            return None # Cannot parse JSON to find req_id
+
+    async def _handle_mqtt_command(self, command_path: str, payload: str) -> None:
+        """
+        Handles commands received via MQTT by dispatching them to the MqttCommandDispatcher.
+        This method sends structured responses/errors based on the result.
+        """
+        self.logger.info("Handling MQTT command: %s (payload: %s)", command_path, payload)
+
+        if not self.mqtt_publisher or not self.mqtt_dispatcher:
+            self.logger.warning("Cannot handle MQTT command; publisher or dispatcher not initialized.")
             return
         
-        if command in command_mapping:
-            response: Optional[str] = None
+        req_id = self._extract_req_id_from_payload(payload)
+        
+        try:
+            # 1. Dispatch (Validierung und Ausführung)
+            if self.mqtt_dispatcher is None:
+                self.logger.error("MqttCommandDispatcher not available during command execution.")
+                raise RuntimeError("MqttCommandDispatcher not initialized for command processing.")
+            
+            response = await self.mqtt_dispatcher.dispatch(command_path, payload)
+            
+            # 2. Publish Response
+            topic = f"{self.mqtt_publisher.response_topic}/{command_path}"
+            await self.mqtt_publisher.publish_simple(topic, json.dumps(response))
+            self.logger.debug("Executed MQTT command %s. Response published.", command_path)
+
+        except CommandValidationError as e:
+            # 3. Handle Validation Error (400 Bad Request)
+            error_payload = {
+                "error_code": 400,
+                "error_message": str(e),
+                "req_id": req_id,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            topic = f"{self.mqtt_publisher.error_topic}/{command_path}"
+            await self.mqtt_publisher.publish_simple(topic, json.dumps(error_payload))
+            self.logger.warning("Validation failed for command %s: %s", command_path, e)
+            
+        except SignalduinoCommandTimeout:
+            # 4. Handle Timeout (502 Bad Gateway)
+            error_payload = {
+                "error_code": 502,
+                "error_message": "Command timed out while waiting for a firmware response.",
+                "req_id": req_id,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            topic = f"{self.mqtt_publisher.error_topic}/{command_path}"
+            await self.mqtt_publisher.publish_simple(topic, json.dumps(error_payload))
+            self.logger.error("Timeout for command: %s", command_path)
+            
+        except Exception as e:
+            # 5. Handle Internal Error (500 Internal Server Error)
+            error_payload = {
+                "error_code": 500,
+                "error_message": f"Internal server error: {type(e).__name__}: {str(e)}",
+                "req_id": req_id,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            topic = f"{self.mqtt_publisher.error_topic}/{command_path}"
+            await self.mqtt_publisher.publish_simple(topic, json.dumps(error_payload))
+            self.logger.exception("Error executing command %s", command_path)
+
+    # --- PHASE 1: Implementierung der Dispatcher-Methoden im Controller ---
+    
+    async def get_version(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'get/system/version'."""
+        return await self.commands.get_version(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def get_freeram(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'get/system/freeram'."""
+        return await self.commands.get_free_ram(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def get_uptime(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'get/system/uptime'."""
+        return await self.commands.get_uptime(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def get_config_decoder(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'get/config/decoder'."""
+        return await self.commands.get_config(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def get_cc1101_config(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'get/cc1101/config'."""
+        return await self.commands.get_ccconf(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def get_cc1101_patable(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'get/cc1101/patable'."""
+        return await self.commands.get_ccpatable(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def get_cc1101_register(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'get/cc1101/register' (e.g., /2A or /99)."""
+        register_addr = payload.get("value")
+        if register_addr is None:
+            # Wenn kein Wert übergeben wird, nimm 99 (Alle Register)
+            register_addr = 99
+        
+        # Konvertiere in Integer
+        if isinstance(register_addr, str):
             try:
-                # Execute the corresponding command method
-                cmd_func = command_mapping[command]
-                if command in ["ccreg", "rawmsg"]:
-                    if not payload:
-                        self.logger.error("Command '%s' requires a payload argument.", command)
-                        await self.mqtt_publisher.publish_simple(f"error/{command}", "Missing payload argument.")
-                        return
-                    
-                    # Die lambda-Funktion gibt ein awaitable zurück, das ausgeführt werden muss
-                    awaitable_response = cmd_func(payload)
-                    response = await awaitable_response
+                if register_addr.startswith("0x"):
+                    register_addr = int(register_addr, 16)
                 else:
-                    # Die Methode ist ein awaitable, das ausgeführt werden muss
-                    response = await cmd_func()
-                
-                self.logger.info("Got response for %s: %s", command, response)
-                
-                # Publish result back to MQTT
-                # Wir stellen sicher, dass die Antwort ein String ist, da die Befehlsmethoden str zurückgeben sollen.
-                # Sollte nur ein Problem sein, wenn die Command-Methode None zurückgibt (was sie nicht sollte).
-                response_str = str(response) if response is not None else "OK"
-                await self.mqtt_publisher.publish_simple(f"result/{command}", response_str)
+                    register_addr = int(register_addr) if register_addr.isdigit() else int(register_addr, 16)
+            except ValueError:
+                raise CommandValidationError(f"Invalid register address format: {register_addr}. Must be integer or hexadecimal string.") from None
+        
+        if not (0 <= register_addr <= 255):
+             raise CommandValidationError(f"Invalid register address {register_addr}. Must be between 0 and 255.") from None
+        
+        return await self.commands.read_cc1101_register(register_addr, timeout=SDUINO_CMD_TIMEOUT)
 
-            except SignalduinoCommandTimeout:
-                self.logger.error("Timeout waiting for command response: %s", command)
-                await self.mqtt_publisher.publish_simple(f"error/{command}", "Timeout")
-                
-            except Exception as e:
-                self.logger.error("Error executing command %s: %s", command, e)
-                await self.mqtt_publisher.publish_simple(f"error/{command}", f"Error: {e}")
+    # --- Decoder Enable/Disable (CE/CD) ---
+    
+    async def set_decoder_ms_enable(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/config/decoder_ms_enable'."""
+        await self.commands.set_decoder_enable("S")
+        return await self.commands.get_config(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def set_decoder_ms_disable(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/config/decoder_ms_disable'."""
+        await self.commands.set_decoder_disable("S")
+        return await self.commands.get_config(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def set_decoder_mu_enable(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/config/decoder_mu_enable'."""
+        await self.commands.set_decoder_enable("U")
+        return await self.commands.get_config(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def set_decoder_mu_disable(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/config/decoder_mu_disable'."""
+        await self.commands.set_decoder_disable("U")
+        return await self.commands.get_config(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def set_decoder_mc_enable(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/config/decoder_mc_enable'."""
+        await self.commands.set_decoder_enable("C")
+        return await self.commands.get_config(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def set_decoder_mc_disable(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/config/decoder_mc_disable'."""
+        await self.commands.set_decoder_disable("C")
+        return await self.commands.get_config(timeout=SDUINO_CMD_TIMEOUT)
 
+
+    # --- PHASE 2: CC1101 SETTER METHODEN ---
+
+    async def set_cc1101_frequency(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/cc1101/frequency' (W0Fxx, W10xx, W11xx)."""
+        # Logik aus cc1101::SetFreq in 00_SIGNALduino.pm
+        freq_mhz = payload["value"]
+        
+        # Berechnung der Registerwerte
+        # FREQ = freq_mhz * 2^16 / 26
+        freq_val = int(freq_mhz * (2**16) / 26)
+        
+        f2 = freq_val // 65536
+        f1 = (freq_val % 65536) // 256
+        f0 = freq_val % 256
+        
+        # Senden der Befehle: W0F<F2>, W10<F1>, W11<F0> (Adressen 0D, 0E, 0F mit Offset 2)
+        await self.commands._send_command(payload=f"W0F{f2:02X}", expect_response=False)
+        await self.commands._send_command(payload=f"W10{f1:02X}", expect_response=False)
+        await self.commands._send_command(payload=f"W11{f0:02X}", expect_response=False)
+        
+        # Initialisierung des CC1101 nach Register-Änderung (SIDLE, SFRX, SRX)
+        await self.commands.cc1101_write_init()
+        
+        return await self.commands.get_ccconf(timeout=SDUINO_CMD_TIMEOUT) # Konfiguration zurückgeben
+        
+    async def set_cc1101_rampl(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/cc1101/rampl' (AGCCTRL2, 1B)."""
+        # Logik aus cc1101::setrAmpl in 00_SIGNALduino.pm (v = Index 0-7)
+        rampl_db = payload["value"]
+        
+        ampllist = [24, 27, 30, 33, 36, 38, 40, 42]
+        v = 0
+        for i, val in enumerate(ampllist):
+            if val > rampl_db:
+                break
+            v = i
+        
+        reg_val = f"{v:02d}" # Index 0-7
+        
+        # FHEM sendet W1D<v>. AGCCTRL2 ist 1B. Die Adresse W1D ist die FHEM-Konvention.
+        await self.commands._send_command(payload=f"W1D{reg_val}", expect_response=False)
+        await self.commands.cc1101_write_init()
+        return await self.commands.get_ccconf(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def set_cc1101_patable(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/cc1101/patable' (x<val>)."""
+        # Logik aus cc1101::SetPatable in 00_SIGNALduino.pm
+        patable_str = payload["value"]
+        
+        # Mapping von String zu Hex-Wert (433MHz-Werte aus 00_SIGNALduino.pm, Zeile 94ff)
+        patable_map = {
+            '-30_dBm': '12', '-20_dBm': '0E', '-15_dBm': '1D', '-10_dBm': '34',
+            '-5_dBm': '68', '0_dBm': '60', '5_dBm': '84', '7_dBm': 'C8', '10_dBm': 'C0',
+        }
+        
+        pa_hex = patable_map.get(patable_str, 'C0') # Default 10_dBm
+        
+        # Befehl x<val> sendet den Wert an die PA Table.
+        await self.commands._send_command(payload=f"x{pa_hex}", expect_response=False)
+        await self.commands.cc1101_write_init()
+        return await self.commands.get_ccpatable(timeout=SDUINO_CMD_TIMEOUT) # PA Table zurückgeben
+        
+    async def set_cc1101_sensitivity(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/cc1101/sens' (AGCCTRL0, 1D)."""
+        # Logik aus cc1101::SetSens in 00_SIGNALduino.pm
+        sens_db = payload["value"]
+        
+        # Die FHEM-Logik: $v = sprintf("9%d",$a[1]/4-1)
+        v_idx = int(sens_db / 4) - 1
+        reg_val = f"9{v_idx}"
+        
+        # FHEM sendet W1F<v> an AGCCTRL0 (1D)
+        await self.commands._send_command(payload=f"W1F{reg_val}", expect_response=False)
+        await self.commands.cc1101_write_init()
+        return await self.commands.get_ccconf(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def set_cc1101_deviation(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/cc1101/deviatn' (DEVIATN, 15)."""
+        # Logik nutzt _calc_deviation_reg
+        deviation_khz = payload["value"]
+        
+        reg_hex = self._calc_deviation_reg(deviation_khz)
+        
+        # FHEM sendet W17<reg_hex> (Adresse 15 mit Offset 2 ist 17)
+        await self.commands._send_command(payload=f"W17{reg_hex}", expect_response=False)
+        await self.commands.cc1101_write_init()
+        return await self.commands.get_ccconf(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def set_cc1101_datarate(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/cc1101/dataRate' (MDMCFG4, MDMCFG3)."""
+        # Logik nutzt _calc_data_rate_regs
+        datarate_kbaud = payload["value"]
+        
+        # 1. MDMCFG4 (0x10) lesen
+        try:
+            mdcfg4_resp = await self.commands.read_cc1101_register(0x10, timeout=SDUINO_CMD_TIMEOUT)
+        except SignalduinoCommandTimeout:
+            raise CommandValidationError("CC1101 register 0x10 read failed (timeout). Cannot set data rate.") from None
+        
+        # Ergebnis-Format: C10 = 57. Wir brauchen nur 57
+        match = re.search(r'C10\s=\s([A-Fa-f0-9]{2})$', mdcfg4_resp)
+        if not match:
+            raise CommandValidationError(f"Failed to parse current MDMCFG4 (0x10) value from firmware response: {mdcfg4_resp}") from None
+        
+        mdcfg4_hex = match.group(1)
+        
+        # Schritt 2: Register neu berechnen
+        mdcfg4_new_hex, mdcfg3_new_hex = self._calc_data_rate_regs(datarate_kbaud, mdcfg4_hex)
+        
+        # Schritt 3: Schreiben (0x10 -> W12, 0x11 -> W13)
+        await self.commands._send_command(payload=f"W12{mdcfg4_new_hex}", expect_response=False)
+        await self.commands._send_command(payload=f"W13{mdcfg3_new_hex}", expect_response=False)
+        
+        await self.commands.cc1101_write_init()
+        return await self.commands.get_ccconf(timeout=SDUINO_CMD_TIMEOUT)
+        
+    async def set_cc1101_bandwidth(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'set/cc1101/bWidth' (MDMCFG4)."""
+        # Logik nutzt _calc_bandwidth_reg
+        bandwidth_khz = payload["value"]
+        
+        # 1. MDMCFG4 (0x10) lesen
+        try:
+            mdcfg4_resp = await self.commands.read_cc1101_register(0x10, timeout=SDUINO_CMD_TIMEOUT)
+        except SignalduinoCommandTimeout:
+            raise CommandValidationError("CC1101 register 0x10 read failed (timeout). Cannot set bandwidth.") from None
+        
+        match = re.search(r'C10\s=\s([A-Fa-f0-9]{2})$', mdcfg4_resp)
+        if not match:
+            raise CommandValidationError(f"Failed to parse current MDMCFG4 (0x10) value from firmware response: {mdcfg4_resp}") from None
+        
+        mdcfg4_hex = match.group(1)
+
+        # Schritt 2: Register 0x10 neu berechnen (nur Bits 7:4)
+        mdcfg4_new_hex = self._calc_bandwidth_reg(bandwidth_khz, mdcfg4_hex)
+
+        # Schritt 3: Schreiben (0x10 -> W12)
+        await self.commands._send_command(payload=f"W12{mdcfg4_new_hex}", expect_response=False)
+        
+        await self.commands.cc1101_write_init()
+        return await self.commands.get_ccconf(timeout=SDUINO_CMD_TIMEOUT)
+
+    async def command_send_msg(self, payload: Dict[str, Any]) -> str:
+        """Controller implementation for 'command/send/msg' (SR, SM, SN)."""
+        # Logik aus SIGNALduino_Set_sendMsg in 00_SIGNALduino.pm
+        
+        params = payload["parameters"]
+        protocol_id = params["protocol_id"]
+        data = params["data"]
+        repeats = params.get("repeats", 1)
+        clock_us = params.get("clock_us")
+        frequency_mhz = params.get("frequency_mhz")
+        
+        # 1. Datenvorverarbeitung (Hex zu Bin, Tristate zu Bin)
+        data_is_hex = data.startswith("0x")
+        if data_is_hex:
+            data = data[2:]
+            # Konvertierung zu Bits erfolgt hier nicht, da wir oft Hex für SM/SN benötigen.
+        elif protocol_id in [3]: # IT V1 (Protokoll 3) verwendet Tristate (0, 1, F) in FHEM
+            # Wir behandeln tristate direkt als Datenstring, der an die Firmware gesendet wird.
+            # Im FHEM-Modul wird hier die Konvertierung zu Binär durchgeführt, was wir hier
+            # überspringen müssen, da wir die Protokoll-Objekte nicht haben.
+            pass # Platzhalter für _tristate_to_bit(data)
+            
+        # 2. Protokoll-Abhängige Befehlsgenerierung (Hier stark vereinfacht)
+        
+        freq_part = ""
+        if frequency_mhz is not None:
+            # Berechnung der Frequenzregisterwerte (wie in set_cc1101_frequency)
+            freq_val = int(frequency_mhz * (2**16) / 26)
+            f2 = freq_val // 65536
+            f1 = (freq_val % 65536) // 256
+            f0 = freq_val % 256
+            freq_part = f"F={f2:02X}{f1:02X}{f0:02X};"
+            
+        # Wenn eine Clock gegeben ist, nehmen wir Manchester (SM), andernfalls SN (xFSK/Raw-Data)
+        if clock_us is not None:
+            # SM: Send Manchester (braucht Clock C=<us>, Data D=<hex>)
+            # data muss Hex-kodiert sein
+            if not data_is_hex:
+                 raise CommandValidationError("Manchester send requires hex data in 'data' field (prefixed with 0x...).")
+            raw_cmd = f"SM;R={repeats};C={clock_us};D={data};{freq_part}"
         else:
-            self.logger.warning("Unknown MQTT command: %s", command)
-            await self.mqtt_publisher.publish_simple(f"error/{command}", "Unknown command")
+            # SN/SR: Send xFSK/Raw Data
+            # Wir verwenden SN, wenn die Daten Hex sind, da es die einfachste Übertragung ist.
+            if not data_is_hex:
+                 # Dies ist der komplizierte Fall (MS/MU), da Protokoll-Details (P-Buckets) fehlen.
+                 raise CommandValidationError("Cannot process raw (MS/MU) data without protocol details. Only Hex-based (SN) or Clocked (SM) sends are currently supported.")
 
+            # SN: Send xFSK
+            raw_cmd = f"SN;R={repeats};D={data};{freq_part}"
+        
+        # 3. Befehl senden
+        response = await self.commands.send_raw_message(raw_cmd, timeout=SDUINO_CMD_TIMEOUT)
+        
+        return response
 
     async def run(self, timeout: Optional[float] = None) -> None:
         """

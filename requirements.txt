@@ -2,6 +2,6 @@ pyserial
 requests
 paho-mqtt
 python-dotenv
-asyncio-mqtt
+jsonschema
 pyserial-asyncio
 aiomqtt

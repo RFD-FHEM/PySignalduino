@@ -52,23 +52,49 @@ Zusätzlich gibt es spezielle Tasks für Initialisierung, Heartbeat und MQTT-Com
 
 Alle Ressourcen (Transport, MQTT-Client) implementieren `__aenter__`/`__aexit__` und werden mittels `async with` verwaltet. Der `SignalduinoController` selbst ist ein Kontextmanager, der die Lebensdauer der Verbindung steuert.
 
-== MQTT-Integration
+== MQTT-Integration (v1 API)
 
-Die MQTT-Integration erfolgt über die Klasse `MqttPublisher` (`signalduino/mqtt.py`), die auf `aiomqtt` basiert und asynchrone Veröffentlichung und Abonnement unterstützt.
+Die MQTT-Integration wurde auf eine versionierte, konsistente Befehlsschnittstelle umgestellt, basierend auf dem Architecture Decision Record (ADR-001, ADR-002).
 
-=== Verbindungsaufbau
+=== Architektur der Befehlsverarbeitung
 
-Der MQTT-Client wird automatisch gestartet, wenn die Umgebungsvariable `MQTT_HOST` gesetzt ist. Im `__aenter__` des Controllers wird der Publisher mit dem Broker verbunden und ein Command-Listener-Task gestartet.
+Die Verarbeitung von eingehenden Befehlen erfolgt über ein dediziertes *Command Dispatcher Pattern* zur strikten Trennung von Netzwerk-Layer, Validierungslogik und Controller-Aktionen:
 
-=== Topics und Nachrichtenformat
+. *MqttPublisher* (`signalduino/mqtt.py`) empfängt eine Nachricht auf `signalduino/v1/commands/#`.
+. Der *SignalduinoController* leitet die rohe Payload an den *MqttCommandDispatcher* weiter.
+. Der *Dispatcher* (`signalduino/commands.py`) validiert die Payload gegen ein JSON-Schema (ADR-002).
+. Bei Erfolg wird die entsprechende asynchrone Methode im *SignalduinoController* aufgerufen.
+. Der *Controller* sendet serielle Kommandos (`W<reg><val>`, `V`, `CG`) und verpackt die Firmware-Antwort.
+. Die finale Antwort (`status: OK` oder `error: 400/500/502`) wird an den Client zurückgesendet.
 
-* **Sensordaten:** `{MQTT_TOPIC}/messages` – JSON‑Serialisierte `DecodedMessage`-Objekte.
-* **Kommandos:** `{MQTT_TOPIC}/commands/{command}` – Ermöglicht die Steuerung des Signalduino via MQTT (z.B. `version`, `freeram`, `rawmsg`).
-* **Status:** `{MQTT_TOPIC}/status/{alive,data,version}` – Heartbeat- und Gerätestatus.
+=== Topic-Struktur und Versionierung (ADR-001)
 
-=== Command-Listener
+Alle Topics sind versioniert und verwenden das Präfix `{MQTT_TOPIC}/v1`.
 
-Ein separater asynchroner Loop (`_command_listener`) lauscht auf Kommando‑Topics, ruft den registrierten Callback (im Controller `_handle_mqtt_command`) auf und führt die entsprechende Aktion aus. Die Antwort wird unter `result/{command}` oder `error/{command}` zurückveröffentlicht.
+|===
+| Topic-Typ | Topic-Struktur | Zweck
+| Command (Request) | `signalduino/v1/commands/<type>/<target>/<param>` | Steuerung und Abfrage von Parametern (z.B. `get/system/version`)
+| Response (Success) | `signalduino/v1/responses/<type>/<target>/<param>` | Strukturierte Antwort auf Befehle (`"status": "OK"`)
+| Error (Failure) | `signalduino/v1/errors/<type>/<target>/<param>` | Strukturierte Fehlerinformationen (`"error_code": 400/500/502`)
+| Telemetry | `signalduino/v1/state/messages` | JSON-serialisierte, dekodierte Sensordaten (`DecodedMessage`)
+| Status | `signalduino/v1/status/{alive,data}` | Heartbeat- und Gerätestatus (z.B. `free_ram`, `uptime`)
+|===
+
+=== Payload-Format
+
+Alle Requests (Commands) und Responses (Responses/Errors) verwenden eine standardisierte JSON-Struktur, die eine `req_id` zur Korrelation von Anfrage und Antwort erfordert.
+
+[source,json]
+----
+{
+  "req_id": "uuid-12345",
+  "data": "V 3.5.7+20250219" // Nur in Responses
+}
+----
+
+=== Wichtige Architekturentscheidungen
+* link:../architecture/decisions/adr-001-mqtt-topic-structure.md[ADR-001: MQTT Topic Struktur und Versionierung]
+* link:../architecture/decisions/adr-002-command-dispatcher.md[ADR-002: Command Dispatcher Pattern und JSON-Schema-Validierung]
 
 == Komponentendiagramm (Übersicht)
 

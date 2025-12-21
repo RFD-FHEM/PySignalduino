@@ -15,3 +15,7 @@ class SignalduinoCommandTimeout(SignalduinoError):
 
 class SignalduinoParserError(SignalduinoError):
     """Raised when a firmware line cannot be parsed."""
+
+
+class CommandValidationError(SignalduinoError):
+    """Raised when an MQTT command payload fails validation (e.g., JSON schema or payload constraints)."""
