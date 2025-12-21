@@ -2,6 +2,49 @@
 
 Dieses Projekt ist eine moderne Python-Implementierung der SIGNALDuino-Protokolle mit vollständiger **asyncio**-Unterstützung und integrierter **MQTT-Bridge**. Es ermöglicht die Kommunikation mit SIGNALDuino-Hardware (über serielle Schnittstelle oder TCP) und veröffentlicht empfangene Signale sowie empfängt Steuerbefehle über MQTT.
 
+## Projektgeschichte
+
+PySignalduino ist Teil des **RFD-FHEM**-Ökosystems, das ursprünglich als Perl-basierte Lösung für die Hausautomationssoftware FHEM begann. Die Entwicklung lässt sich in folgende Meilensteine unterteilen:
+
+### Ursprung: RFD-FHEM und SIGNALDuino
+- **2010er Jahre**: Die RFD-FHEM-Community entwickelte Hardware- und Softwarelösungen für die Funkkommunikation mit 433/868 MHz Geräten.
+- **SIGNALDuino-Hardware**: Ein Arduino-basierter Transceiver mit CC1101 Funkmodul, der als kostengünstige Alternative zu kommerziellen Lösungen entstand.
+- **Perl-Implementierung**: Die ursprüngliche Protokollimplementierung erfolgte in Perl als FHEM-Modul `00_SIGNALduino.pm`.
+
+### Migration zu Python
+- **2020er Jahre**: Mit der wachsenden Popularität von Python und MQTT entstand der Bedarf nach einer moderneren, asynchronen Lösung.
+- **PySignalduino**: Diese Bibliothek portiert die Perl-Protokolle (`SD_Protocols.pm`, `SD_ProtocolData.pm`) in eine native Python-Implementierung.
+- **Asynchrone Architektur**: Vollständige `asyncio`-Integration für bessere Performance und einfachere Integration in moderne IoT-Systeme.
+
+### Community-Entwicklung
+- **Open Source**: Das Projekt wird von einer aktiven Community auf GitHub gepflegt und weiterentwickelt.
+- **Firmware-Entwicklung**: Die SIGNALDuino-Firmware wird parallel im Repository [RFD-FHEM/SIGNALDuino](https://github.com/RFD-FHEM/SIGNALDuino) entwickelt.
+- **Version 3.5.0**: Die aktuelle Firmware-Version bietet erweiterte Funktionen wie WiFi-Unterstützung für ESP32-basierte Boards.
+
+### Entwicklungsstatus
+
+> **⚠️ Entwicklungsstatus**
+>
+> PySignalduino befindet sich noch in aktiver Entwicklung und hat noch kein offizielles Release veröffentlicht. Die API kann sich zwischen Versionen ändern. Entwickler sollten bei der Verwendung Vorsicht walten lassen und auf mögliche Breaking Changes vorbereitet sein.
+
+### PySignalduino vs. Original
+PySignalduino ist keine direkte Portierung, sondern eine Neuimplementierung mit folgenden Unterschieden:
+- **Asynchrone Verarbeitung**: Statt Threads wird `asyncio` verwendet.
+- **MQTT-Integration**: Eingebaute MQTT-Bridge für nahtlose Integration in IoT-Ökosysteme.
+- **Moderne Python-Praktiken**: Typisierung, strukturierte Logging, Konfiguration über Umgebungsvariablen.
+
+## Controller-Code und Firmware
+
+Die SIGNALDuino-Firmware (Microcontroller-Code) wird in einem separaten Repository entwickelt:
+
+- **GitHub Repository**: https://github.com/RFD-FHEM/SIGNALDuino
+- **Aktuelle Version**: v3.5.0
+- **Unterstützte Hardware**:
+  - Arduino Nano mit CC1101
+  - ESP32-basierte Boards (z.B. ESP32-DevKitC)
+  - Maple Mini (STM32)
+- **Build-Anleitungen**: Das Repository enthält PlatformIO-Konfigurationen und Arduino-IDE-Projektdateien für einfache Kompilierung.
+
 ## Hauptmerkmale
 
 *   **Vollständig asynchron** – Basierend auf `asyncio` für hohe Performance und einfache Integration in asynchrone Anwendungen.

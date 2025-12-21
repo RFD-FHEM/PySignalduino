@@ -210,6 +210,8 @@ Die Log-Ausgabe zeigt den Status von Transport, Parser und MQTT.
 
 === Bekannte Probleme und Workarounds
 
+* **Entwicklungsstatus**: Da PySignalduino noch in aktiver Entwicklung ist, können sich Verhalten und API zwischen Commits ändern. Bei unerwartetem Verhalten prüfen Sie bitte die aktuelle Codebasis und melden Sie Issues auf GitHub.
+
 * **`aiomqtt`-Versionen:** Verwenden Sie `aiomqtt>=2.0.0`. Ältere Versionen können Inkompatibilitäten aufweisen.
 * **Windows und asyncio:** Unter Windows kann es bei seriellen Verbindungen zu Problemen mit asyncio kommen. Verwenden Sie `asyncio.ProactorEventLoop` oder weichen Sie auf TCP-Transport aus.
 * **Memory Leaks:** Bei langem Betrieb können asyncio-Tasks Speicher verbrauchen. Stellen Sie sicher, dass abgeschlossene Tasks garbage-collected werden. Verwenden Sie `asyncio.create_task` mit Referenzen, um Tasks später abbrechen zu können.

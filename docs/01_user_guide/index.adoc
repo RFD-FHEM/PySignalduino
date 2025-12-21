@@ -3,5 +3,80 @@
 
 Der Benutzer-Leitfaden enthält Anweisungen zur Installation, Konfiguration und grundlegenden Verwendung von PySignalduino.
 
+== Was ist PySignalduino?
+
+PySignalduino ist eine moderne Python-Bibliothek zur Kommunikation mit **SIGNALDuino**-Hardware – einem Arduino-basierten Transceiver für 433/868 MHz Funkkommunikation. Die Bibliothek bietet:
+
+* **Asynchrone Verarbeitung**: Vollständige `asyncio`-Integration für nicht-blockierende Operationen.
+* **MQTT-Bridge**: Eingebaute MQTT-Unterstützung für nahtlose Integration in Smart-Home-Systeme.
+* **Protokollbibliothek**: Portierung der originalen FHEM‑SIGNALDuino‑Protokolle (`SD_Protocols.pm`, `SD_ProtocolData.pm`) in Python.
+* **Moderne Transporte**: Unterstützung für serielle und TCP-Verbindungen.
+
+=== Unterschied zum Original
+PySignalduino ist keine direkte Portierung des Perl‑FHEM‑Moduls, sondern eine Neuimplementierung mit folgenden Schwerpunkten:
+
+* **Asynchrone Architektur**: Statt Threads wird `asyncio` verwendet, was bessere Skalierbarkeit und einfachere Integration in asynchrone Anwendungen ermöglicht.
+* **Typisierung**: Vollständige Typ‑Annotations für bessere Code‑Qualität und IDE‑Unterstützung.
+* **Konfiguration über Umgebungsvariablen**: Einfache Einrichtung ohne Codeänderungen.
+* **Umfangreiche Testsuite**: Hohe Testabdeckung zur Gewährleistung der Stabilität.
+
+=== Entwicklungsstatus
+
+[WARNING]
+====
+**Entwicklungsstatus**
+
+PySignalduino befindet sich noch in aktiver Entwicklung und hat noch kein offizielles Release veröffentlicht. Die API kann sich zwischen Versionen ändern. Entwickler sollten bei der Verwendung Vorsicht walten lassen und auf mögliche Breaking Changes vorbereitet sein.
+====
+
+=== Zielgruppe
+PySignalduino richtet sich an:
+
+* **Entwickler**, die SIGNALDuino‑Hardware in Python‑Projekte integrieren möchten.
+* **Smart‑Home‑Enthusiasten**, die eine MQTT‑Bridge für ihre Funkgeräte benötigen.
+* **Integratoren**, die bestehende FHEM‑Installationen um moderne Python‑Komponenten erweitern wollen.
+
+== Architektur-Übersicht
+
+PySignalduino folgt einer modular aufgebauten Architektur:
+
+[source,plantuml]
+----
+include::../../docs/diagrams/architecture.puml[]
+----
+
+Die Hauptkomponenten sind:
+
+1. **Transport Layer** (`signalduino.transport`):
+   * `SerialTransport` – Asynchrone serielle Kommunikation über `pyserial-asyncio`.
+   * `TcpTransport` – TCP‑Socket‑Verbindung.
+
+2. **Parser Layer** (`signalduino.parser`):
+   * `MCParser`, `MNParser`, `MSParser`, `MUParser` – Verarbeitung der verschiedenen SIGNALDuino‑Nachrichtentypen.
+
+3. **Protokollbibliothek** (`sd_protocols`):
+   * `SDProtocols` – Hauptklasse für Protokollerkennung und ‑dekodierung.
+   * `SDProtocolData` – Datenstrukturen für Protokolldefinitionen.
+
+4. **Controller** (`signalduino.controller`):
+   * `SignalduinoController` – Zentrale Steuerungsklasse, koordiniert Transport, Parser und MQTT.
+
+5. **MQTT‑Integration** (`signalduino.mqtt`):
+   * `MqttPublisher` – Asynchroner MQTT‑Client für Publikation und Subscription.
+
+6. **Befehls‑API** (`signalduino.commands`):
+   * `SignalduinoCommands` – Umfassende Schnittstelle zur Steuerung der SIGNALDuino‑Firmware.
+
+== Schnellstart
+
+Für einen schnellen Einstieg folgen Sie diesen Schritten:
+
+1. **Installation**: Siehe link:installation.adoc[Installationsanleitung].
+2. **Konfiguration**: Setzen Sie die erforderlichen Umgebungsvariablen (z.B. `SIGNALDUINO_SERIAL_PORT`, `MQTT_HOST`).
+3. **Programm starten**: Führen Sie `python3 main.py` aus.
+4. **MQTT‑Nachrichten überwachen**: Abonnieren Sie das Topic `signalduino/messages`, um dekodierte Signale zu empfangen.
+
+Ausführliche Anleitungen finden Sie in den folgenden Kapiteln.
+
 include::installation.adoc[]
 include::usage.adoc[]
