@@ -7,71 +7,47 @@ import pytest
 from signalduino.controller import SignalduinoController
 from signalduino.exceptions import SignalduinoCommandTimeout
 from signalduino.transport import BaseTransport
-from signalduino.types import DecodedMessage, RawFrame
+from signalduino.types import DecodedMessage, RawFrame, SerialInterface
+from signalduino.commands import Command, CommandType
 
 
 @pytest.fixture
 def mock_transport():
     """Fixture for a mocked async transport layer."""
-    transport = AsyncMock(spec=BaseTransport)
-    transport.is_open = False
+    transport = AsyncMock(spec=SerialInterface)
+    transport.is_connected = False
     
     # Define side effects that update state but let the Mock track the call
-    async def aopen_side_effect(*args, **kwargs):
-        transport.is_open = True
-        transport.closed.return_value = False
+    async def aconnect_side_effect(*args, **kwargs):
+        transport.is_connected = True
         return transport
     
     async def aclose_side_effect(*args, **kwargs):
-        transport.is_open = False
-        transport.closed.return_value = True
+        transport.is_connected = False
 
-    transport.open.side_effect = aopen_side_effect
+    transport.connect = AsyncMock(side_effect=aconnect_side_effect)
     transport.close.side_effect = aclose_side_effect
     
-    # Configure closed() to return True initially (closed)
-    transport.closed.return_value = True
-    
-    # Configure context manager to call open/close methods of the mock
-    # This ensures calls are tracked on .open() and .close()
-    async def aenter_side_effect(*args, **kwargs):
-        return await transport.open()
+    # Configure closed() to return True initially (not applicable to SerialInterface)
+        
+    async def read_line_side_effect():
+        await asyncio.sleep(0.01) # Give the reader task a chance to yield
+        return None
 
-    async def aexit_side_effect(*args, **kwargs):
-        await transport.close()
-
-    transport.__aenter__.side_effect = aenter_side_effect
-    transport.__aexit__.side_effect = aexit_side_effect
-    
-    transport.readline.return_value = None
+    transport.read_line.side_effect = read_line_side_effect
     return transport
 
-async def start_controller_tasks(controller):
-    """Helper to start the internal tasks of the controller without running full init."""
-    reader_task = asyncio.create_task(controller._reader_task(), name="sd-reader")
-    parser_task = asyncio.create_task(controller._parser_task(), name="sd-parser")
-    writer_task = asyncio.create_task(controller._writer_task(), name="sd-writer")
-    controller._main_tasks.extend([reader_task, parser_task, writer_task])
-    return reader_task, parser_task, writer_task
 
-
-@pytest.fixture
-def mock_parser():
-    """Fixture for a mocked parser."""
-    parser = MagicMock()
-    parser.parse_line.return_value = []
-    return parser
 
 
 @pytest.mark.asyncio
 async def test_connect_disconnect(mock_transport, mock_parser):
     """Test that connect() and disconnect() open/close transport and tasks."""
-    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
-    assert controller._main_tasks is None or len(controller._main_tasks) == 0
+    controller = SignalduinoController(serial_interface=mock_transport, parser=mock_parser)
 
     async with controller:
         # Assertion auf .open ändern, da die Fixture dies als zu startende Methode definiert
-        mock_transport.open.assert_called_once()
+        mock_transport.connect.assert_called_once()
         # Tasks werden in _main_tasks gespeichert. Ihre Überprüfung ist zu komplex.
 
     mock_transport.close.assert_called_once()
@@ -81,13 +57,11 @@ async def test_connect_disconnect(mock_transport, mock_parser):
 @pytest.mark.asyncio
 async def test_send_command_fire_and_forget(mock_transport, mock_parser):
     """Test sending a command without expecting a response."""
-    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+    controller = SignalduinoController(serial_interface=mock_transport, parser=mock_parser)
     async with controller:
-        # Manually check queue without starting tasks
-        await controller.send_command("V")
-        cmd = await controller._write_queue.get()
-        assert cmd.payload == "V"
-        assert not cmd.expect_response
+        # The command is sent immediately to the transport layer.
+        await controller.send_command(Command.VERSION())
+        mock_transport.write_line.assert_called_once_with("V")
 
 
 @pytest.mark.asyncio
@@ -101,7 +75,7 @@ async def test_send_command_with_response(mock_transport, mock_parser):
         if payload == "V":
             await response_q.put("V 3.5.0-dev SIGNALduino - compiled at Mar 10 2017 22:54:50\n")
 
-    async def readline_side_effect():
+    async def read_line_side_effect():
         # Lese die nächste Antwort aus der Queue.
         # Der Controller nutzt asyncio.wait_for, daher können wir hier warten.
         # Um Deadlocks zu vermeiden, warten wir kurz auf die Queue.
@@ -115,15 +89,15 @@ async def test_send_command_with_response(mock_transport, mock_parser):
             return None # Kein Ergebnis, Reader Loop macht weiter
 
     mock_transport.write_line.side_effect = write_line_side_effect
-    mock_transport.readline.side_effect = readline_side_effect
+    mock_transport.read_line.side_effect = read_line_side_effect
 
-    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+    controller = SignalduinoController(serial_interface=mock_transport, parser=mock_parser)
     async with controller:
-        await start_controller_tasks(controller)
+
         
         # get_version uses send_command, which uses controller.commands._send, which calls controller.send_command
         # This will block until the response is received
-        response = await controller.commands.get_version(timeout=1)
+        response = await controller.send_command(Command(name="VERSION", raw_command="V", command_type=CommandType.GET, timeout=1.0))
         
         mock_transport.write_line.assert_called_once_with("V")
         assert response is not None
@@ -154,7 +128,7 @@ async def test_send_command_with_interleaved_message(mock_transport, mock_parser
             # 2. Command response
             await response_q.put(command_response)
 
-    async def readline_side_effect():
+    async def read_line_side_effect():
         # Simulate blocking read that gets a value from the queue.
         try:
             return await asyncio.wait_for(response_q.get(), timeout=0.1)
@@ -163,16 +137,16 @@ async def test_send_command_with_interleaved_message(mock_transport, mock_parser
             return None
 
     mock_transport.write_line.side_effect = write_line_side_effect
-    mock_transport.readline.side_effect = readline_side_effect
+    mock_transport.read_line.side_effect = read_line_side_effect
 
     # Mock the parser to track if the interleaved message is passed to it
     mock_parser.parse_line = Mock(wraps=mock_parser.parse_line)
 
-    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+    controller = SignalduinoController(serial_interface=mock_transport, parser=mock_parser)
     async with controller:
-        await start_controller_tasks(controller)
+
         
-        response = await controller.commands.get_version(timeout=2.0)
+        response = await controller.send_command(Command(name="VERSION", raw_command="V", command_type=CommandType.GET, timeout=2.0))
         mock_transport.write_line.assert_called_once_with("V")
         
         # 1. Verify that the correct command response was received by send_command
@@ -198,22 +172,22 @@ async def test_send_command_timeout(mock_transport, mock_parser):
         # Wir schreiben, simulieren aber keine Antwort (um das Timeout auszulösen)
         pass
 
-    async def readline_side_effect():
+    async def read_line_side_effect():
         # Lese die nächste Antwort aus der Liste, wenn verfügbar, ansonsten warte und gib None zurück
         if response_list:
             return response_list.pop(0)
-        await asyncio.sleep(10) # Blockiere, um das Kommando-Timeout auszulösen (0.2s)
+        await asyncio.sleep(0.5) # Blockiere, um das Kommando-Timeout auszulösen (0.2s)
         return None
     
     mock_transport.write_line.side_effect = write_line_side_effect
-    mock_transport.readline.side_effect = readline_side_effect
+    mock_transport.read_line.side_effect = read_line_side_effect
     
-    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+    controller = SignalduinoController(serial_interface=mock_transport, parser=mock_parser)
     async with controller:
-        await start_controller_tasks(controller)
+
         
         with pytest.raises(SignalduinoCommandTimeout):
-            await controller.commands.get_version(timeout=0.2)
+            await controller.send_command(Command(name="VERSION", raw_command="V", command_type=CommandType.GET, timeout=0.2))
 
 
 @pytest.mark.asyncio
@@ -231,16 +205,16 @@ async def test_message_callback(mock_transport, mock_parser):
         await asyncio.sleep(0.1)
         return None
 
-    mock_transport.readline.side_effect = mock_readline
+    mock_transport.read_line.side_effect = mock_readline
     
     controller = SignalduinoController(
-        transport=mock_transport,
+        serial_interface=mock_transport,
         parser=mock_parser,
         message_callback=callback_mock,
     )
 
     async with controller:
-        await start_controller_tasks(controller)
+
         
         # Warte auf das Parsen, wenn die Nachricht ankommt
         await asyncio.sleep(0.2)
@@ -278,39 +252,33 @@ async def test_initialize_retry_logic(mock_transport, mock_parser):
     # Use very short intervals for testing by patching the imported constants in the controller module
     import signalduino.controller
     
-    original_wait = signalduino.controller.SDUINO_INIT_WAIT
-    original_wait_xq = signalduino.controller.SDUINO_INIT_WAIT_XQ
+    original_wait_interval = signalduino.controller.SDUINO_RETRY_INTERVAL
     original_max_tries = signalduino.controller.SDUINO_INIT_MAXRETRY
     
     # Setze die Wartezeiten und Versuche für einen schnelleren Test
-    signalduino.controller.SDUINO_INIT_WAIT = 0.01
-    signalduino.controller.SDUINO_INIT_WAIT_XQ = 0.01
+    signalduino.controller.SDUINO_RETRY_INTERVAL = 0.01
     signalduino.controller.SDUINO_INIT_MAXRETRY = 3 # Max 3 Versuche gesamt: XQ, V (fail), V (success)
 
     try:
-        controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+        controller = SignalduinoController(serial_interface=mock_transport, parser=mock_parser)
         # Mocke die Methode, die tatsächlich von Commands.get_version aufgerufen wird
         # WICHTIG: controller.commands._send muss auch aktualisiert werden, da es bei __init__ gebunden wurde
         controller.send_command = mocked_send_command
-        controller.commands._send = mocked_send_command
         
         # Mocket _reset_device, um die rekursiven aexit-Aufrufe zu verhindern,
         # die während des Test-Cleanups einen RecursionError auslösen
-        controller._reset_device = AsyncMock()
 
         async with controller:
+
             # initialize startet Background Tasks und kehrt zurück
             await controller.initialize()
+            await asyncio.sleep(0.2) # Gib dem Event-Loop Zeit, die Init-Tasks zu starten
             
             # Warte explizit auf den Abschluss der Initialisierung, wie in controller.run()
-            try:
-                await asyncio.wait_for(controller._init_complete_event.wait(), timeout=5.0)
-            except asyncio.TimeoutError:
-                pass
-
+            
             # Wir müssen nicht mehr so lange warten, da das Event gesetzt wird
             # Wir geben den Tasks nur kurz Zeit, sich zu beenden
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1.0)
 
             # Verify calls:
             # 1. XQ
@@ -331,8 +299,7 @@ async def test_initialize_retry_logic(mock_transport, mock_parser):
             assert ("XE",) in calls
 
     finally:
-        signalduino.controller.SDUINO_INIT_WAIT = original_wait
-        signalduino.controller.SDUINO_INIT_WAIT_XQ = original_wait_xq
+        signalduino.controller.SDUINO_RETRY_INTERVAL = original_wait_interval
         signalduino.controller.SDUINO_INIT_MAXRETRY = original_max_tries
 
 
@@ -357,33 +324,33 @@ async def test_stx_message_bypasses_command_response(mock_transport, mock_parser
             response_list.append(stx_message)
             response_list.append(cmd_response)
 
-    async def readline_side_effect():
+    async def read_line_side_effect():
         # Lese die nächste Antwort aus der Liste, wenn verfügbar, ansonsten warte und gib None zurück
         if response_list:
             return response_list.pop(0)
-        await asyncio.sleep(0.01) # Kurze Pause, um den Reader-Loop zu entsperren
+        await asyncio.sleep(0.1) # Kurze Pause, um den Reader-Loop zu entsperren
         return None
 
     mock_transport.write_line.side_effect = write_line_side_effect
-    mock_transport.readline.side_effect = readline_side_effect
+    mock_transport.read_line.side_effect = read_line_side_effect
     
     # Mock parser to verify STX message is parsed
     mock_parser.parse_line = Mock(wraps=mock_parser.parse_line)
     
-    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+    controller = SignalduinoController(serial_interface=mock_transport, parser=mock_parser)
     async with controller:
-        await start_controller_tasks(controller)
+
         
         # get_cmds uses pattern r".*", which would normally match the STX message
         # if we didn't have the special handling in the controller.
-        response = await controller.commands.get_cmds()
+        response = await controller.send_command(Command(name="GET_CMDS", raw_command="?", command_type=CommandType.GET))
         
         # Verify we got the correct response, not the STX message
         assert response is not None
         assert response.strip() == cmd_response.strip()
         
         # Give parser thread some time
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.5)
         
         # Verify STX message was sent to parser
         mock_parser.parse_line.assert_any_call(stx_message.strip())

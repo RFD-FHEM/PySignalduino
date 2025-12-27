@@ -1,19 +1,22 @@
-"""Constants mirrored from the legacy 00_SIGNALduino.pm implementation."""
+"""Constants used throughout the Signalduino project."""
 
-SDUINO_VERSION = "3.5.7+20250219"
-SDUINO_INIT_WAIT_XQ = 1.5
-SDUINO_INIT_WAIT = 2.0
-SDUINO_INIT_MAXRETRY = 3
-SDUINO_CMD_TIMEOUT = 10.0
-SDUINO_KEEPALIVE_TIMEOUT = 60
-SDUINO_KEEPALIVE_MAXRETRY = 3
-SDUINO_WRITEQUEUE_NEXT = 0.3
-SDUINO_WRITEQUEUE_TIMEOUT = 2
+# Command timing (moved from constants to commands to break circular dep)
+# SDUINO_CMD_TIMEOUT = 1.0
 
-SDUINO_STATUS_HEARTBEAT_INTERVAL = 10.0 # 10 seconds
+# Write queue timing (moved from constants to commands to break circular dep)
+# SDUINO_WRITEQUEUE_NEXT = 0.05
+# SDUINO_WRITEQUEUE_TIMEOUT = 1.0
 
-SDUINO_DISPATCH_VERBOSE = 5
-SDUINO_MC_DISPATCH_VERBOSE = 5
-SDUINO_MC_DISPATCH_LOG_ID = "12.1"
-SDUINO_PARSE_DEFAULT_LENGHT_MIN = 8
-SDUINO_GET_CONFIGQUERY_DELAY = 0.75
+# Retry mechanism
+SDUINO_INIT_MAXRETRY = 5
+SDUINO_RETRY_INTERVAL = 5.0
+
+# Default settings
+DEFAULT_FREQUENCY = 433.92
+
+# Message start marker (STX)
+STX = "\x02"
+
+# Removed:
+# from signalduino.commands import Command
+# CUSTOM_TIMEOUTS = {...}

@@ -5,157 +5,184 @@ from unittest.mock import MagicMock, Mock, AsyncMock
 
 import pytest
 
-from signalduino.controller import SignalduinoController, QueuedCommand
-from signalduino.constants import SDUINO_CMD_TIMEOUT
-from signalduino.exceptions import SignalduinoCommandTimeout, SignalduinoConnectionError
-from signalduino.transport import BaseTransport
+from signalduino.controller import SignalduinoController, CommandError, InitError
+from signalduino.commands import Command, CommandType, SDUINO_CMD_TIMEOUT
+from signalduino.exceptions import SerialConnectionClosedError, SignalduinoCommandTimeout
+from signalduino.types import SerialInterface
+from signalduino.parser import SignalParser
 
 
 @pytest.fixture
-def mock_transport():
-    """Fixture for a mocked async transport layer."""
-    transport = AsyncMock(spec=BaseTransport)
-    transport.is_open = False
+def mock_serial_interface():
+    """Fixture for a mocked async serial interface layer."""
+    serial_interface = AsyncMock(spec=SerialInterface)
+    # Controller erwartet connect/close/read_line/write_line
+    serial_interface.is_connected = False
+    
+    async def connect_mock():
+        serial_interface.is_connected = True
 
-    async def aopen_mock():
-        transport.is_open = True
+    async def close_mock():
+        serial_interface.is_connected = False
 
-    async def aclose_mock():
-        transport.is_open = False
+    serial_interface.connect.side_effect = connect_mock
+    serial_interface.close.side_effect = close_mock
 
-    transport.open.side_effect = aopen_mock
-    transport.close.side_effect = aclose_mock
-    transport.__aenter__.return_value = transport
-    transport.__aexit__.return_value = None
-    transport.readline.return_value = None
-    return transport
+    async def read_line_mock():
+        await asyncio.sleep(0.01)
+        return None
+    serial_interface.read_line.side_effect = read_line_mock
+    serial_interface.write_line.return_value = None # Add this for completeness
+    
+    return serial_interface
 
 
 @pytest.fixture
 def mock_parser():
     """Fixture for a mocked parser."""
-    parser = MagicMock()
+    parser = MagicMock(spec=SignalParser)
     parser.parse_line.return_value = []
     return parser
 
 
 @pytest.mark.asyncio
-async def test_version_command_success(mock_transport, mock_parser):
-    """Test that the version command works with the specific regex."""
-    # Die tatsächliche Schreib-Queue des Controllers muss gemockt werden,
-    # um das QueuedCommand-Objekt abzufangen und den Callback manuell auszulösen.
-    # Dies ist das Muster, das in test_mqtt_commands.py verwendet wird.
-    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+async def test_version_command_success(mock_serial_interface, mock_parser):
+    """Test that the version command works with the Command object."""
     
-    # Ersetze die interne Queue durch einen Mock, um den put-Aufruf abzufangen
-    original_write_queue = controller._write_queue
-    controller._write_queue = AsyncMock()
+    controller = SignalduinoController(serial_interface=mock_serial_interface, parser=mock_parser)
     
-    expected_response_line = "V 3.5.0-dev SIGNALduino cc1101 (optiboot) - compiled at 20250219\n"
+    # Prime controller's response queue for initialization
+    await controller._command_response_queue.put("V 1.0.0") 
+    await controller._command_response_queue.put("b433.92")
+
+    expected_response_line = "V 3.5.0-dev SIGNALduino cc1101 (optiboot) - compiled at 20250219"
 
     async with controller:
-        # Define the regex pattern as used in main.py
-        version_pattern = re.compile(r"V\s.*SIGNAL(?:duino|ESP|STM).*", re.IGNORECASE)
         
-        # Sende den Befehl. Das Mocking stellt sicher, dass put aufgerufen wird.
+        # Sende den Befehl im Hintergrund, der auf eine Antwort in der Queue wartet
         response_task = asyncio.create_task(
-            controller.send_command(
-                "V",
-                expect_response=True,
-                timeout=SDUINO_CMD_TIMEOUT,
-                response_pattern=version_pattern
-            )
+            controller.send_command(Command.VERSION())
         )
         
-        # Warte, bis der Befehl in die Queue eingefügt wurde
-        while controller._write_queue.put.call_count == 0:
+        # Warte, bis der Controller den Befehl über die serielle Schnittstelle gesendet hat.
+        while mock_serial_interface.write_line.call_count == 0:
             await asyncio.sleep(0.001)
 
-        # Holen Sie sich das QueuedCommand-Objekt
-        queued_command = controller._write_queue.put.call_args[0][0]
-        
-        # Manuell die Antwort simulieren durch Aufruf des on_response-Callbacks
-        queued_command.on_response(expected_response_line.strip())
+        # Simuliere die Antwort in die interne Queue des Controllers.
+        await controller._command_response_queue.put(expected_response_line)
         
         # Warte auf das Ergebnis von send_command
         response = await response_task
         
-        # Wiederherstellung der ursprünglichen Queue (wird bei __aexit__ nicht benötigt,
-        # da der Controller danach gestoppt wird, aber gute Praxis)
-        controller._write_queue = original_write_queue
-        
         # Verifizierungen
-        assert queued_command.payload == "V"
-        assert response is not None
+        assert mock_serial_interface.write_line.call_args_list[-1][0][0] == "V"
+        assert mock_serial_interface.write_line.call_count == 3
+        assert response == expected_response_line
         assert "SIGNALduino" in response
         assert "V 3.5.0-dev" in response
 
-
 @pytest.mark.asyncio
-async def test_version_command_with_noise_before(mock_transport, mock_parser):
-    """Test that the version command works even if other data comes first."""
-    # Verwende dieselbe Strategie: Mocke die Queue und löse den Callback manuell aus.
-    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+async def test_set_frequency_success(mock_serial_interface, mock_parser):
+    """Test that a SET command works and verifies the expected echo response."""
     
-    # Ersetze die interne Queue durch einen Mock, um den put-Aufruf abzufangen
-    original_write_queue = controller._write_queue
-    controller._write_queue = AsyncMock()
+    controller = SignalduinoController(serial_interface=mock_serial_interface, parser=mock_parser)
     
-    # Die tatsächlichen "Noise"-Nachrichten spielen keine Rolle, da der on_response-Callback
-    # die einzige Methode ist, die das Future auflöst. Wir müssen nur die tatsächliche
-    # Antwort zurückgeben, die der Controller erwarten würde.
-    expected_response_line = "V 3.5.0-dev SIGNALduino\n"
+    # Prime controller's response queue for initialization
+    await controller._command_response_queue.put("V 1.0.0") 
+    await controller._command_response_queue.put("b433.92")
+
+    frequency = 433.92
+    expected_raw_command = f"b{frequency}"
+    expected_response_line = expected_raw_command
 
     async with controller:
-        version_pattern = re.compile(r"V\s.*SIGNAL(?:duino|ESP|STM).*", re.IGNORECASE)
         
+        # Der Test setzt voraus, dass Command.SET_FREQUENCY existiert
         response_task = asyncio.create_task(
-            controller.send_command(
-                "V",
-                expect_response=True,
-                timeout=SDUINO_CMD_TIMEOUT,
-                response_pattern=version_pattern
-            )
+            controller.send_command(Command.SET_FREQUENCY(frequency))
         )
         
-        # Warte, bis der Befehl in die Queue eingefügt wurde
-        while controller._write_queue.put.call_count == 0:
+        # Warte, bis der Befehl gesendet wurde
+        while mock_serial_interface.write_line.call_count == 0:
             await asyncio.sleep(0.001)
 
-        # Holen Sie sich das QueuedCommand-Objekt
-        queued_command = controller._write_queue.put.call_args[0][0]
-        
-        # Manuell die Antwort simulieren durch Aufruf des on_response-Callbacks.
-        # Im echten Controller würde die _reader_task die Noise-Messages verwerfen
-        # und nur bei einem Match des response_pattern den Callback aufrufen.
-        queued_command.on_response(expected_response_line.strip())
+        # Simuliere die erwartete Echo-Antwort
+        await controller._command_response_queue.put(expected_response_line)
         
         # Warte auf das Ergebnis von send_command
         response = await response_task
-
-        # Wiederherstellung
-        controller._write_queue = original_write_queue
         
-        assert response is not None
-        assert "SIGNALduino" in response
+        # Verifizierungen
+        assert mock_serial_interface.write_line.call_args_list[-1][0][0] == expected_raw_command
+        assert mock_serial_interface.write_line.call_count == 3
+        assert response == expected_response_line
 
 
 @pytest.mark.asyncio
-async def test_version_command_timeout(mock_transport, mock_parser):
-    """Test that the version command times out correctly."""
-    mock_transport.readline.return_value = None
+async def test_command_timeout(mock_serial_interface, mock_parser):
+    """Test that a command times out correctly."""
     
-    controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
+    # Verwenden Sie ein Command-Objekt mit einem sehr kurzen Timeout
+    test_command = Command(
+        name="TEST_TIMEOUT",
+        raw_command="T",
+        command_type=CommandType.GET, # Verwenden Sie einen beliebigen Typ
+        timeout=0.1
+    )
+    
+    controller = SignalduinoController(serial_interface=mock_serial_interface, parser=mock_parser)
+    
+    # Prime controller's response queue for initialization
+    await controller._command_response_queue.put("V 1.0.0") 
+    await controller._command_response_queue.put("b433.92")
+
     async with controller:
-        version_pattern = re.compile(r"V\s.*SIGNAL(?:duino|ESP|STM).*", re.IGNORECASE)
+        # Der Controller löst bei einem Timeout `TimeoutError` aus.
+        with pytest.raises(SignalduinoCommandTimeout, match="Command 'TEST_TIMEOUT' timed out"):
+            await controller.send_command(test_command)
+            
+        # Überprüfen, ob der Befehl gesendet wurde
+        assert mock_serial_interface.write_line.call_args_list[-1][0][0] == "T"
+        assert mock_serial_interface.write_line.call_count == 3
         
-        # Der Controller löst bei einem Timeout (ohne geschlossene Verbindung)
-        # fälschlicherweise SignalduinoConnectionError aus.
-        # Der Test wird auf das tatsächliche Verhalten korrigiert.
-        with pytest.raises(SignalduinoConnectionError):
-            await controller.send_command(
-                "V",
-                expect_response=True,
-                timeout=0.2, # Short timeout for test
-                response_pattern=version_pattern
-            )
+
+@pytest.mark.asyncio
+async def test_command_failure_response(mock_serial_interface, mock_parser):
+    """Test that a command fails if the response does not match the expected_response."""
+    
+    # Verwenden Sie ein Command-Objekt, das eine spezifische Antwort erwartet
+    test_command = Command(
+        name="TEST_FAILURE",
+        raw_command="F",
+        command_type=CommandType.SET,
+        expected_response="F OK",
+        timeout=1.0
+    )
+    
+    controller = SignalduinoController(serial_interface=mock_serial_interface, parser=mock_parser)
+    
+    # Prime controller's response queue for initialization
+    await controller._command_response_queue.put("V 1.0.0") 
+    await controller._command_response_queue.put("b433.92")
+
+    async with controller:
+        
+        response_task = asyncio.create_task(
+            controller.send_command(test_command)
+        )
+        
+        # Warte, bis der Befehl gesendet wurde
+        while mock_serial_interface.write_line.call_count == 0:
+            await asyncio.sleep(0.001)
+
+        # Simuliere eine falsche Antwort
+        failure_response = "F ERROR"
+        await controller._command_response_queue.put(failure_response)
+        
+        # Es sollte ein CommandError geworfen werden
+        with pytest.raises(CommandError, match=f"Command 'TEST_FAILURE' failed. Response: {failure_response}"):
+            await response_task
+        
+        # Überprüfen, ob der Befehl gesendet wurde
+        assert mock_serial_interface.write_line.call_args_list[-1][0][0] == "F"
+        assert mock_serial_interface.write_line.call_count == 3

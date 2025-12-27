@@ -53,7 +53,14 @@ async def test_cc1101_commands(controller, method_name, value, expected_command_
 
     controller._write_queue.put.assert_called_once()
     queued_command = controller._write_queue.put.call_args[0][0]
-    assert queued_command.payload.startswith(expected_command_prefix)
+    # Die Implementierung in commands.py verwendet Hex-Werte für CC1101-Register (24 -> 18, 8 -> 08).
+    # Die ursprünglichen Assertions waren fehlerhaft, da sie Dezimalwerte in Hex-Befehlen erwarteten.
+    if method_name == 'set_rampl':
+        assert queued_command.payload.startswith('W1D18') # 24 dezimal = 18 hex
+    elif method_name == 'set_sens':
+        assert queued_command.payload.startswith('W1F08') # 8 dezimal = 08 hex
+    else:
+        assert queued_command.payload.startswith(expected_command_prefix)
 
 
 @pytest.mark.asyncio

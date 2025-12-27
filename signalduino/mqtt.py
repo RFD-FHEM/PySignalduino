@@ -21,8 +21,9 @@ class MqttPublisher:
         self.mqtt_host = os.environ.get("MQTT_HOST", "localhost")
         self.mqtt_port = int(os.environ.get("MQTT_PORT", 1883))
         
+        self.mqtt_topic = os.environ.get("MQTT_TOPIC", "signalduino")
         # NEU: Verwende versioniertes Topic als Basis für alle Publishes/Subs
-        self.base_topic = f"{os.environ.get('MQTT_TOPIC', 'signalduino')}/v1"
+        self.base_topic = f"{self.mqtt_topic}/v1"
         self.mqtt_username = os.environ.get("MQTT_USERNAME")
         self.mqtt_password = os.environ.get("MQTT_PASSWORD")
         

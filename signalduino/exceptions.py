@@ -9,6 +9,10 @@ class SignalduinoConnectionError(SignalduinoError):
     """Raised when a transport cannot be opened or is unexpectedly closed."""
 
 
+class SerialConnectionClosedError(SignalduinoConnectionError):
+    """Raised when the underlying serial connection is closed unexpectedly."""
+
+
 class SignalduinoCommandTimeout(SignalduinoError):
     """Raised when a queued command does not receive the expected response in time."""
 

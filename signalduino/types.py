@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable, Optional, Pattern, Awaitable, Any
+from typing import Callable, Optional, Pattern, Awaitable, Any, Protocol
 # threading.Event wird im asynchronen Controller ersetzt
 # von asyncio.Event, das dort erstellt werden muss.
 
@@ -51,3 +51,25 @@ class PendingResponse:
     deadline: datetime
     event: Any # Wird durch asyncio.Event im Controller gesetzt
     response: Optional[str] = None
+
+
+class SerialInterface(Protocol):
+    """Protocol for the async serial connection, for use in typing and mocking."""
+
+    is_connected: bool
+
+    async def connect(self) -> None:
+        """Connect to the serial port."""
+        ...
+
+    async def close(self) -> None:
+        """Close the connection."""
+        ...
+
+    async def read_line(self) -> Optional[str]:
+        """Read a single line from the serial port."""
+        ...
+
+    async def write_line(self, data: str) -> None:
+        """Write a string (command) to the serial port."""
+        ...
