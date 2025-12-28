@@ -83,7 +83,7 @@ Dieser Abschnitt definiert den verbindlichen Arbeitsablauf für die Entwicklung 
   - Aufteilung in konkrete Arbeitspakete (Tasks)
   - Definition von Akzeptanzkriterien für jede Komponente
   - Planung von Teststrategien (Unit, Integration, System)
-  - Ressourcen- und Zeitplanung
+  - Ressourcen- und Zeitplaning
   - Erstellung von Mockups/Prototypen für kritische Pfade
 - **Deliverables:**
   - Implementierungsplan mit Task-Breakdown
@@ -244,3 +244,34 @@ flowchart TD
 Dieser Architecture-First Development Process ist für **alle** neuen Funktionen und wesentlichen Änderungen verbindlich. Ausnahmen sind nur bei kritischen Bugfixes erlaubt und müssen durch einen Emergency-ADR dokumentiert werden. Jede Abweichung vom Prozess muss vom Architecture Owner genehmigt werden.
 
 Die Einhaltung dieses Prozesses gewährleistet, dass Design-Entscheidungen bewusst getroffen, dokumentiert und nachvollziehbar sind, was die langfristige Wartbarkeit, Skalierbarkeit und Qualität des PySignalduino-Projekts sicherstellt.
+
+## Fehlerbehebungsprozess für fehlende Abhängigkeiten
+
+### Problemidentifikation
+1. **Symptom:** ImportError oder ModuleNotFoundError während der Testausführung
+2. **Ursachenanalyse:**
+   - Überprüfen der Traceback-Meldung auf fehlende Module
+   - Vergleich mit requirements.txt und requirements-dev.txt
+   - Prüfen der Dokumentation auf Installationsanweisungen
+
+### Lösungsimplementierung
+1. **requirements-dev.txt aktualisieren:**
+   - Modulname zur Datei hinzufügen
+   - Commit mit Conventional Commits Syntax erstellen (z.B. "fix: add <module> to requirements-dev.txt")
+2. **Dokumentation prüfen:**
+   - Sicherstellen, dass Installationsanweisungen in README.md und docs/ aktuell sind
+
+### Verifikation
+1. **Installation testen:**
+   ```bash
+   pip install -r requirements-dev.txt
+   pytest
+   ```
+2. **Tests erneut ausführen:**
+   ```bash
+   timeout 60 pytest ./tests/
+   ```
+
+### Dokumentation
+- **AGENTS.md aktualisieren:** Diese Prozessbeschreibung hinzufügen
+- **Commit erstellen:** Änderungen mit aussagekräftiger Nachricht committen
