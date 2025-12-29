@@ -46,6 +46,72 @@ class SignalduinoController:
         self.transport = transport
         # send_command muss jetzt async sein
         self.commands = SignalduinoCommands(self.send_command)
+
+
+    async def send_command(
+        self,
+        command: str,
+        expect_response: bool = False,
+        timeout: Optional[float] = None,
+    ) -> Optional[str]:
+        """Send a command to the Signalduino and optionally wait for a response.
+
+        Args:
+            command: The command to send.
+            expect_response: Whether to wait for a response.
+            timeout: Timeout in seconds for waiting for a response.
+
+        Returns:
+            The response if expect_response is True, otherwise None.
+
+        Raises:
+            SignalduinoCommandTimeout: If no response is received within the timeout.
+            SignalduinoConnectionError: If the connection is lost.
+        """
+        if self.transport.closed():
+            raise SignalduinoConnectionError("Transport is closed")
+
+        if expect_response:
+            read_task = asyncio.create_task(self.transport.readline())
+            try:
+                await self.transport.write_line(command)
+                # Check connection immediately after writing
+                if self.transport.closed():
+                    raise SignalduinoConnectionError("Connection dropped during command")
+                response = await asyncio.wait_for(
+                    read_task,
+                    timeout=timeout or SDUINO_CMD_TIMEOUT,
+                )
+                return response
+            except asyncio.TimeoutError:
+                read_task.cancel()
+                # Check for connection drop first
+                if self.transport.closed():
+                    raise SignalduinoConnectionError("Connection dropped during command")
+                if read_task.done() and not read_task.cancelled():
+                    try:
+                        exc = read_task.exception()
+                        if isinstance(exc, SignalduinoConnectionError):
+                            raise exc
+                    except (asyncio.CancelledError, Exception):
+                        pass
+                raise SignalduinoCommandTimeout("Command timed out")
+            except SignalduinoConnectionError as e:
+                read_task.cancel()
+                raise
+            except Exception as e:
+                read_task.cancel()
+                if 'socket is closed' in str(e) or 'cannot reuse' in str(e):
+                    raise SignalduinoConnectionError(str(e))
+                raise
+            except Exception as e:
+                read_task.cancel()
+                if 'socket is closed' in str(e) or 'cannot reuse' in str(e):
+                    raise SignalduinoConnectionError(str(e))
+                raise
+        else:
+            await self.transport.write_line(command)
+            return None
         self.parser = parser or SignalParser()
         self.message_callback = message_callback
         self.logger = logger or logging.getLogger(__name__)
@@ -81,3 +147,9 @@ class SignalduinoController:
     # Asynchroner Kontextmanager
     async def __aenter__(self) -> "SignalduinoController":
         """Opens transport and starts MQTT connection if configured."""
+        await self.transport.open()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Closes transport and MQTT connection if configured."""
+        await self.transport.close()
