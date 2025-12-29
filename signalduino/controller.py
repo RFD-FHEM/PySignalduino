@@ -64,7 +64,7 @@ class SignalduinoController:
         self._write_queue: asyncio.Queue[QueuedCommand] = asyncio.Queue()
         self._pending_responses: List[PendingResponse] = []
         self._pending_responses_lock = asyncio.Lock()
-        self._ init_complete_event = asyncio.Event() # NEU: Event für den Abschluss der Initialisierung
+        self._init_complete_event = asyncio.Event() # NEU: Event für den Abschluss der Initialisierung
 
         # Timer-Handles (jetzt asyncio.Task anstelle von threading.Timer)
         self._heartbeat_task: Optional[asyncio.Task[Any]] = None
@@ -80,4 +80,4 @@ class SignalduinoController:
 
     # Asynchroner Kontextmanager
     async def __aenter__(self) -> "SignalduinoController":
-        """Opens transport and starts MQTT connection if configured.\
+        """Opens transport and starts MQTT connection if configured."""
