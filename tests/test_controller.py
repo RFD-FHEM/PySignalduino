@@ -250,16 +250,17 @@ async def test_message_callback(mock_transport, mock_parser):
 @pytest.mark.asyncio
 async def test_initialize_retry_logic(mock_transport, mock_parser):
     """Test the retry logic during initialization."""
-    
+
     # Mock send_command to fail initially and then succeed
     call_count = 0
+    calls = []
 
     async def side_effect(*args, **kwargs):
-        nonlocal call_count
+        nonlocal call_count, calls
         call_count += 1
         payload = kwargs.get("payload") or args[0] if args else None
-        # print(f"DEBUG Mock Call {call_count}: {payload}")
-
+        calls.append(payload)
+        
         if payload == "XQ":
             return None
         if payload == "V":
@@ -267,10 +268,10 @@ async def test_initialize_retry_logic(mock_transport, mock_parser):
             if call_count < 3:  # Fail first V attempt (call_count 2)
                 raise SignalduinoCommandTimeout("Timeout")
             return "V 3.5.0-dev SIGNALduino - compiled at Mar 10 2017 22:54:50\n"
-        
+
         if payload == "XE":
             return None
-        
+
         return None
 
     mocked_send_command = AsyncMock(side_effect=side_effect)
@@ -292,7 +293,8 @@ async def test_initialize_retry_logic(mock_transport, mock_parser):
         # Mocke die Methode, die tatsächlich von Commands.get_version aufgerufen wird
         # WICHTIG: controller.commands._send muss auch aktualisiert werden, da es bei __init__ gebunden wurde
         controller.send_command = mocked_send_command
-        controller.commands._send = mocked_send_command
+        # Use proper command mocking through the commands interface
+        controller.commands._send_command = mocked_send_command
         
         # Mocket _reset_device, um die rekursiven aexit-Aufrufe zu verhindern,
         # die während des Test-Cleanups einen RecursionError auslösen
@@ -326,9 +328,13 @@ async def test_initialize_retry_logic(mock_transport, mock_parser):
             # Debugging helper
             # print(f"Calls: {calls}")
 
-            assert ("XQ",) in calls # Payload wird als Tupel übergeben
-            assert len([c for c in calls if c == ('V',)]) >= 2
-            assert ("XE",) in calls
+            # Verify calls:
+            # 1. XQ should be called once
+            # 2. V should be called at least twice (fail + success)
+            # 3. XE should be called once
+            assert calls.count('XQ') == 1
+            assert calls.count('V') >= 2
+            assert calls.count('XE') == 1
 
     finally:
         signalduino.controller.SDUINO_INIT_WAIT = original_wait
@@ -353,8 +359,9 @@ async def test_stx_message_bypasses_command_response(mock_transport, mock_parser
 
     async def write_line_side_effect(payload):
         if payload == "?":
-            # Simulate STX message followed by real response
+            # Simulate STX message followed by real response after short delay
             response_list.append(stx_message)
+            await asyncio.sleep(0.1)  # Add small delay to ensure proper processing
             response_list.append(cmd_response)
 
     async def readline_side_effect():
