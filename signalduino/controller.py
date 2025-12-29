@@ -44,6 +44,19 @@ class SignalduinoController:
         logger: Optional[logging.Logger] = None,
     ) -> None:
         self.transport = transport
+        self.parser = parser or SignalParser()
+        self.message_callback = message_callback
+        self.logger = logger or logging.getLogger(__name__)
+        
+        # Initialize queues and tasks
+        self._write_queue: asyncio.Queue[QueuedCommand] = asyncio.Queue()
+        self._raw_message_queue: asyncio.Queue[str] = asyncio.Queue()
+        self._pending_responses: List[PendingResponse] = []
+        self._pending_responses_lock = asyncio.Lock()
+        self._init_complete_event = asyncio.Event()
+        self._stop_event = asyncio.Event()
+        self._main_tasks: List[asyncio.Task[Any]] = []
+        
         # send_command muss jetzt async sein
         self.commands = SignalduinoCommands(self.send_command)
 
@@ -104,11 +117,6 @@ class SignalduinoController:
                 if 'socket is closed' in str(e) or 'cannot reuse' in str(e):
                     raise SignalduinoConnectionError(str(e))
                 raise
-            except Exception as e:
-                read_task.cancel()
-                if 'socket is closed' in str(e) or 'cannot reuse' in str(e):
-                    raise SignalduinoConnectionError(str(e))
-                raise
         else:
             await self.transport.write_line(command)
             return None
@@ -152,4 +160,50 @@ class SignalduinoController:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Closes transport and MQTT connection if configured."""
+        # Cancel all running tasks
+        for task in self._main_tasks:
+            task.cancel()
         await self.transport.close()
+
+    async def _reader_task(self) -> None:
+        """Continuously reads lines from the transport."""
+        while not self._stop_event.is_set():
+            try:
+                line = await self.transport.readline()
+                if line is not None:
+                    await self._raw_message_queue.put(line)
+            except Exception as e:
+                self.logger.error(f"Reader task error: {e}")
+                break
+
+    async def _parser_task(self) -> None:
+        """Processes raw messages from the queue."""
+        while not self._stop_event.is_set():
+            try:
+                line = await self._raw_message_queue.get()
+                if line:
+                    decoded = self.parser.parse_line(line)
+                    if decoded and self.message_callback:
+                        await self.message_callback(decoded[0])
+            except Exception as e:
+                self.logger.error(f"Parser task error: {e}")
+                break
+
+    async def _writer_task(self) -> None:
+        """Processes commands from the write queue."""
+        while not self._stop_event.is_set():
+            try:
+                cmd = await self._write_queue.get()
+                await self.transport.write_line(cmd.payload)
+            except Exception as e:
+                self.logger.error(f"Writer task error: {e}")
+                break
+
+    async def initialize(self) -> None:
+        """Initialize the controller and start background tasks."""
+        self._main_tasks = [
+            asyncio.create_task(self._reader_task(), name="sd-reader"),
+            asyncio.create_task(self._parser_task(), name="sd-parser"),
+            asyncio.create_task(self._writer_task(), name="sd-writer")
+        ]
+        self._init_complete_event.set()
