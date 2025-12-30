@@ -82,8 +82,11 @@ class SignalduinoController:
                     timeout=timeout or SDUINO_CMD_TIMEOUT
                 )
                 
-                # If it's an interleaved message, get next response
-                if response and (response.startswith("MU;") or response.startswith("MS;")):
+                # If it's an interleaved or STX message, get next response
+                if response and (response.startswith("MU;") or response.startswith("MS;") or response.startswith("\x02")):
+                    # Parse STX message if present
+                    if response.startswith("\x02"):
+                        self.parser.parse_line(response.strip())
                     # Create a new read task for the actual response
                     read_task2 = asyncio.create_task(self.transport.readline())
                     response = await asyncio.wait_for(
