@@ -34,7 +34,12 @@
 			]
 		}
 	},
-	"runArgs": ["--env-file", ".devcontainer/devcontainer.env"]
+	"runArgs": [
+					"--env-file", 
+					".devcontainer/devcontainer.env", 
+					"--network=bridge",	 
+					"--memory=4gb"
+	],
 
 	// Configure tool-specific properties.
 	// "customizations": {},
