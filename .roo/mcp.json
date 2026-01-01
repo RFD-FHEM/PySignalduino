@@ -7,6 +7,14 @@
         "@modelcontextprotocol/server-filesystem",
         "/workspaces/PySignalduino"
       ]
+    },
+    "git": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-git",
+        "--repository",
+        "/workspaces/PySignalduino"
+      ]
     }
   }
 }
