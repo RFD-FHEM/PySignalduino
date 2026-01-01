@@ -14,7 +14,8 @@ class MockTransport(BaseTransport):
         self.is_open_flag = False
         self.output_queue = asyncio.Queue()
         self.simulate_drop = simulate_drop
-        self.simulate_drop = False
+        self.read_count = 0
+
 
     async def open(self):
         self.is_open_flag = True
@@ -46,21 +47,32 @@ class MockTransport(BaseTransport):
 
         await asyncio.sleep(0)  # Yield control
 
-        if self.simulate_drop:
+        self.read_count += 1
+
+        if not self.simulate_drop:
+            # First read: Simulate version response for initialization
+            if self.read_count == 1:
+                return "V 3.4.0-rc3 SIGNALduino"
+            # Subsequent reads: Simulate normal timeout (for test_timeout_normally)
+            raise asyncio.TimeoutError("Simulated timeout")
+        
+        # Simulate connection drop (for test_connection_drop_during_command)
+        if self.read_count > 1:
             # Simulate connection drop by closing transport first
             self.is_open_flag = False
             # Add small delay to ensure controller detects the closed state
             await asyncio.sleep(0.01)
             raise SignalduinoConnectionError("Connection dropped")
-        else:
-            # Simulate normal timeout
-            raise asyncio.TimeoutError("Simulated timeout")
+
+        # First read with simulate_drop=True: Still need to succeed initialization
+        return "V 3.4.0-rc3 SIGNALduino"
 
 @pytest.mark.asyncio
 async def test_timeout_normally():
     """Test that a simple timeout raises SignalduinoCommandTimeout."""
     transport = MockTransport()
-    controller = SignalduinoController(transport)
+    mqtt_publisher = AsyncMock()
+    controller = SignalduinoController(transport, mqtt_publisher=mqtt_publisher)
     
     # Expect SignalduinoCommandTimeout because transport sends nothing
     async with controller:
@@ -72,8 +84,9 @@ async def test_timeout_normally():
 async def test_connection_drop_during_command():
     """Test that if connection dies during command wait, we get ConnectionError."""
     transport = MockTransport(simulate_drop=True)
-    controller = SignalduinoController(transport)
-
+    mqtt_publisher = AsyncMock()
+    controller = SignalduinoController(transport, mqtt_publisher=mqtt_publisher)
+    
     # The synchronous exception handler must be replaced by try/except within an async context
     
     async with controller:

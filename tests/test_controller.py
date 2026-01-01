@@ -1,6 +1,6 @@
 import asyncio
 from asyncio import Queue
-from unittest.mock import MagicMock, Mock, AsyncMock
+from unittest.mock import MagicMock, Mock, AsyncMock, patch
 
 import pytest
 
@@ -68,8 +68,48 @@ def mock_parser():
     return parser
 
 
+@pytest.fixture(autouse=True)
+def autopatch_mqtt_publisher():
+    """Patches the MqttPublisher to prevent real MQTT connection attempts."""
+    # Mock-Instanz mit benötigten Attributen und Async-Methoden
+    mock_instance = MagicMock()
+    mock_instance.base_topic = "sduino"
+    mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+    mock_instance.__aexit__ = AsyncMock(return_value=None)
+    mock_instance.publish = AsyncMock()
+    
+    # Erstelle ein Mock für die Klasse, das die Mock-Instanz zurückgibt
+    MqttPublisherClassMock = MagicMock(return_value=mock_instance)
+    
+    # Patch die Klasse in signalduino.controller
+    with patch("signalduino.controller.MqttPublisher", new=MqttPublisherClassMock) as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_controller_initialize(monkeypatch):
+    """
+    Patches SignalduinoController.initialize to prevent it from blocking 
+    and to immediately set the complete event.
+    """
+    # The tasks are normally started in initialize.
+    # To prevent the blocking await in __aenter__, we manually start tasks here 
+    # (just the main ones, the init task itself is mocked away) 
+    # and set the event.
+    async def mock_initialize(self, timeout=None):
+        # Start main tasks manually as they are needed for command processing
+        self._main_tasks = [
+            asyncio.create_task(self._reader_task(), name="sd-reader"),
+            asyncio.create_task(self._parser_task(), name="sd-parser"),
+            asyncio.create_task(self._writer_task(), name="sd-writer")
+        ]
+        self._init_complete_event.set()
+        
+    monkeypatch.setattr(SignalduinoController, "initialize", mock_initialize)
+
+
 @pytest.mark.asyncio
-async def test_connect_disconnect(mock_transport, mock_parser):
+async def test_connect_disconnect(mock_transport, mock_parser, mock_controller_initialize):
     """Test that connect() and disconnect() open/close transport and tasks."""
     controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
     assert controller._main_tasks is None or len(controller._main_tasks) == 0
@@ -81,35 +121,26 @@ async def test_connect_disconnect(mock_transport, mock_parser):
 
 
 @pytest.mark.asyncio
-async def test_send_command_fire_and_forget(mock_transport, mock_parser):
+async def test_send_command_fire_and_forget(mock_transport, mock_parser, mock_controller_initialize):
     """Test sending a command without expecting a response."""
     controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
     async with controller:
-        # Start writer task to process the queue
-        writer_task = asyncio.create_task(controller._writer_task())
-        controller._main_tasks.append(writer_task)
-        
         await controller.send_command("V", expect_response=False)
         # Verify command was queued
         assert controller._write_queue.qsize() == 1
         cmd = await controller._write_queue.get()
         assert cmd.payload == "V"
         assert not cmd.expect_response
-        # Ensure the writer task is cancelled to avoid hanging
-        writer_task.cancel()
+        # The controller's __aexit__ will handle task cleanup.
 
 
 @pytest.mark.asyncio
-async def test_send_command_with_response(mock_transport, mock_parser):
+async def test_send_command_with_response(mock_transport, mock_parser, mock_controller_initialize):
     """Test sending a command and waiting for a response."""
     response = "V 3.5.0-dev SIGNALduino\n"
 
     controller = SignalduinoController(transport=mock_transport, parser=mock_parser)
     async with controller:
-        # Start writer task to process the queue
-        writer_task = asyncio.create_task(controller._writer_task())
-        controller._main_tasks.append(writer_task)
-        
         # The reader task should process the response line once.
         response_iterator = iter([response])
         async def mock_readline_blocking():
@@ -119,21 +150,15 @@ async def test_send_command_with_response(mock_transport, mock_parser):
                 await asyncio.Future() # Block indefinitely after first message
 
         mock_transport.readline.side_effect = mock_readline_blocking
-
-        # Start reader and parser tasks to process responses
-        reader_task = asyncio.create_task(controller._reader_task())
-        parser_task = asyncio.create_task(controller._parser_task())
-        controller._main_tasks.extend([reader_task, parser_task])
         
         result = await controller.send_command("V", expect_response=True, timeout=10.0)
         assert result == response
         mock_transport.write_line.assert_called_once_with("V")
-        # Ensure the writer task is cancelled to avoid hanging
-        writer_task.cancel()
+        # The controller's __aexit__ will handle task cleanup.
 
 
 @pytest.mark.asyncio
-async def test_send_command_with_interleaved_message(mock_parser):
+async def test_send_command_with_interleaved_message(mock_parser, mock_controller_initialize):
     """Test handling of interleaved messages during command response."""
     from .test_transport import TestTransport
     
@@ -147,7 +172,7 @@ async def test_send_command_with_interleaved_message(mock_parser):
     
     controller = SignalduinoController(transport=transport, parser=mock_parser)
     async with controller:
-        reader_task, parser_task, writer_task = await start_controller_tasks(controller)
+        # Tasks are started by mock_controller_initialize fixture
         result = await controller.send_command("V", expect_response=True, timeout=10.0)
         assert result == response
         # The interleaved message is ignored by send_command (treated as interleaved)
@@ -155,7 +180,7 @@ async def test_send_command_with_interleaved_message(mock_parser):
 
 
 @pytest.mark.asyncio
-async def test_send_command_timeout(mock_transport, mock_parser):
+async def test_send_command_timeout(mock_transport, mock_parser, mock_controller_initialize):
     """Test command timeout when no response is received."""
     mock_transport.readline.side_effect = asyncio.TimeoutError()
 
@@ -166,7 +191,7 @@ async def test_send_command_timeout(mock_transport, mock_parser):
 
 
 @pytest.mark.asyncio
-async def test_message_callback(mock_transport, mock_parser):
+async def test_message_callback(mock_transport, mock_parser, mock_controller_initialize):
     """Test message callback invocation."""
     callback_mock = Mock()
     decoded_msg = DecodedMessage(protocol_id="1", payload="test", raw=RawFrame(line=""))
@@ -229,7 +254,7 @@ async def test_initialize_retry_logic(mock_transport, mock_parser):
 
 
 @pytest.mark.asyncio
-async def test_stx_message_bypasses_command_response(mock_transport, mock_parser):
+async def test_stx_message_bypasses_command_response(mock_transport, mock_parser, mock_controller_initialize):
     """Test STX messages bypass command response handling."""
     stx_msg = "\x02SomeSensorData\x03\n"
     response = "? V X t R C S U P G r W x E Z\n"

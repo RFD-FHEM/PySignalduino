@@ -36,7 +36,13 @@ class SignalduinoController:
         self.parser = parser or SignalParser()
         self.message_callback = message_callback
         self.logger = logger or logging.getLogger(__name__)
-        self.mqtt_publisher = mqtt_publisher
+        
+        # NEU: Automatische Initialisierung des MqttPublisher, wenn keine Instanz übergeben wird und
+        # die Umgebungsvariable MQTT_HOST gesetzt ist.
+        if mqtt_publisher is None and os.environ.get("MQTT_HOST"):
+            self.mqtt_publisher = MqttPublisher(logger=self.logger)
+        else:
+            self.mqtt_publisher = mqtt_publisher
         
         self._write_queue: asyncio.Queue[QueuedCommand] = asyncio.Queue()
         self._raw_message_queue: asyncio.Queue[str] = asyncio.Queue()
@@ -54,7 +60,8 @@ class SignalduinoController:
         self._init_task_xq: Optional[asyncio.Task[None]] = None
         self._init_task_start: Optional[asyncio.Task[None]] = None
         
-        self.commands = SignalduinoCommands(self.send_command)
+        mqtt_topic_root = self.mqtt_publisher.base_topic if self.mqtt_publisher else None
+        self.commands = SignalduinoCommands(self.send_command, mqtt_topic_root)
         if mqtt_publisher:
             self.mqtt_dispatcher = MqttCommandDispatcher(self)
 
@@ -95,6 +102,9 @@ class SignalduinoController:
 
     async def __aenter__(self) -> "SignalduinoController":
         await self.transport.open()
+        if self.mqtt_publisher:
+            await self.mqtt_publisher.__aenter__()
+        await self.initialize() # Wichtig: Initialisierung nach dem Öffnen des Transports und Publishers
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -102,6 +112,8 @@ class SignalduinoController:
         for task in self._main_tasks:
             task.cancel()
         await asyncio.gather(*self._main_tasks, return_exceptions=True)
+        if self.mqtt_publisher:
+            await self.mqtt_publisher.__aexit__(exc_type, exc_val, exc_tb)
         await self.transport.close()
 
     async def _reader_task(self) -> None:
@@ -126,11 +138,8 @@ class SignalduinoController:
                     if decoded and self.message_callback:
                         await self.message_callback(decoded[0])
                     if self.mqtt_publisher and decoded:
-                        await self.mqtt_publisher.publish(topic="messages", payload=json.dumps({
-                            "protocol": decoded[0].protocol,
-                            "data": decoded[0].data,
-                            "timestamp": datetime.now(timezone.utc).isoformat()
-                        }))
+                        # Verwende die neue MqttPublisher.publish(message: DecodedMessage) Signatur
+                        await self.mqtt_publisher.publish(decoded[0])
                     await self._handle_as_command_response(line)
             except Exception as e:
                 self.logger.error(f"Parser task error: {e}")
@@ -160,6 +169,8 @@ class SignalduinoController:
         
         # Start initialization task
         self._init_task_start = asyncio.create_task(self._init_task_start_loop())
+        self._main_tasks.append(self._init_task_start)
+        self._main_tasks.append(self._init_task_start)
         
         # Calculate timeout
         init_timeout = timeout if timeout is not None else SDUINO_INIT_MAXRETRY * SDUINO_INIT_WAIT
@@ -327,7 +338,7 @@ class SignalduinoController:
                 "version": self.init_version_response,
                 "connected": not self.transport.closed()
             }
-            await self.mqtt_publisher.publish("status/heartbeat", json.dumps(status))
+            await self.mqtt_publisher.publish_simple("status/heartbeat", json.dumps(status))
 
     async def _handle_mqtt_command(self, topic: str, payload: str) -> None:
         """Handle incoming MQTT commands."""
