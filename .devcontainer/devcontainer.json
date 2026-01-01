@@ -11,6 +11,10 @@
 			"version": "lts",
 			"pnpmVersion": "latest",
 			"nvmVersion": "latest"
+		},
+		"ghcr.io/devcontainer-community/devcontainer-features/astral.sh-uv:1": {
+			"shellautocompletion": true,
+			"version": "latest"
 		}
 		//"ghcr.io/hspaans/devcontainer-features/pytest:2": {}
 	},
