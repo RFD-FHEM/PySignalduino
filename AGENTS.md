@@ -15,6 +15,14 @@ This file provides guidance to agents when working with code in this repository.
   oder um eine längere Laufzeit zu analysieren:
   `python3 main.py --timeout 30`
 
+## Test Timeout Configuration
+- Für pytest wurde ein globaler Timeout von 30 Sekunden in der `pyproject.toml` konfiguriert:
+  ```toml
+  [tool.pytest.ini_options]
+  timeout = 30
+  ```
+- Die erforderliche Abhängigkeit `pytest-timeout` wurde zur `requirements-dev.txt` hinzugefügt.
+
 ## Mandatory Documentation and Test Maintenance
 
 Diese Richtlinie gilt für alle AI-Agenten, die Code oder Systemkonfigurationen in diesem Repository ändern. Jede Änderung **muss** eine vollständige Analyse der Auswirkungen auf die zugehörige Dokumentation und die Testsuite umfassen.

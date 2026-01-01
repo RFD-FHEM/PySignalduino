@@ -3,3 +3,4 @@ pytest-mock
 pytest-asyncio
 pytest-cov
 jsonschema
+pytest-timeout
