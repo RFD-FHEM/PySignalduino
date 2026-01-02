@@ -17,11 +17,27 @@ from .constants import (
 )
 from .exceptions import SignalduinoCommandTimeout, SignalduinoConnectionError, CommandValidationError
 from .mqtt import MqttPublisher
+from aiomqtt.exceptions import MqttError
 from .parser import SignalParser
 from .transport import BaseTransport
 from .types import DecodedMessage, PendingResponse, QueuedCommand
 
+
 class SignalduinoController:
+    """Orchestrates the connection, command queue and message parsing using asyncio."""
+
+    async def run(self, timeout: Optional[float] = None) -> None:
+        """Run the main loop until the timeout is reached or the stop event is set."""
+        try:
+            if timeout is not None:
+                await asyncio.wait_for(self._stop_event.wait(), timeout=timeout)
+            else:
+                await self._stop_event.wait()
+        except asyncio.TimeoutError:
+            self.logger.info("Main loop timeout reached.")
+        except Exception as e:
+            self.logger.error(f"Error in main loop: {e}")
+            raise
     """Orchestrates the connection, command queue and message parsing using asyncio."""
 
     def __init__(
@@ -103,8 +119,15 @@ class SignalduinoController:
     async def __aenter__(self) -> "SignalduinoController":
         await self.transport.open()
         if self.mqtt_publisher:
-            await self.mqtt_publisher.__aenter__()
-        await self.initialize() # Wichtig: Initialisierung nach dem Öffnen des Transports und Publishers
+            try:
+                await self.mqtt_publisher.__aenter__()
+            except MqttError as exc:
+                self.logger.warning("Konnte keine Verbindung zum MQTT-Broker herstellen: %s", exc)
+        try:
+            await self.initialize() # Wichtig: Initialisierung nach dem Öffnen des Transports und Publishers
+        except SignalduinoConnectionError as exc:
+            self.logger.error("Verbindungsfehler während der Initialisierung, setze fort: %s", exc)
+            
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -124,7 +147,8 @@ class SignalduinoController:
                 if line is not None:
                     self.logger.debug(f"Reader task received line: {line}")
                     await self._raw_message_queue.put(line)
-                    await asyncio.sleep(0)  # yield to other tasks
+                
+                await asyncio.sleep(0)  # Ensure yield, even if readline returns immediately without data
             except Exception as e:
                 self.logger.error(f"Reader task error: {e}")
                 break
@@ -134,7 +158,9 @@ class SignalduinoController:
             try:
                 line = await self._raw_message_queue.get()
                 if line:
-                    decoded = self.parser.parse_line(line)
+                    # Führe die rechenintensive Parsing-Logik in einem separaten Thread aus.
+                    # Dadurch wird die asyncio-Event-Schleife nicht blockiert.
+                    decoded = await asyncio.to_thread(self.parser.parse_line, line)
                     if decoded and self.message_callback:
                         await self.message_callback(decoded[0])
                     if self.mqtt_publisher and decoded:
@@ -268,7 +294,12 @@ class SignalduinoController:
     async def _init_task_start_loop(self) -> None:
         """Main initialization task that handles version check and XQ command."""
         try:
-            # 1. Retry logic for 'V' command (Version)
+            # 1. Deaktivieren des Empfängers (XQ) und Warten auf Abschluss der Warteschlange
+            self.logger.info("Disabling Signalduino receiver (XQ) before version check...")
+            await self.send_command("XQ", expect_response=False)
+            await asyncio.sleep(SDUINO_INIT_WAIT) # Warte, bis der Befehl verarbeitet wurde
+
+            # 2. Retry logic for 'V' command (Version)
             version_response = None
             for attempt in range(SDUINO_INIT_MAXRETRY):
                 try:
@@ -292,11 +323,11 @@ class SignalduinoController:
                 self._init_complete_event.set()  # Ensure event is set to unblock
                 raise SignalduinoConnectionError("Maximum initialization retries reached.")
 
-            # 2. Send XQ command after successful version check
+            # 2. Activate receiver (XE) after successful version check (V).
             if version_response:
-                await asyncio.sleep(SDUINO_INIT_WAIT_XQ)
-                await self.send_command("XQ", expect_response=False)
-                
+                self.logger.info("Enabling Signalduino receiver (XE)...")
+                await self.send_command("XE", expect_response=False)
+
             self._init_complete_event.set()
             return
             
