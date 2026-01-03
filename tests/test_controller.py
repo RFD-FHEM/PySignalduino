@@ -207,7 +207,7 @@ async def test_message_callback(mock_transport, mock_parser, mock_controller_ini
     )
     async with controller:
         await start_controller_tasks(controller)
-        await asyncio.sleep(0.1)  # Allow time for message processing
+        await asyncio.sleep(0.5)  # Allow time for message processing with thread pool
         callback_mock.assert_called_once_with(decoded_msg)
 
 
@@ -219,7 +219,8 @@ async def test_initialize_retry_logic(mock_transport, mock_parser):
     
     async def send_command_side_effect(cmd, **kwargs):
         attempts.append(cmd)
-        if cmd == "V" and len(attempts) == 1:
+        # Timeout wird beim ersten 'V'-Versuch nach 'XQ' ausgelöst, d.h. attempts[1].
+        if cmd == "V" and len(attempts) == 2:
             raise SignalduinoCommandTimeout("Timeout")
         return "V 3.5.0-dev SIGNALduino\n"
     
@@ -238,12 +239,13 @@ async def test_initialize_retry_logic(mock_transport, mock_parser):
                 init_task.cancel()
                 pytest.fail("Initialization timed out")
             
-            # Verify retry behavior: V (timeout) -> V (success) -> XQ (final command)
-            assert attempts[0] == "V"
+            # Verify retry behavior: XQ -> V (timeout) -> V (success) -> XE
+            assert attempts[0] == "XQ"
             assert attempts[1] == "V"
-            assert attempts[2] == "XQ"
-            assert len(attempts) >= 3 # At least two V attempts and the final XQ
-            assert all(cmd in ("V", "XQ") for cmd in attempts) # Only V and XQ commands
+            assert attempts[2] == "V"
+            assert attempts[3] == "XE"
+            assert len(attempts) >= 4 # One XQ, two V attempts, and one XE
+            assert all(cmd in ("V", "XE", "XQ") for cmd in attempts) # Only V, XE and XQ commands
     finally:
         # Ensure all tasks are cancelled
         if hasattr(controller, '_main_tasks'):

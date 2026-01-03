@@ -45,5 +45,14 @@
         "tests"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "vsmqtt.brokerProfiles": [
+        {
+            "name": "devmqtt",
+            "host": "mqtt",
+            "port": 1883,
+            "clientId": "vsmqtt_client_db93",
+            "savedSubscriptions": ['signalduino/']
+        }
+    ]
 }

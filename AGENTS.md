@@ -253,8 +253,7 @@ Dieser Architecture-First Development Process ist für **alle** neuen Funktionen
 
 Die Einhaltung dieses Prozesses gewährleistet, dass Design-Entscheidungen bewusst getroffen, dokumentiert und nachvollziehbar sind, was die langfristige Wartbarkeit, Skalierbarkeit und Qualität des PySignalduino-Projekts sicherstellt.
 
-## Fehlerbehebungsprozess für fehlende Abhängigkeiten
-
+## Fehlerbehebungsprozess
 ### Problemidentifikation
 1. **Symptom:** ImportError oder ModuleNotFoundError während der Testausführung
 2. **Ursachenanalyse:**
@@ -262,12 +261,23 @@ Die Einhaltung dieses Prozesses gewährleistet, dass Design-Entscheidungen bewus
    - Vergleich mit requirements.txt und requirements-dev.txt
    - Prüfen der Dokumentation auf Installationsanweisungen
 
-### Lösungsimplementierung
+### Lösungsimplementierung (Abhängigkeiten)
 1. **requirements-dev.txt aktualisieren:**
    - Modulname zur Datei hinzufügen
    - Commit mit Conventional Commits Syntax erstellen (z.B. "fix: add <module> to requirements-dev.txt")
 2. **Dokumentation prüfen:**
    - Sicherstellen, dass Installationsanweisungen in README.md und docs/ aktuell sind
+
+### Problemidentifikation (Hohe CPU-Last im Parser)
+1. **Symptom:** Anhaltende 100% CPU-Auslastung auf einem oder mehreren Kernen während des Parsens von MU/MC-Nachrichten.
+2. **Ursachenanalyse:**
+   - **Parser-Architektur prüfen:** Der gesamte Parservorgang sollte in [`signalduino/controller.py`](signalduino/controller.py) über `asyncio.to_thread` abgewickelt werden.
+   - **Protokoll-Ineffizienz:** Die synchrone Demodulationsschleife in [`sd_protocols/message_unsynced.py`](sd_protocols/message_unsynced.py) oder [`sd_protocols/manchester.py`](sd_protocols/manchester.py) blockiert den Worker-Thread zu lange.
+3. **Validierung:** Temporäres Hinzufügen von Zeit-Logging (z.B. mit `time.perf_counter()`) in der Protokollschleife in `demodulate_mu` zur Identifizierung des blockierenden Protokolls.
+
+### Lösungsimplementierung (Parser-Performance)
+1. **Backtracking-Hölle vermeiden:** Wenn ein Protokoll eine sehr lange Demodulationszeit (z.B. > 10ms) aufweist, liegt wahrscheinlich ein Catastrophic Backtracking in einem regulären Ausdruck vor.
+2 **Deaktivierung inaktiver Protokolle:** Die `active`-Prüfung in `demodulate_mu` sollte verwendet werden, um inaktive Protokolle auszuschließen.
 
 ### Verifikation
 1. **Installation testen:**

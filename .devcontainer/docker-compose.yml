@@ -1,0 +1,31 @@
+services:
+  devcontainer:
+    # Build the image from the existing devcontainer setup
+    image: mcr.microsoft.com/devcontainers/python:3
+    # The current working directory is mounted automatically
+    volumes:
+      - ..:/workspaces/PySignalduino
+      
+    # Use the existing settings from devcontainer.json
+    # Overriding the entrypoint is necessary when using a non-Compose devcontainer base image
+    command: /bin/bash -c "sleep infinity"
+    
+    # Environment variables from .devcontainer/devcontainer.env
+    env_file:
+      - ./devcontainer.env
+
+    # This ensures services in the compose file can be reached by their service name
+    # The default bridge network is sufficient for this purpose
+    
+  mqtt:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto-dev-broker
+    #ports:
+      # Expose port 1883 on the host, so other local clients can also connect if needed
+      #- "1883:1883"
+    volumes:
+       - ./mosquitto/config:/mosquitto/config
+       - ./mosquitto/data:/mosquitto/data
+       - ./mosquitto/log:/mosquitto/log
+    command: mosquitto -c /mosquitto/config/mosquitto.conf
+    restart: unless-stopped

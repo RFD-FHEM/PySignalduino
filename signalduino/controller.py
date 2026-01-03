@@ -7,7 +7,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, List, Optional, Dict, Tuple, Pattern
 
-from .commands import SignalduinoCommands, MqttCommandDispatcher
+from .commands import SignalduinoCommands
 from .constants import (
     SDUINO_CMD_TIMEOUT,
     SDUINO_INIT_MAXRETRY,
@@ -56,7 +56,7 @@ class SignalduinoController:
         # NEU: Automatische Initialisierung des MqttPublisher, wenn keine Instanz übergeben wird und
         # die Umgebungsvariable MQTT_HOST gesetzt ist.
         if mqtt_publisher is None and os.environ.get("MQTT_HOST"):
-            self.mqtt_publisher = MqttPublisher(logger=self.logger)
+            self.mqtt_publisher = MqttPublisher(controller=self, logger=self.logger)
         else:
             self.mqtt_publisher = mqtt_publisher
         
@@ -78,8 +78,10 @@ class SignalduinoController:
         
         mqtt_topic_root = self.mqtt_publisher.base_topic if self.mqtt_publisher else None
         self.commands = SignalduinoCommands(self.send_command, mqtt_topic_root)
-        if mqtt_publisher:
-            self.mqtt_dispatcher = MqttCommandDispatcher(self)
+
+    def get_version(self) -> Optional[str]:
+        """Returns the cached firmware version string."""
+        return self.init_version_response
 
     async def send_command(
         self,
@@ -148,7 +150,7 @@ class SignalduinoController:
                     self.logger.debug(f"Reader task received line: {line}")
                     await self._raw_message_queue.put(line)
                 
-                await asyncio.sleep(0)  # Ensure yield, even if readline returns immediately without data
+                await asyncio.sleep(0.01)  # Ensure minimal yield time to prevent 100% CPU usage
             except Exception as e:
                 self.logger.error(f"Reader task error: {e}")
                 break
@@ -167,6 +169,9 @@ class SignalduinoController:
                         # Verwende die neue MqttPublisher.publish(message: DecodedMessage) Signatur
                         await self.mqtt_publisher.publish(decoded[0])
                     await self._handle_as_command_response(line)
+                
+                # Ensure a minimal yield time for other tasks when the queue is rapidly processed.
+                await asyncio.sleep(0.01)
             except Exception as e:
                 self.logger.error(f"Parser task error: {e}")
                 break
@@ -370,11 +375,3 @@ class SignalduinoController:
                 "connected": not self.transport.closed()
             }
             await self.mqtt_publisher.publish_simple("status/heartbeat", json.dumps(status))
-
-    async def _handle_mqtt_command(self, topic: str, payload: str) -> None:
-        """Handle incoming MQTT commands."""
-        if self.mqtt_dispatcher:
-            try:
-                await self.mqtt_dispatcher.dispatch(topic, payload)
-            except CommandValidationError as e:
-                self.logger.error(f"Invalid MQTT command: {e}")

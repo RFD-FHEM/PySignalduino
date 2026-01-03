@@ -13,21 +13,32 @@ from .persistence import get_or_create_client_id
 class MqttPublisher:
     """Publishes DecodedMessage objects to an MQTT server and listens for commands."""
 
-    def __init__(self, logger: Optional[logging.Logger] = None) -> None:
+    def __init__(
+        self, 
+        controller: Any,
+        logger: Optional[logging.Logger] = None,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        topic: Optional[str] = None,
+    ) -> None:
+        self.controller = controller
         self.logger = logger or logging.getLogger(__name__)
         self.client_id = get_or_create_client_id()
         self.client: Optional[mqtt.Client] = None # Will be set in __aenter__
+        self._listener_task: Optional[asyncio.Task[None]] = None # NEU: Task für den Command Listener
 
-        self.mqtt_host = os.environ.get("MQTT_HOST", "localhost")
-        self.mqtt_port = int(os.environ.get("MQTT_PORT", 1883))
+        # Konfiguration: CLI/Args > ENV > Default
+        self.mqtt_host = host or os.environ.get("MQTT_HOST", "localhost")
+        self.mqtt_port = port or int(os.environ.get("MQTT_PORT", 1883))
         
         # NEU: Verwende versioniertes Topic als Basis für alle Publishes/Subs
-        self.base_topic = f"{os.environ.get('MQTT_TOPIC', 'signalduino')}/v1"
-        self.mqtt_username = os.environ.get("MQTT_USERNAME")
-        self.mqtt_password = os.environ.get("MQTT_PASSWORD")
+        topic_base = topic or os.environ.get('MQTT_TOPIC', 'signalduino')
+        self.base_topic = f"{topic_base}/v1"
+        self.mqtt_username = username or os.environ.get("MQTT_USERNAME")
+        self.mqtt_password = password or os.environ.get("MQTT_PASSWORD")
         
-        # Callback ist jetzt ein awaitable
-        self.command_callback: Optional[Callable[[str, str], Awaitable[None]]] = None
         self.command_topic = f"{self.base_topic}/commands/#"
         self.response_topic = f"{self.base_topic}/responses" # Basis für Response Publishes
         self.error_topic = f"{self.base_topic}/errors" # Basis für Error Publishes
@@ -58,6 +69,9 @@ class MqttPublisher:
             # The client property itself is the AsyncioMqttClient
             await self.client.__aenter__()
             self.logger.info("Connected to MQTT broker %s:%s", self.mqtt_host, self.mqtt_port)
+            # Starte den Command Listener als Hintergrund-Task, um die Verbindung aktiv zu halten
+            # und Kommandos zu empfangen. Dies ist entscheidend für aiomqtt.
+            self._listener_task = asyncio.create_task(self._command_listener(), name="mqtt-listener")
             return self
         except Exception:
             self.client = None
@@ -67,6 +81,13 @@ class MqttPublisher:
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         if self.client:
             self.logger.info("Disconnecting from MQTT broker...")
+            # Beende den Command Listener Task, bevor der Client getrennt wird
+            if self._listener_task:
+                self._listener_task.cancel()
+                # Warten auf Abschluss mit Ausnahmebehandlung
+                await asyncio.gather(self._listener_task, return_exceptions=True)
+                self._listener_task = None
+
             # Disconnect the client
             await self.client.__aexit__(exc_type, exc_val, exc_tb)
             self.client = None
@@ -102,23 +123,30 @@ class MqttPublisher:
                     # message.payload ist bytes und .decode("utf-8") ist korrekt
                     payload = message.payload.decode("utf-8")
                     self.logger.debug("Received MQTT message on %s: %s", topic_str, payload)
+                    
+                    # Extract command from topic
+                    # Topic structure: signalduino/v1/commands/<command>
+                    parts = topic_str.split("/")
+                    # Wir suchen nach 'commands' im Topic-Pfad
+                    try:
+                        cmd_index = parts.index("commands")
+                    except ValueError:
+                        # Sollte nicht passieren, da wir auf command_topic subscriben, aber zur Sicherheit
+                        self.logger.warning("Received message on topic without 'commands' segment: %s", topic_str)
+                        continue
 
-                    if self.command_callback:
-                        # Extract command from topic
-                        # Topic structure: signalduino/commands/<command>
-                        parts = topic_str.split("/")
-                        if "commands" in parts:
-                            cmd_index = parts.index("commands")
-                            if len(parts) > cmd_index + 1:
-                                # Nimm den Rest des Pfades als Command-Name (für Unterbefehle wie set/XE)
-                                command_name = "/".join(parts[cmd_index + 1:])
-                                # Callback ist jetzt async
-                                await self.command_callback(command_name, payload)
-                            else:
-                                self.logger.warning("Received command on generic command topic without specific command: %s", topic_str)
+                    if len(parts) > cmd_index + 1:
+                        # Nimm den Rest des Pfades als Command-Name (für Unterbefehle wie get/system/version)
+                        command_name = "/".join(parts[cmd_index + 1:])
+                        # Handle command internally
+                        await self._handle_command(command_name, payload)
+                    else:
+                        self.logger.warning("Received command on generic command topic without specific command: %s", topic_str)
                             
                 except Exception:
                     self.logger.exception("Error processing incoming MQTT message")
+                    
+                await asyncio.sleep(0.01) # Wichtig: Yield, um die Event-Loop freizugeben, falls Nachrichten in schneller Folge ankommen
                         
         except mqtt.MqttError:
             self.logger.warning("Command listener stopped due to MQTT error (e.g. disconnect).")
@@ -126,6 +154,44 @@ class MqttPublisher:
             self.logger.info("Command listener task cancelled.")
         except Exception:
             self.logger.exception("Unexpected error in command listener.")
+
+    async def _handle_command(self, command_name: str, payload: str) -> None:
+        """Handles incoming MQTT commands based on the command_name."""
+        
+        self.logger.info("Handling command: %s with payload: %s", command_name, payload)
+        
+        # 1. Topic: signalduino/v1/commands/get/system/version
+        if command_name == "get/system/version":
+            try:
+                # Annahme: self.controller.get_version() gibt ein Dictionary oder einen String zurück
+                version_info = self.controller.get_version()
+                
+                response = {
+                    "command": command_name,
+                    "success": True,
+                    "payload": version_info,
+                }
+                
+                await self.publish_simple(
+                    subtopic="responses", 
+                    payload=json.dumps(response), 
+                    retain=False
+                )
+                self.logger.info("Successfully published system version.")
+                
+            except Exception:
+                self.logger.exception("Error processing get/system/version command.")
+                await self.publish_simple(
+                    subtopic="errors",
+                    payload=json.dumps({
+                        "command": command_name,
+                        "success": False,
+                        "error": "Internal error processing command",
+                    }),
+                    retain=False
+                )
+        else:
+            self.logger.warning("Unknown command received: %s", command_name)
 
 
     @staticmethod
@@ -174,9 +240,5 @@ class MqttPublisher:
             self.logger.debug("Published message for protocol %s to %s", message.protocol_id, topic)
         except Exception:
             self.logger.error("Failed to publish message", exc_info=True)
-
-    def register_command_callback(self, callback: Callable[[str, str], Awaitable[None]]) -> None:
-        """Registers a callback for incoming commands (now an awaitable)."""
-        self.command_callback = callback
 
             

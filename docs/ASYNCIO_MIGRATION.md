@@ -194,6 +194,30 @@ Vergessene `await`‑Schlüsselwörter führen zu `RuntimeWarning` oder hängen 
 
 Wenn Sie Threads und asyncio mischen müssen (z.B. für Legacy‑Code), verwenden Sie `asyncio.run_coroutine_threadsafe()` oder `loop.call_soon_threadsafe()`.
 
+### 4. Async-Busy-Loops und CPU-Auslastung (100%)
+
+Wenn `asyncio.Queue.get()` in einer `while True`-Schleife ständig Elemente zurückgibt (z.B. bei hohem Nachrichtenaufkommen), kann die Co-Routine den Event-Loop dominieren, selbst wenn die schwere Arbeit in einem Thread-Pool ausgelagert wird. Dies führt zu hoher CPU-Auslastung und sporadischer Bearbeitung anderer Async-Tasks.
+
+**Lösung:** Stellen Sie in schnell laufenden Verarbeitungsschleifen sicher, dass ein expliziter Yield-Punkt vorhanden ist, um anderen Tasks die Kontrolle zu übergeben.
+
+```python
+# Falsch (potenzielle Busy-Loop bei vollem Buffer)
+# while not self._stop_event.is_set():
+#     item = await queue.get()
+#     process_item(item) # Wenn schnell, dominiert diese Task
+
+# Korrekt
+while not self._stop_event.is_set():
+    try:
+        line = await self._raw_message_queue.get()
+        # ... Verarbeitung (kann await asyncio.to_thread enthalten) ...
+        
+        # Sicherstellen, dass andere Tasks Zeit bekommen
+        await asyncio.sleep(0.01) 
+    except Exception:
+        break
+```
+
 ## Vollständiges Migrationsbeispiel
 
 Hier ein komplettes Beispiel, das einen einfachen MQTT‑Bridge‑Service migriert:
