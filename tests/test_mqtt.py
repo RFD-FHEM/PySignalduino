@@ -197,7 +197,7 @@ async def test_mqtt_publisher_command_listener(MockClient, caplog, mock_controll
         mock_msg_get_version = Mock(spec=Message)
         mock_msg_get_version.topic = MagicMock()
         mock_msg_get_version.topic.__str__.return_value = "test/signalduino/v1/commands/get/system/version"
-        mock_msg_get_version.payload = b"GET"
+        mock_msg_get_version.payload = b'{"req_id": "test_req_version"}'
 
         yield mock_msg_get_version
         # Generator endet hier
@@ -221,12 +221,13 @@ async def test_mqtt_publisher_command_listener(MockClient, caplog, mock_controll
         mock_client_instance.subscribe.assert_called_once_with("test/signalduino/v1/commands/#")
 
         # Überprüfe die Aufrufe an den Controller
-        mock_controller.get_version.assert_called_once()
+        mock_controller.get_version.assert_called_once_with({"req_id": "test_req_version"})
         
         # Überprüfe den publish_simple Aufruf (als Response)
         expected_payload_response = json.dumps({
             "command": "get/system/version",
             "success": True,
+            "req_id": "test_req_version",
             "payload": "MockVersion",
         }) # MqttPublisher serialisiert ohne indent
 
@@ -235,7 +236,7 @@ async def test_mqtt_publisher_command_listener(MockClient, caplog, mock_controll
             payload=expected_payload_response,
             retain=False
         )
-        assert "Received MQTT message on test/signalduino/v1/commands/get/system/version: GET" in caplog.text
+        assert "Received MQTT message on test/signalduino/v1/commands/get/system/version: {\"req_id\": \"test_req_version\"}" in caplog.text
 
 @patch("signalduino.mqtt.mqtt.Client")
 @pytest.mark.asyncio
@@ -251,7 +252,8 @@ async def test_mqtt_publisher_handle_get_frequency_success(MockClient, caplog, m
     MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
 
     # Setze den erwarteten Rückgabewert der Controller-Methode
-    mock_controller.get_frequency = AsyncMock(return_value=433.92012345)
+    # Der Controller ruft commands.get_frequency auf, welches jetzt das formatierte Dict zurückgibt.
+    mock_controller.get_frequency = AsyncMock(return_value={"frequency_mhz": 433.9201})
     
     # Mock des asynchronen Message-Generators, um "get/cc1101/frequency" zu senden
     async def mock_messages_generator():
@@ -292,7 +294,7 @@ async def test_mqtt_publisher_handle_get_frequency_success(MockClient, caplog, m
             payload=expected_payload_response,
             retain=False
         )
-        assert "Successfully published current frequency for req_id test_req_001." in caplog.text
+        assert "Successfully handled and published response for command get/cc1101/frequency." in caplog.text
 
 
 @patch("signalduino.mqtt.mqtt.Client")
@@ -309,15 +311,16 @@ async def test_mqtt_publisher_handle_empty_payload_fix(MockClient, caplog, mock_
     MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
 
     # Setze den erwarteten Rückgabewert der Controller-Methode
-    mock_controller.get_frequency = AsyncMock(return_value=433.92012345)
+    # Der Controller ruft commands.get_frequency auf, welches jetzt das formatierte Dict zurückgibt.
+    mock_controller.get_frequency = AsyncMock(return_value={"frequency_mhz": 433.9201})
     
     # Mock des asynchronen Message-Generators, um "get/cc1101/frequency" mit leerem Payload zu senden
     async def mock_messages_generator():
         mock_msg = Mock(spec=Message)
         mock_msg.topic = MagicMock()
         mock_msg.topic.__str__.return_value = "test/signalduino/v1/commands/get/cc1101/frequency"
-        # Sende leeren Payload (entspricht b'')
-        mock_msg.payload = b'' 
+        # Sende Payload mit req_id, um Validierung zu gewährleisten
+        mock_msg.payload = b'{"req_id": "test_req_empty"}' 
 
         yield mock_msg
         # Generator endet hier
@@ -331,14 +334,14 @@ async def test_mqtt_publisher_handle_empty_payload_fix(MockClient, caplog, mock_
         async with publisher:
             await asyncio.sleep(0.1) 
             
-        # Überprüfe, dass der Controller mit einem leeren Payload-Dict aufgerufen wurde (der Fix)
-        mock_controller.get_frequency.assert_called_once_with({})
+        # Überprüfe, dass der Controller mit dem Payload-Dict aufgerufen wurde
+        mock_controller.get_frequency.assert_called_once_with({"req_id": "test_req_empty"})
         
         # Überprüfe den publish_simple Aufruf (als Response)
         expected_payload_response = json.dumps({
             "command": "get/cc1101/frequency",
             "success": True,
-            "req_id": "NO_REQ_ID", # Sollte NO_REQ_ID sein, da Payload leer
+            "req_id": "test_req_empty", # req_id aus dem Payload
             "payload": {
                 "frequency_mhz": 433.9201
             },
@@ -351,7 +354,7 @@ async def test_mqtt_publisher_handle_empty_payload_fix(MockClient, caplog, mock_
         )
         # Es sollte KEIN JSONDecodeError im Log sein
         assert "json.decoder.JSONDecodeError" not in caplog.text
-        assert "Successfully published current frequency for req_id NO_REQ_ID." in caplog.text
+        assert "Successfully handled and published response for command get/cc1101/frequency." in caplog.text
 
 
 # Ersetze die MockTransport-Klasse

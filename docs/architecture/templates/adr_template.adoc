@@ -1,0 +1,34 @@
+= ADR {Nummer}: {Titel}
+:doctype: article
+:encoding: utf-8
+:lang: de
+:status: {Status}
+:decided-at: {Datum}
+:decided-by: {Entscheidungsträger}
+
+[[kontext]]
+== Kontext
+
+{Beschreibe den technischen Kontext, der zur Entscheidung geführt hat. Was sind die aktuellen Probleme oder die neuen Anforderungen?}
+
+[[entscheidung]]
+== Entscheidung
+
+{Beschreibe die getroffene Entscheidung. Dies sollte klar und prägnant sein.}
+
+[[konsequenzen]]
+== Konsequenzen
+
+{Beschreibe die positiven und negativen Konsequenzen der Entscheidung.}
+
+=== Positive Konsequenzen
+* 
+* 
+
+=== Negative Konsequenzen
+* 
+* 
+
+[[alternativen]]
+== Alternativen
+{Hier können kurz abgelehnte Alternativen aufgeführt werden.}

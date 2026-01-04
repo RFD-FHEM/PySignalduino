@@ -282,11 +282,13 @@ async def test_controller_handles_get_frequency(signalduino_controller, mock_aio
         DIVIDER = 65536.0
         f_reg = (0x21 << 16) | (0x62 << 8) | 0x00
         expected_frequency = (FXOSC / DIVIDER) * f_reg
+        expected_frequency_rounded = round(expected_frequency, 4)
         
         assert result['status'] == "OK"
         assert result['req_id'] == "test_freq"
         # Überprüfe den berechneten Frequenzwert
-        assert abs(result['data'] - expected_frequency) < 1e-6
+        # result['data'] ist jetzt {'frequency_mhz': float}, da commands.get_frequency geändert wurde.
+        assert result['data']['frequency_mhz'] == expected_frequency_rounded
         
         # Überprüfe, ob send_command mit den korrekten Argumenten aufgerufen wurde
         expected_pattern = re.compile(r'C[A-Fa-f0-9]{2}\s=\s[0-9A-Fa-f]+$|ccreg 00:')
@@ -296,3 +298,96 @@ async def test_controller_handles_get_frequency(signalduino_controller, mock_aio
             call(command='C0E', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
             call(command='C0F', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
         ])
+
+@pytest.mark.asyncio
+async def test_controller_handles_set_factory_reset(signalduino_controller, mock_aiomqtt_client_cls, mock_logger):
+    """Test handling of the 'set/factory_reset' command, ensuring the 'e' command is sent."""
+    
+    # Simuliere eine einfache Antwort, z.B. "OK"
+    send_command_mock = AsyncMock(return_value="OK\n")
+    signalduino_controller.commands._send_command = send_command_mock
+
+    command_path = "set/factory_reset"
+    mqtt_payload = '{"req_id": "test_reset"}'
+    
+    dispatcher = MqttCommandDispatcher(controller=signalduino_controller)
+
+    async with signalduino_controller:
+        result = await dispatcher.dispatch(command_path, mqtt_payload)
+        
+        # 1. Assertions für das Ergebnis
+        assert result['status'] == "OK"
+        assert result['req_id'] == "test_reset"
+        # Die erwartete Rückgabe ist nun die Fire-and-Forget-Meldung
+        assert result['data'] == {'status': 'Reset command sent', 'info': 'Factory reset triggered'}
+        
+        # 2. Assertions für den gesendeten Befehl (e)
+        # Der Timeout für factory_reset ist 5.0
+        send_command_mock.assert_called_once_with(
+            command='e',
+            expect_response=False,
+            timeout=5.0
+        )
+
+
+
+
+
+@pytest.mark.asyncio
+async def test_controller_handles_get_cc1101_settings(signalduino_controller, mock_aiomqtt_client_cls, mock_logger):
+    """
+    Testet den 'get/cc1101/settings' MQTT-Befehl, der alle 5 CC1101-Getter aggregiert.
+    """
+    
+    # Mocking der 5 internen Getter-Methoden des Commands-Objekts, 
+    # die von get_cc1101_settings aufgerufen werden.
+    # Wir müssen die Methoden im Commands-Objekt überschreiben.
+    
+    # get_frequency gibt ein geschachteltes Dict zurück, das von get_cc1101_settings abgeflacht wird.
+    freq_mock = AsyncMock(return_value={"frequency_mhz": 868.35})
+    signalduino_controller.commands.get_frequency = freq_mock
+    
+    # 2. Bandbreiten-Mock
+    bw_mock = AsyncMock(return_value=102.0)
+    signalduino_controller.commands.get_bandwidth = bw_mock
+    
+    # 3. RAMPL-Mock
+    rampl_mock = AsyncMock(return_value=30)
+    signalduino_controller.commands.get_rampl = rampl_mock
+
+    # 4. Sensitivity-Mock
+    sens_mock = AsyncMock(return_value=12)
+    signalduino_controller.commands.get_sensitivity = sens_mock
+    
+    # 5. Data Rate-Mock
+    dr_mock = AsyncMock(return_value=4.8)
+    signalduino_controller.commands.get_data_rate = dr_mock
+
+    # Dispatcher und Payload vorbereiten
+    command_path = "get/cc1101/settings"
+    mqtt_payload = '{"req_id": "test_settings"}'
+    
+    dispatcher = MqttCommandDispatcher(controller=signalduino_controller)
+
+    async with signalduino_controller:
+    
+        # Dispatch ausführen
+        result = await dispatcher.dispatch(command_path, mqtt_payload)
+        
+        # Assertions
+        assert result['status'] == "OK"
+        assert result['req_id'] == "test_settings"
+        assert result['data'] == {
+            "frequency_mhz": 868.35,
+            "bandwidth": 102.0,
+            "rampl": 30,
+            "sens": 12,
+            "datarate": 4.8,
+        }
+        
+        # Verifiziere, dass alle Commands aufgerufen wurden
+        freq_mock.assert_called_once()
+        bw_mock.assert_called_once()
+        rampl_mock.assert_called_once()
+        sens_mock.assert_called_once()
+        dr_mock.assert_called_once()

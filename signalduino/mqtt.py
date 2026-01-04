@@ -4,6 +4,7 @@ import os
 from dataclasses import asdict
 from typing import Optional, Any, Callable, Awaitable # NEU: Awaitable für async callbacks
 
+from .commands import MqttCommandDispatcher, CommandValidationError, SignalduinoCommandTimeout # NEU: Import Dispatcher
 import aiomqtt as mqtt
 import asyncio
 import paho.mqtt.client as paho_mqtt # Für topic_matches_sub
@@ -25,6 +26,7 @@ class MqttPublisher:
     ) -> None:
         self.controller = controller
         self.logger = logger or logging.getLogger(__name__)
+        self.dispatcher = MqttCommandDispatcher(controller=controller) # NEU: Dispatcher initialisieren
         self.client_id = get_or_create_client_id()
         self.client: Optional[mqtt.Client] = None # Will be set in __aenter__
         self._listener_task: Optional[asyncio.Task[None]] = None # NEU: Task für den Command Listener
@@ -160,101 +162,60 @@ class MqttPublisher:
         
         self.logger.info("Handling command: %s with payload: %s", command_name, payload)
         
-        # 1. Topic: signalduino/v1/commands/get/system/version
-        if command_name == "get/system/version":
-            try:
-                # Annahme: self.controller.get_version() gibt ein Dictionary oder einen String zurück
-                version_info = await self.controller.get_version()
-                
-                response = {
-                    "command": command_name,
-                    "success": True,
-                    "payload": version_info,
-                }
-                
-                await self.publish_simple(
-                    subtopic="responses", 
-                    payload=json.dumps(response), 
-                    retain=False
-                )
-                self.logger.info("Successfully published system version.")
-                
-            except Exception:
-                self.logger.exception("Error processing get/system/version command.")
-                await self.publish_simple(
-                    subtopic="errors",
-                    payload=json.dumps({
-                        "command": command_name,
-                        "success": False,
-                        "error": "Internal error processing command",
-                    }),
-                    retain=False
-                )
-        elif command_name == "get/cc1101/frequency":
-            req_id = "NO_REQ_ID" # Setze Default
-            try:
-                if payload:
-                    # Payload-String zu Dict konvertieren
-                    payload_dict = json.loads(payload)
-                else:
-                    # Leerer Payload
-                    payload_dict = {}
+        req_id = "NO_REQ_ID" # Standard-req_id, falls das Parsing fehlschlägt
+        
+        try:
+            # Der Dispatcher gibt ein Ergebnis-Dictionary mit 'status', 'req_id', 'data' zurück.
+            result = await self.dispatcher.dispatch(command_name, payload)
+            req_id = result.get("req_id", req_id)
 
-                req_id = payload_dict.get("req_id", "NO_REQ_ID")
+            response_payload = {
+                "command": command_name,
+                "success": True,
+                "req_id": req_id,
+                "payload": result.get("data"),
+            }
 
-                # Aufruf der asynchronen Controller-Methode
-                # Wir übergeben immer ein Dict an die Controller-Methode
-                frequency_mhz = await self.controller.get_frequency(payload_dict)
-                
-                response = {
+            await self.publish_simple(
+                subtopic="responses", 
+                payload=json.dumps(response_payload), 
+                retain=False
+            )
+            self.logger.info("Successfully handled and published response for command %s.", command_name)
+
+        except (CommandValidationError, SignalduinoCommandTimeout) as e:
+            self.logger.warning("Command failed (Validation/Timeout): %s: %s", command_name, e)
+            # req_id kann von der Validierung extrahiert werden, falls der Payload gültiges JSON ist
+            try:
+                # Da der Dispatcher JSON.loads(payload) aufruft und fehlschlagen kann, wenn JSON ungültig ist,
+                # müssen wir hier vorsichtiger sein. Ist der Payload gültig, holen wir die req_id.
+                payload_dict = json.loads(payload)
+                req_id = payload_dict.get("req_id", req_id)
+            except json.JSONDecodeError:
+                pass # req_id bleibt "NO_REQ_ID"
+
+            await self.publish_simple(
+                subtopic="errors",
+                payload=json.dumps({
                     "command": command_name,
-                    "success": True,
+                    "success": False,
                     "req_id": req_id,
-                    "payload": {
-                        "frequency_mhz": round(frequency_mhz, 4)
-                    },
-                }
-                
-                await self.publish_simple(
-                    subtopic="responses", 
-                    payload=json.dumps(response), 
-                    retain=False
-                )
-                self.logger.info("Successfully published current frequency for req_id %s.", req_id)
-                
-            except json.JSONDecodeError as e:
-                self.logger.error(
-                    "JSON Decode Error for command %s with payload '%s': %s", 
-                    command_name, 
-                    payload, 
-                    e
-                )
-                
-                await self.publish_simple(
-                    subtopic="errors",
-                    payload=json.dumps({
-                        "command": command_name,
-                        "success": False,
-                        "req_id": req_id,
-                        "error": f"Invalid JSON payload: {e}",
-                    }),
-                    retain=False
-                )
-            except Exception as e:
-                self.logger.exception("Error processing %s command.", command_name)
-                    
-                await self.publish_simple(
-                    subtopic="errors",
-                    payload=json.dumps({
-                        "command": command_name,
-                        "success": False,
-                        "req_id": req_id, # req_id ist jetzt außerhalb des try/except gesetzt
-                        "error": f"Internal error processing command: {e}",
-                    }),
-                    retain=False
-                )
-        else:
-            self.logger.warning("Unknown command received: %s", command_name)
+                    "error": str(e),
+                }),
+                retain=False
+            )
+        except Exception:
+            self.logger.exception("Internal error during command dispatching: %s", command_name)
+            await self.publish_simple(
+                subtopic="errors",
+                payload=json.dumps({
+                    "command": command_name,
+                    "success": False,
+                    "req_id": req_id,
+                    "error": "Internal server error during command execution.",
+                }),
+                retain=False
+            )
 
 
     @staticmethod

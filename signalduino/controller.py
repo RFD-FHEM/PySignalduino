@@ -79,14 +79,72 @@ class SignalduinoController:
         mqtt_topic_root = self.mqtt_publisher.base_topic if self.mqtt_publisher else None
         self.commands = SignalduinoCommands(self.send_command, mqtt_topic_root)
 
-    def get_version(self) -> Optional[str]:
+    def get_cached_version(self) -> Optional[str]:
         """Returns the cached firmware version string."""
         return self.init_version_response
 
-    async def get_frequency(self, payload: Dict[str, Any]) -> float:
+    async def get_version(self, payload: Dict[str, Any]) -> str:
+        """Requests the firmware version from the device and returns the raw response string."""
+        # Der Payload wird vom MqttCommandDispatcher übergeben, wird aber im commands.get_version ignoriert.
+        # commands.get_version ist eine asynchrone Methode in SignalduinoCommands, die 'V' sendet.
+        return await self.commands.get_version()
+
+    async def get_frequency(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Delegates to SignalduinoCommands to get the current CC1101 frequency."""
         # Der Payload wird vom MqttCommandDispatcher übergeben, aber von commands.get_frequency ignoriert.
         return await self.commands.get_frequency(payload)
+
+    async def factory_reset(self, payload: Dict[str, Any]) -> str:
+        """Delegates to SignalduinoCommands to execute a factory reset (e)."""
+        # Payload wird zur Validierung akzeptiert, aber ignoriert.
+        return await self.commands.factory_reset()
+
+    async def get_bandwidth(self, payload: Dict[str, Any]) -> float:
+        """Delegates to SignalduinoCommands to get the current CC1101 bandwidth in kHz."""
+        return await self.commands.get_bandwidth(payload)
+
+    async def get_rampl(self, payload: Dict[str, Any]) -> int:
+        """Delegates to SignalduinoCommands to get the current CC1101 receiver amplification in dB."""
+        return await self.commands.get_rampl(payload)
+
+    async def get_sensitivity(self, payload: Dict[str, Any]) -> int:
+        """Delegates to SignalduinoCommands to get the current CC1101 sensitivity in dB."""
+        return await self.commands.get_sensitivity(payload)
+
+    async def get_data_rate(self, payload: Dict[str, Any]) -> float:
+        """Delegates to SignalduinoCommands to get the current CC1101 data rate in kBaud."""
+        return await self.commands.get_data_rate(payload)
+    
+    # --- CC1101 Hardware Status SET-Methoden ---
+
+    async def set_cc1101_frequency(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Sets the CC1101 RF frequency from an MQTT command."""
+        await self.commands.set_frequency(payload["value"])
+        return {"status": "Frequency set successfully", "value": payload["value"]}
+
+    async def set_cc1101_bandwidth(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Sets the CC1101 IF bandwidth from an MQTT command."""
+        await self.commands.set_bwidth(payload["value"])
+        return {"status": "Bandwidth set successfully", "value": payload["value"]}
+
+    async def set_cc1101_datarate(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Sets the CC1101 data rate from an MQTT command."""
+        await self.commands.set_datarate(payload["value"])
+        return {"status": "Data rate set successfully", "value": payload["value"]}
+        
+    async def set_cc1101_sensitivity(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Sets the CC1101 sensitivity from an MQTT command."""
+        await self.commands.set_sens(payload["value"])
+        return {"status": "Sensitivity set successfully", "value": payload["value"]}
+
+    async def set_cc1101_rampl(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Sets the CC1101 receiver amplification (Rampl) from an MQTT command."""
+        await self.commands.set_rampl(payload["value"])
+        return {"status": "Rampl set successfully", "value": payload["value"]}
+    
+    async def get_cc1101_settings(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Delegates to SignalduinoCommands to get all key CC1101 settings."""
+        return await self.commands.get_cc1101_settings(payload)
 
     async def send_command(
         self,

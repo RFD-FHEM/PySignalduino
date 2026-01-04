@@ -58,6 +58,170 @@ class SignalduinoCommands:
         # Response-Pattern aus 00_SIGNALduino.pm, Zeile 88
         return await self._send_command(command="C3E", expect_response=True, timeout=timeout, response_pattern=re.compile(r'^C3E\s=\s.*'))
         
+    async def factory_reset(self, timeout: float = 5.0) -> Dict[str, str]:
+        """Sets EEPROM defaults, effectively a factory reset (e).
+
+        This command does not send a response unless debug mode is active. We treat the command
+        as fire-and-forget, expecting the device to reboot.
+        """
+        logger.warning("Sending factory reset command 'e'. Device is expected to reboot.")
+        # Sende Befehl ohne auf Antwort zu warten, da das Gerät neu startet
+        await self._send_command(command="e", expect_response=False, timeout=timeout)
+        return {"status": "Reset command sent", "info": "Factory reset triggered"}
+
+    async def get_cc1101_settings(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Retrieves a dictionary of key CC1101 configuration values (frequency_mhz, bandwidth, rampl, sens, datarate).
+        """
+        # Alle benötigten Getter existieren bereits in SignalduinoCommands
+        freq_result = await self.get_frequency(payload)
+        bandwidth = await self.get_bandwidth(payload)
+        rampl = await self.get_rampl(payload)
+        sens = await self.get_sensitivity(payload)
+        datarate = await self.get_data_rate(payload)
+        
+        return {
+            # Flatten the frequency structure
+            "frequency_mhz": freq_result["frequency_mhz"],
+            "bandwidth": bandwidth,
+            "rampl": rampl,
+            "sens": sens,
+            "datarate": datarate,
+        }
+
+    # --- CC1101 Hardware Status GET-Methoden (Basierend auf 00_SIGNALduino.pm) ---
+
+    async def _read_register_value(self, register_address: int) -> int:
+        """Liest einen CC1101-Registerwert und gibt ihn als Integer zurück."""
+        response = await self.read_cc1101_register(register_address)
+        # Stellt sicher, dass wir nur den Wert nach 'C[A-Fa-f0-9]{2} = ' extrahieren
+        match = re.search(r'C[A-Fa-f0-9]{2}\s=\s([0-9A-Fa-f]+)$', response)
+        if match:
+            return int(match.group(1), 16)
+        # Fängt auch den Fall 'ccreg 00:' (default-Antwort) oder andere unerwartete Antworten ab
+        raise ValueError(f"Unexpected response format for CC1101 register read: {response}")
+
+    async def get_bandwidth(self, payload: Optional[Dict[str, Any]] = None) -> float:
+        """Liest die CC1101 Bandbreitenregister (MDMCFG4/0x10) und berechnet die Bandbreite in kHz."""
+        r10 = await self._read_register_value(0x10) # MDMCFG4
+        
+        # Bw (kHz) = 26000 / (8 * (4 + ((r10 >> 4) & 3)) * (1 << ((r10 >> 6) & 3)))
+        mant_b = (r10 >> 4) & 3
+        exp_b = (r10 >> 6) & 3
+        
+        # Frequenz (FXOSC) ist 26 MHz (26000 kHz)
+        bandwidth_khz = 26000.0 / (8.0 * (4.0 + mant_b) * (1 << exp_b))
+        
+        return round(bandwidth_khz, 3)
+
+    async def get_rampl(self, payload: Optional[Dict[str, Any]] = None) -> int:
+        """Liest die CC1101 Verstärkungsregister (AGCCTRL0/0x1B) und gibt die Verstärkung in dB zurück."""
+        r1b = await self._read_register_value(0x1B) # AGCCTRL0
+
+        # Annahme der CC1101-Werte basierend auf FHEM Code:
+        # Dies sind die AGC_LNA_GAIN-Einstellungen. Wir nehmen die im Code verfügbare Liste.
+        ampllist = [24, 27, 30, 33, 36, 38, 40, 42] 
+        
+        # Index ist die unteren 3 Bits von 0x1B: r1b & 7
+        index = r1b & 7
+        
+        if index < len(ampllist):
+            return ampllist[index]
+        else:
+            # Dies sollte nicht passieren, wenn die CC1101-Registerwerte korrekt sind
+            logger.warning("Invalid AGC_LNA_GAIN setting found in 0x1B: %s", index)
+            return -1 # Fehlerwert
+
+    async def get_sensitivity(self, payload: Optional[Dict[str, Any]] = None) -> int:
+        """Liest die CC1101 Empfindlichkeitsregister (RSSIAGC/0x1D) und gibt die Empfindlichkeit in dB zurück."""
+        r1d = await self._read_register_value(0x1D) # RSSIAGC (0x1D)
+        
+        # Sens (dB) = 4 + 4 * (r1d & 3)
+        # Die unteren 2 Bits enthalten den LNA-Modus (LNA_PD_BUF)
+        sens_db = 4 + 4 * (r1d & 3)
+        
+        return sens_db
+        
+    async def get_data_rate(self, payload: Optional[Dict[str, Any]] = None) -> float:
+        """Liest die CC1101 Datenratenregister (MDMCFG4/0x10 und MDMCFG3/0x11) und berechnet die Datenrate in kBaud."""
+        r10 = await self._read_register_value(0x10) # MDMCFG4
+        r11 = await self._read_register_value(0x11) # MDMCFG3
+
+        # DataRate (kBaud) = (((256 + r11) * (2 ** (r10 & 15))) * 26000000 / (2**28)) / 1000
+        
+        # DRATE_M ist r11 (8 Bit) und DRATE_E sind die unteren 4 Bits von r10
+        drate_m = r11
+        drate_e = r10 & 15
+
+        # FXOSC = 26 MHz = 26000000 Hz
+        FXOSC = 26000000.0
+        DIVIDER = 2**28
+        
+        # Berechnung in Hz
+        data_rate_hz = ((256.0 + drate_m) * (2**drate_e) * FXOSC) / DIVIDER
+        
+        # Umrechnung in kBaud (kiloBaud = kiloBits pro Sekunde)
+        data_rate_kbaud = data_rate_hz / 1000.0
+        
+        return round(data_rate_kbaud, 2)
+        
+    def _calculate_datarate_registers(self, datarate_kbaud: float) -> tuple[int, int]:
+        """
+        Berechnet die Registerwerte DRATE_E (MDMCFG4[3:0]) und DRATE_M (MDMCFG3) 
+        für die gewünschte Datenrate in kBaud.
+        
+        Basierend auf der CC1101-Formel:
+        DataRate = f_xosc * (256 + DRATE_M) * 2^DRATE_E / 2^28
+        
+        Da DataRate_Hz = datarate_kbaud * 1000.0 gilt, lässt sich umformen zu:
+        (256 + DRATE_M) * 2^DRATE_E = DataRate_Hz * 2^28 / f_xosc
+        
+        FXOSC = 26 MHz
+        """
+        
+        FXOSC = 26000000.0
+        target_datarate_hz = datarate_kbaud * 1000.0
+        
+        # Berechne den Wert T, der auf der rechten Seite der umgestellten Formel steht
+        T = (target_datarate_hz * (2**28)) / FXOSC
+        
+        # DRATE_E (Exponent) kann von 0 bis 15 gehen. Wir suchen die beste Kombination.
+        best_drate_e = 0
+        best_drate_m = 0
+        min_error = float('inf')
+        
+        for drate_e in range(16):
+            # Versuche, DRATE_M zu isolieren:
+            # 256 + DRATE_M = T / 2^DRATE_E
+            
+            # Da T / 2^DRATE_E ein Float ist, rechnen wir mit dem Zähler weiter, um Fehler zu minimieren
+            term = T / (2**drate_e)
+            
+            # DRATE_M = term - 256
+            drate_m_float = term - 256.0
+            
+            # DRATE_M muss zwischen 0 und 255 liegen.
+            if 0 <= drate_m_float <= 255:
+                # Wähle den nächsten ganzen Wert für DRATE_M
+                drate_m_candidate = int(round(drate_m_float))
+                
+                # Berechne die tatsächliche Datenrate mit den Kandidaten-Registern
+                actual_datarate_hz = ((256.0 + drate_m_candidate) * (2**drate_e) * FXOSC) / (2**28)
+                
+                # Berechne den Fehler (Absolutwert)
+                error = abs(target_datarate_hz - actual_datarate_hz)
+                
+                if error < min_error:
+                    min_error = error
+                    best_drate_e = drate_e
+                    best_drate_m = drate_m_candidate
+                    
+        if min_error == float('inf'):
+            logger.error("Could not find suitable DRATE_E/DRATE_M for datarate %.2f kBaud. Defaulting to 0.", datarate_kbaud)
+            return 0, 0
+            
+        return best_drate_e, best_drate_m
+
     async def read_cc1101_register(self, register_address: int, timeout: float = 2.0) -> str:
         """Read CC1101 register (C<reg>)"""
         hex_addr = f"{register_address:02X}"
@@ -97,7 +261,7 @@ class SignalduinoCommands:
         f_reg = (freq2 << 16) | (freq1 << 8) | freq0
         return f_reg
 
-    async def get_frequency(self, payload: Optional[Dict[str, Any]] = None) -> float:
+    async def get_frequency(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
         """Ruft die Frequenzregister ab und berechnet die Frequenz in MHz.
         
         Diese Methode ist für den MqttCommandDispatcher gedacht und akzeptiert daher den 'payload'-Parameter,
@@ -113,7 +277,10 @@ class SignalduinoCommands:
         # Frequenz in MHz: (26.0 / 65536.0) * F_REG
         frequency_mhz = (26.0 / DIVIDER) * f_reg
         
-        return frequency_mhz
+        # Rückgabe des gekapselten und auf 4 Dezimalstellen gerundeten Wertes, wie in tests/test_mqtt.py erwartet.
+        return {
+            "frequency_mhz": round(frequency_mhz, 4)
+        }
 
     async def send_raw_message(self, command: str, timeout: float = 2.0) -> str:
         """Send raw message (M...)"""
@@ -158,14 +325,70 @@ class SignalduinoCommands:
         await self._send_command(command=command, expect_response=False)
         await self.cc1101_write_init()
 
-    async def set_rampl(self, rampl_db: int, timeout: float = 2.0) -> None:
-        """Set CC1101 receiver amplification (W1D<val>)."""
-        await self._send_command(command=f"W1D{rampl_db}", expect_response=False)
+    async def set_frequency(self, frequency_mhz: float, timeout: float = 2.0) -> None:
+        """Set CC1101 RF frequency (W0F, W10, W11) from MHz value."""
+        # F_REG = frequency_mhz * 2560 (26 * 10^6 * 2^16 / 26 * 10^6)
+        f_reg = int(frequency_mhz * 2560.0)
+        
+        # 24-Bit-Wert in 3 Bytes aufteilen
+        freq2 = (f_reg >> 16) & 0xFF  # 0D
+        freq1 = (f_reg >> 8) & 0xFF   # 0E
+        freq0 = f_reg & 0xFF          # 0F
+        
+        # Sende W<RegAddr><Value>
+        await self._send_command(command=f"W0D{freq2:02X}", expect_response=False)
+        await self._send_command(command=f"W0E{freq1:02X}", expect_response=False)
+        await self._send_command(command=f"W0F{freq0:02X}", expect_response=False)
+        
         await self.cc1101_write_init()
 
-    async def set_sens(self, sens_db: int, timeout: float = 2.0) -> None:
+    async def set_datarate(self, datarate_kbaud: float, timeout: float = 2.0) -> None:
+        """Set CC1101 data rate (MDMCFG4/MDMCFG3) from kBaud value."""
+        drate_e, drate_m = self._calculate_datarate_registers(datarate_kbaud)
+        
+        # MDMCFG4 (0x10): Behalte die Bits [7:4] (Rx-Filter-Bandbreite) und setze Bits [3:0] (DRATE_E)
+        # Um die existierenden Bits [7:4] zu erhalten, müssen wir MDMCFG4 (0x10) zuerst lesen.
+        try:
+            r10_current = await self._read_register_value(0x10)
+        except Exception:
+            # Bei Fehlern (z.B. Timeout) setzen wir die Bits 7:4 auf den Reset-Wert (0xC0).
+            r10_current = 0xC0
+            
+        # Bits 7:4 beibehalten, Bits 3:0 mit DRATE_E überschreiben.
+        r10_new = (r10_current & 0xF0) | (drate_e & 0x0F)
+        
+        # MDMCFG3 (0x11): Setze auf DRATE_M
+        r11_new = drate_m # DRATE_M ist ein 8-Bit-Wert
+
+        await self._send_command(command=f"W10{r10_new:02X}", expect_response=False)
+        await self._send_command(command=f"W11{r11_new:02X}", expect_response=False)
+        
+        await self.cc1101_write_init()
+        
+    async def set_rampl(self, rampl_value: int, timeout: float = 2.0) -> None:
+        """Set CC1101 receiver amplification (W1D<index>)."""
+        ampllist = [24, 27, 30, 33, 36, 38, 40, 42]
+        
+        try:
+            # Findet den Index des dB-Wertes (0-7), basierend auf Perl setrAmpl
+            index = ampllist.index(rampl_value)
+        except ValueError:
+            logger.error("Rampl value %d not found in ampllist. Sending no command.", rampl_value)
+            return
+
+        # Index (0-7) wird in Hex-String konvertiert (00-07)
+        register_value_hex = f"{index:02X}"
+        
+        # Perl verwendet W1D<Index>
+        await self._send_command(command=f"W1D{register_value_hex}", expect_response=False)
+        await self.cc1101_write_init()
+
+    async def set_sens(self, sens_value: int, timeout: float = 2.0) -> None:
         """Set CC1101 sensitivity (W1F<val>)."""
-        await self._send_command(command=f"W1F{sens_db}", expect_response=False)
+        # Perl Logik: $v = sprintf("9%d",$a[1]/4-1);
+        index = int(sens_value / 4) - 1
+        register_value_str = f"9{index}"
+        await self._send_command(command=f"W1F{register_value_str}", expect_response=False)
         await self.cc1101_write_init()
 
     async def set_patable(self, patable_value: str, timeout: float = 2.0) -> None:
@@ -285,6 +508,13 @@ COMMAND_MAP: Dict[str, Dict[str, Any]] = {
     'get/cc1101/patable': { 'method': 'get_cc1101_patable', 'schema': BASE_SCHEMA, 'description': 'CC1101 PA table (C3E)' },
     'get/cc1101/register': { 'method': 'get_cc1101_register', 'schema': BASE_SCHEMA, 'description': 'Read CC1101 register (C<reg>)' },
     'get/cc1101/frequency': { 'method': 'get_frequency', 'schema': BASE_SCHEMA, 'description': 'CC1101 current RF frequency' },
+    'get/cc1101/settings': { 'method': 'get_cc1101_settings', 'schema': BASE_SCHEMA, 'description': 'CC1101 key configuration settings (freq, bw, rampl, sens, dr)' },
+
+    # NEU: Hardware Status Abfragen
+    'get/cc1101/bandwidth': { 'method': 'get_bandwidth', 'schema': BASE_SCHEMA, 'description': 'CC1101 IF bandwidth (MDMCFG4/0x10)' },
+    'get/cc1101/rampl': { 'method': 'get_rampl', 'schema': BASE_SCHEMA, 'description': 'CC1101 Receiver Amplification (AGCCTRL0/0x1B)' },
+    'get/cc1101/sensitivity': { 'method': 'get_sensitivity', 'schema': BASE_SCHEMA, 'description': 'CC1101 Sensitivity (RSSIAGC/0x1D)' },
+    'get/cc1101/datarate': { 'method': 'get_data_rate', 'schema': BASE_SCHEMA, 'description': 'CC1101 Data Rate (MDMCFG4/0x10, MDMCFG3/0x11)' },
 
     # Phase 1: Einfache SET-Befehle (Decoder Enable/Disable)
     'set/config/decoder_ms_enable': { 'method': 'set_decoder_ms_enable', 'schema': BASE_SCHEMA, 'description': 'Enable Synced Message (MS) (CE S)' },
@@ -293,6 +523,9 @@ COMMAND_MAP: Dict[str, Dict[str, Any]] = {
     'set/config/decoder_mu_disable': { 'method': 'set_decoder_mu_disable', 'schema': BASE_SCHEMA, 'description': 'Disable Unsynced Message (MU) (CD U)' },
     'set/config/decoder_mc_enable': { 'method': 'set_decoder_mc_enable', 'schema': BASE_SCHEMA, 'description': 'Enable Manchester Coded Message (MC) (CE C)' },
     'set/config/decoder_mc_disable': { 'method': 'set_decoder_mc_disable', 'schema': BASE_SCHEMA, 'description': 'Disable Manchester Coded Message (MC) (CD C)' },
+
+    # NEU: Factory Reset
+    'set/factory_reset': { 'method': 'factory_reset', 'schema': BASE_SCHEMA, 'description': 'Set EEPROM defaults (e)' },
 
     # --- Phase 2: CC1101 SET-Befehle ---
     'set/cc1101/frequency': { 'method': 'set_cc1101_frequency', 'schema': FREQ_SCHEMA, 'description': 'Set RF frequency (0D-0F)' },
@@ -337,7 +570,11 @@ class MqttCommandDispatcher:
         
         # 1. Parse Payload
         try:
-            payload_dict = json.loads(payload)
+            # Wenn Payload leer ist (z.B. b''), behandle als leeres Dictionary.
+            if not payload.strip():
+                payload_dict = {}
+            else:
+                payload_dict = json.loads(payload)
         except json.JSONDecodeError as e:
             raise CommandValidationError(f"Invalid JSON payload: {e.msg}") from e
 

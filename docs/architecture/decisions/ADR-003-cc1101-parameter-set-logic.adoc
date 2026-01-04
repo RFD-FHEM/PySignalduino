@@ -1,0 +1,31 @@
+= 003. Verwendung von CC1101-Standardformeln für Frequenz und Datenrate
+:revdate: 2026-01-04
+:status: Accepted
+
+== Context
+Die Implementierung der MQTT SET-Befehle für CC1101-Parameter (Frequenz, Datenrate) erfordert die Umrechnung von physikalischen Werten (MHz, kBaud) in die spezifischen Registerwerte des CC1101-Chips.
+
+Andere Parameter wie Bandbreite, Sensitivity und Rampl verwendeten früher spezielle, abstraktere Kommandos des Signalduino-Firmware-Protokolls (`C101`, `X4C`, `X5C`).
+
+Um die Steuerung der CC1101-Parameter zu konsolidieren, wurden die Spezialbefehle (`X4C`, `X5C`) in der Python-Implementierung durch generische Register-Writes (`W`) ersetzt, wobei die Umrechnungslogik (z.B. Index in Registerwert) in Python implementiert wurde.
+
+Für Frequenz und Datenrate existiert keine solche Abstraktion im Signalduino-Protokoll, oder die vorhandene Logik ist unvollständig/unzureichend für eine präzise Steuerung.
+
+
+== Decision
+Die Umrechnung von Frequenz (MHz) in die drei Registerwerte (FREQ2, FREQ1, FREQ0) und die Umrechnung der Datenrate (kBaud) in MDMCFG4/MDMCFG3-Registerwerte erfolgt *direkt* in der Python-Implementierung von `SignalduinoCommands` unter Verwendung der im CC1101-Datenblatt definierten Standardformeln (z.B. Freq = f_xosc * FREQ / 2^16).
+
+Diese Registerwerte werden dann über generische CC1101-Schreibbefehle des Signalduino-Protokolls (`W<RegisterAddress><Value>`) übertragen.
+
+Nach dem Senden aller Register-SET-Befehle muss die Methode `SignalduinoCommands.cc1101_write_init()` aufgerufen werden, um die CC1101-Konfiguration erneut in das Chip-Register zu schreiben und die Änderungen zu aktivieren.
+
+== Consequences
+* **Positiv:** Gewährleistet maximale Präzision bei der Einstellung von Frequenz und Datenrate, da die direkte CC1101-Berechnung verwendet wird. Die Logik ist in Python gekapselt und leicht testbar (Unit Tests).
+* **Negativ:** Erhöht die Komplexität der `SignalduinoCommands`-Klasse, da sie nun die CC1101-Register-Berechnungslogik enthalten muss.
+* **Neutral:** Alle CC1101-Set-Befehle, die Register schreiben (einschließlich Rampl und Sensitivity), verwenden nun die generischen `W<RegisterAddress><Value>`-Befehle. Dies konsolidiert die Logik in Python (phys. Wert -> Registerwert) und vereinfacht die Implementierung auf Kosten des Verzichts auf spezifische Firmware-Spezialbefehle (`X4C`, `X5C`). Der `C101`-Befehl für die Bandbreite wird vorerst beibehalten, da er eine Abstraktion der Firmware darstellt.
+
+== Alternatives Considered
+* **Alternative 1: Nur Signalduino-Spezialbefehle verwenden:**
+  * _Ablehnungsgrund:_ Für Frequenz und Datenrate gibt es keine oder keine ausreichend präzisen/dokumentierten Signalduino-Spezialbefehle, die eine Einstellung über MQTT in physikalischen Einheiten (MHz, kBaud) ermöglichen.
+* **Alternative 2: Berechnung in die Controller-Klasse verschieben:**
+  * _Ablehnungsgrund:_ Die `SignalduinoCommands`-Klasse ist der logische Ort für die Umrechnung von physikalischen Einheiten in serielle Protokolle, da sie die Schnittstelle zum physischen Gerät darstellt. Die `SignalduinoController`-Klasse soll nur die MQTT-Payload entpacken.

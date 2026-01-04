@@ -41,8 +41,8 @@ async def test_set_message_type_enabled(controller, message_type, enabled, expec
     "method_name, value, expected_command_prefix",
     [
         ("set_bwidth", 102, "C10102"),
-        ("set_rampl", 24, "W1D24"),
-        ("set_sens", 8, "W1F8"),
+        ("set_rampl", 24, "W1D00"),
+        ("set_sens", 8, "W1F91"),
         ("set_patable", "C0", "xC0"),
     ],
 )

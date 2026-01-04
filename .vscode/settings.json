@@ -52,7 +52,7 @@
             "host": "mqtt",
             "port": 1883,
             "clientId": "vsmqtt_client_db93",
-            "savedSubscriptions": ['signalduino/']
+            "savedSubscriptions": ['signalduino/v1/responses','signalduino/v1/commands','signalduino/v1/errors']
         }
     ]
 }

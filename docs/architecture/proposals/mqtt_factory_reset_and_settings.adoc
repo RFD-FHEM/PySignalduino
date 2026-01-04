@@ -1,0 +1,159 @@
+= Architektur-Proposal: MQTT-basierter Factory Reset und Hardware-Status
+:doctype: article
+:encoding: utf-8
+:lang: de
+:author: Roo (Architekt)
+:email: roo@pythonsignalduino.com
+:revnumber: 1.0
+:revdate: 2026-01-04
+:xrefstyle: full
+
+[[status]]
+== Status
+
+|===
+|Status|Datum der letzten Änderung|Entscheidungsträger
+
+|Draft
+|2026-01-04
+|Roo (Architekt)
+|===
+
+[[zusammenfassung]]
+== 1. Zusammenfassung (Executive Summary)
+
+Dieses Proposal beschreibt die Einführung von zwei neuen MQTT-Funktionalitäten: die Durchführung eines Factory Resets auf dem Signalduino-Gerät und das Abrufen der aktuellen CC1101-Hardware-Einstellungen (Frequenz, Bandbreite, Verstärkung, Empfindlichkeit, Datenrate) über MQTT. Die Implementierung basiert auf dem Refactoring des MQTT-Befehls-Handlings, indem der vorhandene `MqttCommandDispatcher` zentral in `signalduino/mqtt.py` verwendet wird.
+
+[[problem-definition]]
+== 2. Problemstellung und Motivation
+
+Aktuell müssen Hardware-Einstellungen direkt über die serielle Konsole des Signalduino-Geräts abgefragt werden. Für einen Factory Reset (Serial Command `e (EEPROM Defaults)`) fehlt ein hochstufiger, zugänglicher Mechanismus. Die bestehende MQTT-Befehlslogik in `signalduino/mqtt.py` ist eine unstrukturierte `if/elif`-Kette, die eine Erweiterung erschwert. Die Motivation ist, eine vollständig über MQTT fernsteuerbare und auslesbare Schnittstelle für die Geräteeinstellungen zu schaffen.
+
+[[ziele]]
+== 3. Ziele
+
+1.  **Refactoring:** Ersetze die `if/elif`-Logik in `signalduino/mqtt.py` durch den [`MqttCommandDispatcher`](signalduino/commands.py:193) (siehe xref:ADR-002-mqtt-command-dispatcher.adoc[ADR 002]).
+2.  **Factory Reset:** Definiere und implementiere den MQTT-Befehl für den Signalduino Factory Reset (`e`).
+3.  **Hardware-Status-Abruf:** Implementiere neue Controller-Methoden und MQTT-Befehle, um die aktuellen CC1101-Einstellungen (Freq, Bandwidth, rAmpl, sens, DataRate) auszulesen.
+4.  **Tooling:** Entwirf die Schnittstelle für ein CLI-Helfer-Tool zum Testen und Steuern dieser Befehle.
+
+[[vorgeschlagene-architektur]]
+== 4. Vorgeschlagene Architektur
+
+Die Architektur nutzt die bereits existierende Schichtenarchitektur von PySignalduino (MQTT Publisher -> Controller -> Serial Commands). Der Schlüssel liegt in der Zentralisierung des Befehls-Routings im `MqttCommandDispatcher`.
+
+=== 4.1. Komponenten-Diagramm (Mermaid)
+
+[mermaid]
+----
+graph TD
+    A[MQTT Client] --> B(MqttPublisher / Listener);
+    B --> C{MqttCommandDispatcher};
+    C --> D[SignalduinoController];
+    D --> E[SignalduinoCommands (Serial API)];
+    E --> F[Signalduino Hardware];
+    
+    subgraph Signal Path (Commands)
+        B -- Refactored Handler --> C
+        C -- Payload Validation / Routing --> D
+        D -- High-Level Call --> E
+        E -- Low-Level Serial --> F
+    end
+----
+
+=== 4.2. Sequenz-Diagramm (Mermaid)
+
+Dieses Diagramm zeigt den Ablauf für den Factory Reset und das Abrufen der Bandbreite.
+
+[mermaid]
+----
+sequenceDiagram
+    participant Mq as MQTT Client (Tool)
+    participant Mqp as MqttPublisher (signalduino/mqtt.py)
+    participant Disp as MqttCommandDispatcher
+    participant Ctrl as SignalduinoController
+    participant Cmd as SignalduinoCommands
+    participant SDU as Signalduino Hardware
+
+    group Factory Reset (Command)
+        Mq->>Mqp: PUBLISH (Topic: .../commands/command/factory_reset, Payload: {"req_id": "123"})
+        Mqp->>Disp: dispatch("command/factory_reset", payload)
+        Disp->>Ctrl: command_factory_reset(payload)
+        Ctrl->>Cmd: send_command("e")
+        Cmd->>SDU: Serial: e
+        SDU-->>Cmd: Serial: OK / Timeout
+        Cmd-->>Ctrl: Result
+        Ctrl-->>Disp: Response Data
+        Disp-->>Mqp: Result Dict
+        Mqp->>Mq: PUBLISH (Topic: .../responses, Payload: success: true, req_id: "123")
+    end
+
+    group Hardware Status (GET)
+        Mq->>Mqp: PUBLISH (Topic: .../commands/get/cc1101/bandwidth, Payload: {"req_id": "456"})
+        Mqp->>Disp: dispatch("get/cc1101/bandwidth", payload)
+        Disp->>Ctrl: get_cc1101_bandwidth(payload)
+        Ctrl->>Cmd: read_cc1101_register(0x10)
+        Cmd->>SDU: Serial: C10
+        SDU-->>Cmd: Serial: C10 = 02 (Beispiel)
+        Cmd->>Cmd: Decode to Bandwidth (z.B. 102 kHz)
+        Cmd-->>Ctrl: 102 (kHz)
+        Ctrl-->>Disp: 102
+        Disp-->>Mqp: Response Data
+        Mqp->>Mq: PUBLISH (Topic: .../responses, Payload: data: 102, req_id: "456")
+    end
+----
+
+[[schnittstellen]]
+== 5. Betroffene Schnittstellen (APIs, MQTT Topics)
+
+=== 5.1. Neue MQTT Topics (PUBLISH an)
+*   `signalduino/v1/commands/command/factory_reset`
+*   `signalduino/v1/commands/get/cc1101/bandwidth`
+*   `signalduino/v1/commands/get/cc1101/rampl`
+*   `signalduino/v1/commands/get/cc1101/sensitivity`
+*   `signalduino/v1/commands/get/cc1101/datarate`
+
+=== 5.2. `SignalduinoCommands` Erweiterungen (Serial API)
+Neue Methoden in [`SignalduinoCommands`](signalduino/commands.py:20), die das Lesen der CC1101-Register kapseln und die Rohwerte in nutzbare Einheiten (kHz, dB) umrechnen:
+*   `factory_reset()` (Serial Command `e`)
+*   `get_bwidth()` (liest Register `0x10` und berechnet die Bandbreite)
+*   `get_rampl()` (liest Register `0x1B` und decodiert die Verstärkung)
+*   `get_sens()` (liest Register `0x1D` und decodiert die Empfindlichkeit)
+*   `get_datarate()` (liest Register `0x10` und `0x11` und berechnet die Datenrate)
+
+=== 5.3. `MqttCommandDispatcher.COMMAND_MAP` Erweiterungen
+Neue Einträge in der Map zur Weiterleitung der obigen MQTT Topics an die entsprechenden Controller-Methoden.
+
+[[alternativen]]
+== 6. Alternativen in Betracht gezogen
+
+*   **Kein Refactoring:** Das Beibehalten der `if/elif`-Kette in `signalduino/mqtt.py` wurde abgelehnt, da es die Wartbarkeit reduziert und dem Architekturprinzip der Trennung der Zuständigkeiten widerspricht (siehe ADR-002).
+*   **Keine Abfrage einzelner Werte:** Stattdessen nur einen Sammelbefehl (`get/cc1101/status`) implementieren. Dies wurde abgelehnt, da es die Konsistenz mit dem bereits vorhandenen `get/cc1101/frequency` bricht und nicht die Flexibilität für clientspezifische Abfragen bietet.
+
+[[auswirkungen]]
+== 7. Auswirkungen und Migration
+
+*   **Bestehender Code:** Die Methode `MqttPublisher._handle_command` in `signalduino/mqtt.py` muss vollständig refaktorisiert werden, um den Dispatcher zu verwenden. Die bestehende Logik für `get/system/version` und `get/cc1101/frequency` wird entfernt und über den Dispatcher abgewickelt.
+*   **Abhängigkeiten:** Keine neuen externen Abhängigkeiten erforderlich.
+
+[[implementierungsplan]]
+== 8. Implementierungs-Plan
+
+Der detaillierte Implementierungsplan wird in Phase 2 erstellt, basiert aber auf den folgenden High-Level-Schritten:
+
+1.  **Refactoring:** Initialisiere den `MqttCommandDispatcher` in `MqttPublisher.__init__` und aktualisiere `MqttPublisher._handle_command` zur Verwendung des Dispatchers.
+2.  **Controller-Erweiterung:** Füge die High-Level-Methoden `command_factory_reset`, `get_cc1101_bandwidth`, `get_cc1101_rampl`, `get_cc1101_sensitivity`, `get_cc1101_datarate` zum `SignalduinoController` hinzu.
+3.  **Serial Commands:** Implementiere die entsprechenden Low-Level-Methoden (`factory_reset`, `get_bwidth`, `get_rampl`, `get_sens`, `get_datarate`) in [`SignalduinoCommands`](signalduino/commands.py:20) inklusive der Register-Decodierungslogik.
+4.  **Dispatcher-Aktualisierung:** Erweitere `COMMAND_MAP` in `signalduino/commands.py` um die neuen Befehle und deren Schemata.
+
+[[cli-tool]]
+== 9. CLI Tool Design
+
+Es wird ein kleines Python-Helfer-Tool (z.B. `signalduino-mqtt-cli`) entworfen, das über die Kommandozeile MQTT-Befehle senden kann. Dieses Tool wird die neuen Funktionen demonstrieren und zur Verifikation dienen.
+
+=== 9.1. Befehlsdesign
+*   `sd-mqtt-cli reset --req-id <ID>` (Sendet `command/factory_reset`)
+*   `sd-mqtt-cli get hardware-status --req-id <ID> --parameter bandwidth` (Sendet `get/cc1101/bandwidth`)
+*   `sd-mqtt-cli get hardware-status --all --req-id <ID>` (Optional: Implementiert einen Batch-Abruf oder ruft alle einzelnen GET-Befehle sequenziell ab und gibt das konsolidierte Ergebnis aus.)
+
+Dieses Tool würde die `MqttPublisher` Logik des Hauptprogramms in einem CLI-Kontext nachbilden, um PUBLISH/SUBSCRIBE für Request/Response zu handhaben.
