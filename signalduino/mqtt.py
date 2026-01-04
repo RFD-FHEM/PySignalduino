@@ -162,17 +162,29 @@ class MqttPublisher:
         
         self.logger.info("Handling command: %s with payload: %s", command_name, payload)
         
-        req_id = "NO_REQ_ID" # Standard-req_id, falls das Parsing fehlschlägt
+        req_id: Optional[str] = None
+        
+        # Versuche, req_id aus dem Payload zu extrahieren, falls es sich um gültiges JSON handelt.
+        try:
+            payload_dict = json.loads(payload)
+            req_id = payload_dict.get("req_id")
+        except json.JSONDecodeError:
+            # Der Payload ist kein gültiges JSON. req_id bleibt None, und der Dispatcher
+            # wird dies als CommandValidationError behandeln, wenn er json.loads erneut aufruft.
+            pass
         
         try:
             # Der Dispatcher gibt ein Ergebnis-Dictionary mit 'status', 'req_id', 'data' zurück.
             result = await self.dispatcher.dispatch(command_name, payload)
-            req_id = result.get("req_id", req_id)
+            
+            # Der Dispatcher kann req_id als None zurückgeben, wenn sie nicht im Payload war.
+            # Wir überschreiben req_id mit dem Ergebnis, um Konsistenz zu gewährleisten.
+            req_id = result.get("req_id") # Kann None sein
 
             response_payload = {
                 "command": command_name,
                 "success": True,
-                "req_id": req_id,
+                "req_id": req_id, # Kann None sein, was in JSON zu null wird
                 "payload": result.get("data"),
             }
 
@@ -185,33 +197,27 @@ class MqttPublisher:
 
         except (CommandValidationError, SignalduinoCommandTimeout) as e:
             self.logger.warning("Command failed (Validation/Timeout): %s: %s", command_name, e)
-            # req_id kann von der Validierung extrahiert werden, falls der Payload gültiges JSON ist
-            try:
-                # Da der Dispatcher JSON.loads(payload) aufruft und fehlschlagen kann, wenn JSON ungültig ist,
-                # müssen wir hier vorsichtiger sein. Ist der Payload gültig, holen wir die req_id.
-                payload_dict = json.loads(payload)
-                req_id = payload_dict.get("req_id", req_id)
-            except json.JSONDecodeError:
-                pass # req_id bleibt "NO_REQ_ID"
 
             await self.publish_simple(
                 subtopic="errors",
                 payload=json.dumps({
                     "command": command_name,
                     "success": False,
-                    "req_id": req_id,
+                    "req_id": req_id, # Verwendet die oben extrahierte (oder None)
                     "error": str(e),
                 }),
                 retain=False
             )
         except Exception:
+            # Wenn ein interner Fehler auftritt (z.B. im Controller),
+            # verwenden wir die zuvor extrahierte req_id.
             self.logger.exception("Internal error during command dispatching: %s", command_name)
             await self.publish_simple(
                 subtopic="errors",
                 payload=json.dumps({
                     "command": command_name,
                     "success": False,
-                    "req_id": req_id,
+                    "req_id": req_id, # Verwendet die oben extrahierte (oder None)
                     "error": "Internal server error during command execution.",
                 }),
                 retain=False

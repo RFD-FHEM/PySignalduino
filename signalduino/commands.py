@@ -416,7 +416,7 @@ BASE_SCHEMA = {
         "value": {"type": ["string", "number", "boolean", "null"], "description": "Main value for SET commands."},
         "parameters": {"type": "object", "description": "Additional parameters for complex commands (e.g., sendMsg)."},
     },
-    "required": ["req_id"],
+    "required": [], # req_id ist jetzt optional
     "additionalProperties": False
 }
 
@@ -425,8 +425,8 @@ def create_value_schema(value_schema: Dict[str, Any]) -> Dict[str, Any]:
     schema = BASE_SCHEMA.copy()
     schema['properties'] = BASE_SCHEMA['properties'].copy()
     schema['properties']['value'] = value_schema
-    # Erstelle eine neue 'required'-Liste, um das Problem der flachen Kopie und der Mutationen zu beheben
-    schema['required'] = BASE_SCHEMA['required'] + ['value']
+    # Da BASE_SCHEMA['required'] jetzt leer ist, fügen wir nur 'value' hinzu
+    schema['required'] = ['value']
     return schema
 
 # --- CC1101 SPEZIFISCHE SCHEMATA (PHASE 2) ---
@@ -492,7 +492,7 @@ SEND_MSG_SCHEMA = {
             "additionalProperties": False,
         }
     },
-    "required": ["req_id", "parameters"],
+    "required": ["parameters"],
     "additionalProperties": False
 }
 
@@ -598,6 +598,6 @@ class MqttCommandDispatcher:
         # 4. Prepare Response
         return {
             "status": "OK",
-            "req_id": payload_dict["req_id"],
+            "req_id": payload_dict.get("req_id", None), # req_id ist jetzt optional
             "data": result
         }

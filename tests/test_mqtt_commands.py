@@ -300,6 +300,63 @@ async def test_controller_handles_get_frequency(signalduino_controller, mock_aio
         ])
 
 @pytest.mark.asyncio
+async def test_controller_handles_get_frequency_without_req_id(signalduino_controller, mock_aiomqtt_client_cls, mock_logger):
+    """
+    Testet den 'get/cc1101/frequency' MQTT-Befehl, wenn keine req_id gesendet wird.
+    Die resultierende Response sollte eine req_id von None enthalten (was in JSON zu null wird).
+    """
+    # Wir benötigen 'call' aus unittest.mock, das am Anfang der Datei importiert wurde.
+
+    # Simuliere die Antworten für die drei Register-Lesebefehle (C0D, C0E, C0F)
+    # FREQ2 (0D) -> 0x21
+    # FREQ1 (0E) -> 0x62
+    # FREQ0 (0F) -> 0x00
+    mock_responses = [
+        "C0D = 21", # FREQ2
+        "C0E = 62", # FREQ1
+        "C0F = 00", # FREQ0
+    ]
+    
+    send_command_mock = AsyncMock(side_effect=mock_responses)
+    
+    # Überschreibe die interne Referenz im Commands-Objekt, da es sich um ein gebundenes Callable handelt
+    signalduino_controller.commands._send_command = send_command_mock
+
+    # 1. Dispatcher und Payload vorbereiten (keine req_id!)
+    command_path = "get/cc1101/frequency"
+    mqtt_payload = '{}'
+    
+    dispatcher = MqttCommandDispatcher(controller=signalduino_controller)
+
+    # 2. Asynchronen Kontext des Controllers starten
+    async with signalduino_controller:
+    
+        # 3. Dispatch ausführen
+        result = await dispatcher.dispatch(command_path, mqtt_payload)
+        
+        # 4. Assertions
+        
+        # Berechne erwartete Frequenz
+        FXOSC = 26.0
+        DIVIDER = 65536.0
+        f_reg = (0x21 << 16) | (0x62 << 8) | 0x00
+        expected_frequency = (FXOSC / DIVIDER) * f_reg
+        expected_frequency_rounded = round(expected_frequency, 4)
+        
+        assert result['status'] == "OK"
+        assert result['req_id'] is None # <- CRITICAL: Überprüfe, dass req_id None ist
+        assert result['data']['frequency_mhz'] == expected_frequency_rounded
+        
+        # Überprüfe, ob send_command mit den korrekten Argumenten aufgerufen wurde (gleiche Calls wie zuvor)
+        expected_pattern = re.compile(r'C[A-Fa-f0-9]{2}\s=\s[0-9A-Fa-f]+$|ccreg 00:')
+
+        send_command_mock.assert_has_calls([
+            call(command='C0D', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
+            call(command='C0E', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
+            call(command='C0F', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
+        ])
+
+@pytest.mark.asyncio
 async def test_controller_handles_set_factory_reset(signalduino_controller, mock_aiomqtt_client_cls, mock_logger):
     """Test handling of the 'set/factory_reset' command, ensuring the 'e' command is sent."""
     

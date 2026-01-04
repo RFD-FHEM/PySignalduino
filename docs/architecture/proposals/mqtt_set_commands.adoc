@@ -93,6 +93,13 @@ Die Methoden in `SignalduinoCommands` sind für die Umrechnung und das Senden de
 * **Befehlssatz:** Verwendet den generischen Register-Write-Befehl `W1D`. Die Umrechnungslogik von dB-Wert in den Registerindex (`00`-`07`) erfolgt in der Python-Implementierung.
 * **Serial Command:** `W1D<Index>`, gefolgt von `cc1101_write_init()`.
 
+=== 3.2. MQTT Payload und `req_id`-Behandlung
+
+Das Feld `req_id` in allen MQTT-Command-Payloads (sowohl `set/...` als auch `get/...` und `command/...`) ist ab sofort *optional*.
+
+* **Anfrage:** Wird `req_id` nicht in der Anfrage gesendet, darf die Payload-Validierung nicht fehlschlagen.
+* **Antwort:** Bei Fehlen der `req_id` in der Anfrage wird das Feld `req_id` in der Antwort-Payload (Topics `responses` und `errors`) den Wert `null` (JSON null) annehmen.
+
 == 4. Fehlerbehandlung und Validierung
 1. **Validierung (Dispatcher):** Die MQTT-Payloads werden durch das in [`SignalduinoCommands.COMMAND_MAP`](signalduino/commands.py) definierte `schema` (z.B. `FREQ_SCHEMA`, `DATARATE_SCHEMA`) vor dem Aufruf der Controller-Methode validiert.
 2. **Serial-Kommunikation:** `SignalduinoCommands._send_command` wird bei Timeout eine `SignalduinoCommandTimeout` werfen. Diese wird im `SignalduinoController` gefangen und als NACK-Statusmeldung zurückgegeben.
