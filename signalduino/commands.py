@@ -26,43 +26,94 @@ class SignalduinoCommands:
         
     async def get_version(self, timeout: float = 2.0) -> str:
         """Firmware version (V)"""
-        return await self._send_command(payload="V", expect_response=True, timeout=timeout)
+        return await self._send_command(command="V", expect_response=True, timeout=timeout)
         
     async def get_free_ram(self, timeout: float = 2.0) -> str:
         """Free RAM (R)"""
-        return await self._send_command(payload="R", expect_response=True, timeout=timeout)
+        return await self._send_command(command="R", expect_response=True, timeout=timeout)
         
     async def get_uptime(self, timeout: float = 2.0) -> str:
         """System uptime (t)"""
-        return await self._send_command(payload="t", expect_response=True, timeout=timeout)
+        return await self._send_command(command="t", expect_response=True, timeout=timeout)
         
     async def get_cmds(self, timeout: float = 2.0) -> str:
         """Available commands (?)"""
-        return await self._send_command(payload="?", expect_response=True, timeout=timeout)
+        return await self._send_command(command="?", expect_response=True, timeout=timeout)
         
     async def ping(self, timeout: float = 2.0) -> str:
         """Ping (P)"""
-        return await self._send_command(payload="P", expect_response=True, timeout=timeout)
+        return await self._send_command(command="P", expect_response=True, timeout=timeout)
         
     async def get_config(self, timeout: float = 2.0) -> str:
         """Decoder configuration (CG)"""
-        return await self._send_command(payload="CG", expect_response=True, timeout=timeout)
+        return await self._send_command(command="CG", expect_response=True, timeout=timeout)
         
     async def get_ccconf(self, timeout: float = 2.0) -> str:
         """CC1101 configuration registers (C0DnF)"""
         # Response-Pattern aus 00_SIGNALduino.pm, Zeile 86, angepasst an Python regex
-        return await self._send_command(payload="C0DnF", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C0Dn11=[A-F0-9a-f]+'))
+        return await self._send_command(command="C0DnF", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C0Dn11=[A-F0-9a-f]+'))
     
     async def get_ccpatable(self, timeout: float = 2.0) -> str:
         """CC1101 PA table (C3E)"""
         # Response-Pattern aus 00_SIGNALduino.pm, Zeile 88
-        return await self._send_command(payload="C3E", expect_response=True, timeout=timeout, response_pattern=re.compile(r'^C3E\s=\s.*'))
+        return await self._send_command(command="C3E", expect_response=True, timeout=timeout, response_pattern=re.compile(r'^C3E\s=\s.*'))
         
     async def read_cc1101_register(self, register_address: int, timeout: float = 2.0) -> str:
         """Read CC1101 register (C<reg>)"""
         hex_addr = f"{register_address:02X}"
         # Response-Pattern: ccreg 00: oder Cxx = yy (aus 00_SIGNALduino.pm, Zeile 87)
-        return await self._send_command(payload=f"C{hex_addr}", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C[A-Fa-f0-9]{2}\s=\s[0-9A-Fa-f]+$|ccreg 00:'))
+        return await self._send_command(command=f"C{hex_addr}", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C[A-Fa-f0-9]{2}\s=\s[0-9A-Fa-f]+$|ccreg 00:'))
+
+    async def _get_frequency_registers(self) -> int:
+        """Liest die CC1101 Frequenzregister (FREQ2, FREQ1, FREQ0) und kombiniert sie zu einem 24-Bit-Wert (F_REG)."""
+        
+        # Adressen der Register
+        FREQ2 = 0x0D
+        FREQ1 = 0x0E
+        FREQ0 = 0x0F
+
+        # Funktion zum Extrahieren des Hex-Werts aus der Antwort: Cxx = <hex>
+        def extract_hex_value(response: str) -> int:
+            # Stellt sicher, dass wir nur den Wert nach 'C[A-Fa-f0-9]{2} = ' extrahieren
+            match = re.search(r'C[A-Fa-f0-9]{2}\s=\s([0-9A-Fa-f]+)$', response)
+            if match:
+                return int(match.group(1), 16)
+            # Fängt auch den Fall 'ccreg 00:' (default-Antwort) oder andere unerwartete Antworten ab
+            raise ValueError(f"Unexpected response format for CC1101 register read: {response}")
+
+        # FREQ2 (0D)
+        response2 = await self.read_cc1101_register(FREQ2)
+        freq2 = extract_hex_value(response2)
+
+        # FREQ1 (0E)
+        response1 = await self.read_cc1101_register(FREQ1)
+        freq1 = extract_hex_value(response1)
+        
+        # FREQ0 (0F)
+        response0 = await self.read_cc1101_register(FREQ0)
+        freq0 = extract_hex_value(response0)
+
+        # Die Register bilden eine 24-Bit-Zahl: (FREQ2 << 16) | (FREQ1 << 8) | FREQ0
+        f_reg = (freq2 << 16) | (freq1 << 8) | freq0
+        return f_reg
+
+    async def get_frequency(self, payload: Optional[Dict[str, Any]] = None) -> float:
+        """Ruft die Frequenzregister ab und berechnet die Frequenz in MHz.
+        
+        Diese Methode ist für den MqttCommandDispatcher gedacht und akzeptiert daher den 'payload'-Parameter,
+        der ignoriert wird, da keine Eingabewerte benötigt werden.
+        """
+        
+        f_reg = await self._get_frequency_registers()
+
+        # Quarzfrequenz (FXOSC) ist 26 MHz
+        # DIVIDER ist 2^16 = 65536.0
+        DIVIDER = 65536.0
+        
+        # Frequenz in MHz: (26.0 / 65536.0) * F_REG
+        frequency_mhz = (26.0 / DIVIDER) * f_reg
+        
+        return frequency_mhz
 
     async def send_raw_message(self, command: str, timeout: float = 2.0) -> str:
         """Send raw message (M...)"""
@@ -77,19 +128,19 @@ class SignalduinoCommands:
 
     async def enable_receiver(self) -> str:
         """Enable receiver (XE)"""
-        return await self._send_command(payload="XE", expect_response=False)
+        return await self._send_command(command="XE", expect_response=False)
         
     async def disable_receiver(self) -> str:
         """Disable receiver (XQ)"""
-        return await self._send_command(payload="XQ", expect_response=False)
+        return await self._send_command(command="XQ", expect_response=False)
     
     async def set_decoder_enable(self, decoder_type: str) -> str:
         """Enable decoder type (CE S/U/C)"""
-        return await self._send_command(payload=f"CE{decoder_type}", expect_response=False)
+        return await self._send_command(command=f"CE{decoder_type}", expect_response=False)
 
     async def set_decoder_disable(self, decoder_type: str) -> str:
         """Disable decoder type (CD S/U/C)"""
-        return await self._send_command(payload=f"CD{decoder_type}", expect_response=False)
+        return await self._send_command(command=f"CD{decoder_type}", expect_response=False)
 
     async def set_message_type_enabled(self, message_type: str, enabled: bool) -> str:
         """Enable or disable a specific message type (CE/CD S/U/C)"""
@@ -151,7 +202,8 @@ def create_value_schema(value_schema: Dict[str, Any]) -> Dict[str, Any]:
     schema = BASE_SCHEMA.copy()
     schema['properties'] = BASE_SCHEMA['properties'].copy()
     schema['properties']['value'] = value_schema
-    schema['required'].append('value')
+    # Erstelle eine neue 'required'-Liste, um das Problem der flachen Kopie und der Mutationen zu beheben
+    schema['required'] = BASE_SCHEMA['required'] + ['value']
     return schema
 
 # --- CC1101 SPEZIFISCHE SCHEMATA (PHASE 2) ---
@@ -232,6 +284,7 @@ COMMAND_MAP: Dict[str, Dict[str, Any]] = {
     'get/cc1101/config': { 'method': 'get_cc1101_config', 'schema': BASE_SCHEMA, 'description': 'CC1101 configuration registers (C0DnF)' },
     'get/cc1101/patable': { 'method': 'get_cc1101_patable', 'schema': BASE_SCHEMA, 'description': 'CC1101 PA table (C3E)' },
     'get/cc1101/register': { 'method': 'get_cc1101_register', 'schema': BASE_SCHEMA, 'description': 'Read CC1101 register (C<reg>)' },
+    'get/cc1101/frequency': { 'method': 'get_frequency', 'schema': BASE_SCHEMA, 'description': 'CC1101 current RF frequency' },
 
     # Phase 1: Einfache SET-Befehle (Decoder Enable/Disable)
     'set/config/decoder_ms_enable': { 'method': 'set_decoder_ms_enable', 'schema': BASE_SCHEMA, 'description': 'Enable Synced Message (MS) (CE S)' },

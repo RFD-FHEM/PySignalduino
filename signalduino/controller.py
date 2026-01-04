@@ -83,6 +83,11 @@ class SignalduinoController:
         """Returns the cached firmware version string."""
         return self.init_version_response
 
+    async def get_frequency(self, payload: Dict[str, Any]) -> float:
+        """Delegates to SignalduinoCommands to get the current CC1101 frequency."""
+        # Der Payload wird vom MqttCommandDispatcher übergeben, aber von commands.get_frequency ignoriert.
+        return await self.commands.get_frequency(payload)
+
     async def send_command(
         self,
         command: str,

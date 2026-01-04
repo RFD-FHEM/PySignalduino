@@ -1,0 +1,216 @@
+= Architektur-Proposal: MQTT-Kommando `get/cc1101/frequency`
+:author: Roo
+:revdate: 2026-01-03
+:page-layout: proposal
+:sectnums:
+:toc: left
+:toclevels: 3
+
+[[section-hintergrund]]
+== 1. Hintergrund und Motivation
+
+Dieses Proposal beschreibt die Implementierung des MQTT-Kommandos `get/cc1101/frequency`, das es Benutzern ermöglicht, die aktuell im CC1101-Transceiver eingestellte Funkfrequenz abzufragen. Dies ist ein notwendiges Feature zur Diagnose und Verifikation der Hardwarekonfiguration und stellt eine Ergänzung zu den bestehenden `get`-Kommandos dar.
+
+[[section-losungsansatz]]
+== 2. Lösungsansatz und Komponenten
+
+Der Befehl wird über das MQTT-Topic `[base_topic]/commands/get/cc1101/frequency` empfangen und löst eine Kette von Funktionsaufrufen aus:
+
+1.  *`signalduino/mqtt.py`*: Empfängt das Kommando und ruft die Kommando-Logik auf.
+2.  *`signalduino/commands.py`*: Implementiert die High-Level-Logik, welche die Registerwerte von der Hardware abruft und die Frequenz berechnet.
+3.  *`signalduino/hardware.py`*: Stellt eine neue Methode zum Lesen der FREQ2, FREQ1 und FREQ0 Register bereit.
+
+Das Ergebnis wird als JSON-Objekt auf dem zentralen Antwort-Topic (`<base_topic>/responses`) veröffentlicht, um Konsistenz mit bestehenden Befehlen zu gewährleisten.
+
+[[section-komponenten-details]]
+== 3. Komponenten-Details
+
+=== 3.1. `signalduino/hardware.py`
+
+Wir benötigen eine Methode, um die drei Frequenzregister des CC1101 auszulesen. Da PySignalduino bereits die Methode `read_register(address)` in der Hardware-Klasse (wahrscheinlich in `signalduino/hardware.py`) implementiert, ist eine neue, dedizierte Methode in der `Hardware`-Klasse erforderlich.
+
+[source, python]
+----
+# In signalduino/hardware.py (angenommene Klasse)
+async def get_frequency_registers(self) -> int:
+    """Liest die CC1101 Frequenzregister (FREQ2, FREQ1, FREQ0) und kombiniert sie zu einem 24-Bit-Wert (F_REG)."""
+    # Adressen der Register
+    FREQ2 = 0x0D
+    FREQ1 = 0x0E
+    FREQ0 = 0x0F
+
+    # Annahme: read_register gibt den Wert des Registers zurück
+    freq2 = await self.read_register(FREQ2)
+    freq1 = await self.read_register(FREQ1)
+    freq0 = await self.read_register(FREQ0)
+
+    # Die Register bilden eine 24-Bit-Zahl: (FREQ2 << 16) | (FREQ1 << 8) | FREQ0
+    f_reg = (freq2 << 16) | (freq1 << 8) | freq0
+    return f_reg
+----
+
+=== 3.2. `signalduino/commands.py`
+
+Die Logik zur Frequenzberechnung wird hier implementiert. Die Frequenzformel lautet:
+$$f_{RF} = \frac{26000000}{65536} \times F_{REG} \times 10^{-6} \, \text{MHz}$$
+oder vereinfacht:
+$$f_{RF} = \frac{26}{65536} \times F_{REG} \, \text{MHz}$$
+
+[source, python]
+----
+# In signalduino/commands.py
+async def get_frequency(self) -> float:
+    """Ruft die Frequenzregister ab und berechnet die Frequenz in MHz."""
+    # F_REG: 24-Bit-Wert aus FREQ2, FREQ1, FREQ0
+    f_reg = await self.hardware.get_frequency_registers()
+
+    # Quarzfrequenz (FXOSC) ist 26 MHz
+    DIVIDER = 65536.0
+
+    # Die Frequenz in MHz ist: (26.0 / 65536.0) * F_REG
+    frequency_mhz = (26.0 / DIVIDER) * f_reg
+    
+    return frequency_mhz
+----
+
+=== 3.3. `signalduino/mqtt.py`
+
+Ein neuer Command Handler wird in der `MqttHandler`-Klasse registriert. Die Antwort folgt dem `<base_topic>/responses` Schema.
+
+[source, python]
+----
+# In signalduino/mqtt.py (_handle_command Methode)
+elif command_name == "get/cc1101/frequency":
+    try:
+        # Payload-String zu Dict konvertieren
+        payload_dict = json.loads(payload)
+        req_id = payload_dict.get("req_id", "NO_REQ_ID")
+
+        # Aufruf der asynchronen Controller-Methode
+        frequency_mhz = await self.controller.get_frequency(payload_dict)
+        
+        response = {
+            "command": command_name,
+            "success": True,
+            "req_id": req_id,
+            "payload": {
+                "frequency_mhz": round(frequency_mhz, 4)
+            },
+        }
+        
+        await self.publish_simple(
+            subtopic="responses", 
+            payload=json.dumps(response), 
+            retain=False
+        )
+        self.logger.info("Successfully published current frequency for req_id %s.", req_id)
+        
+    except Exception as e:
+        self.logger.exception("Error processing %s command.", command_name)
+        
+        # Versuch, req_id zu extrahieren, falls JSON-Parsing erfolgreich war
+        try:
+            req_id = json.loads(payload).get("req_id", "NO_REQ_ID")
+        except json.JSONDecodeError:
+            req_id = "NO_REQ_ID"
+            
+        await self.publish_simple(
+            subtopic="errors",
+            payload=json.dumps({
+                "command": command_name,
+                "success": False,
+                "req_id": req_id,
+                "error": f"Internal error processing command: {e}",
+            }),
+            retain=False
+        )
+
+# Registrierung des Handlers im Haupt-Loop ist implizit über die _handle_command Methode
+----
+
+[[section-mqtt-payload]]
+== 4. MQTT Request- und Response-Payload-Format
+
+=== 4.1. Request Payload (auf \`[base_topic]/commands/get/cc1101/frequency\`)
+
+Der Request MUSS einen JSON-Payload enthalten, der eine `req_id` zur Korrelation der Antwort bereitstellt.
+
+[cols="1,1,2"]
+|===
+| Feld | Typ | Beschreibung
+| `req_id` | string | Eine vom Client generierte eindeutige ID, um die Antwort (Response/Error) dem Request zuzuordnen. Wird keine `req_id` bereitgestellt, wird automatisch der Wert `"NO_REQ_ID"` verwendet.
+|===
+
+*Beispiel Request Payload:*
+[source, json]
+----
+{
+    "req_id": "client-12345-freq-req-A"
+}
+----
+
+
+=== 4.2. Response Payload (auf \`<base_topic>/responses\`)
+
+Die Antwort wird auf dem Topic `<base_topic>/responses` im JSON-Format veröffentlicht (bei Erfolg).
+
+[cols="1,1,2"]
+|===
+| Feld | Typ | Beschreibung
+| `command` | string | Der ursprünglich ausgeführte Befehl (`get/cc1101/frequency`).
+| `success` | boolean | Status der Operation (`true` oder `false`).
+| `req_id` | string | Die `req_id` aus dem Request-Payload.
+| `payload` | object | Enthält die Nutzdaten (nur bei `success: true`).
+| `payload.frequency_mhz` | number | Die berechnete Frequenz in MHz, gerundet auf 4 Dezimalstellen.
+| `error` | string | Nur bei `success: false`, enthält die Fehlerbeschreibung.
+|===
+
+*Erfolgreiche Antwort (auf \`<base_topic>/responses\`):*
+[source, json]
+----
+{
+    "command": "get/cc1101/frequency",
+    "success": true,
+    "req_id": "client-12345-freq-req-A",
+    "payload": {
+        "frequency_mhz": 433.920
+    }
+}
+----
+
+*Fehlerhafte Antwort (auf \`<base_topic>/errors\`):*
+[source, json]
+----
+{
+    "command": "get/cc1101/frequency",
+    "success": false,
+    "req_id": "client-12345-freq-req-A",
+    "error": "Hardware nicht initialisiert"
+}
+----
+
+[[section-sequenzdiagramm]]
+== 5. Sequenzdiagramm
+
+Das folgende Sequenzdiagramm visualisiert den Nachrichtenfluss für den `get/cc1101/frequency`-Befehl.
+
+[mermaid]
+----
+sequenceDiagram
+    participant U as Benutzer (MQTT Client)
+    participant M as MqttHandler (signalduino/mqtt.py)
+    participant C as Commands (signalduino/commands.py)
+    participant H as Hardware (signalduino/hardware.py)
+
+    U->>M: PUBLISH <base_topic>/commands/get/cc1101/frequency {req_id: "..."}
+    M->>C: get_frequency({req_id: "..."})
+    C->>H: get_frequency_registers()
+    H->>H: read_register(FREQ2)
+    H->>H: read_register(FREQ1)
+    H->>H: read_register(FREQ0)
+    H-->>C: F_REG (24-bit integer)
+    C->>C: Berechne Frequenz: (26.0 / 65536.0) * F_REG
+    C-->>M: frequency_mhz (float)
+    M->>M: Erstelle JSON Payload {command: "get/cc1101/frequency", success: true, req_id: "...", payload: {frequency_mhz: 433.920}}
+    M->>U: PUBLISH <base_topic>/responses {payload}
+----

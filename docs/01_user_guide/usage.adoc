@@ -48,7 +48,8 @@ include::../../main.py[lines=55..84]
 
 * `{topic}/messages` – JSON‑kodierte dekodierte Nachrichten (DecodedMessage)
 * `{topic}/commands/#` – Topic für eingehende Befehle (Wildcard-Subscription)
-* `{topic}/result/{command}` – Antworten auf Befehle (z. B. `signalduino/result/version`)
+* `{topic}/responses` – Antworten auf GET-Befehle, inkl. `get/cc1101/frequency`.
+* `{topic}/errors` – Fehlerantworten.
 * `{topic}/status` – Heartbeat‑ und Statusmeldungen (optional)
 
 ==== Heartbeat-Funktionalität
@@ -109,14 +110,80 @@ Befehle, die die Hardware-Konfiguration ändern (z. B. `write_register`, `set_
 
 ==== Nutzung über MQTT
 
-Wenn MQTT aktiviert ist, können Befehle über das Topic `signalduino/commands/{command}` gesendet werden. Die Antwort erscheint unter `signalduino/result/{command}`.
+Wenn MQTT aktiviert ist, können Befehle über das Topic `{base_topic}/commands/{command}` gesendet werden. Die Basis für Antworten ist `{base_topic}/responses` (Erfolg) oder `{base_topic}/errors` (Fehler). Das `base_topic` ist standardmäßig `signalduino/v1`.
+
+Die optionale `req_id` kann im Request-Payload gesendet werden und wird unverändert in die Response übernommen. Sie dient zur Korrelation von asynchronen Anfragen und Antworten.
+
+===== CC1101 Frequenz abfragen (`get/cc1101/frequency`)
+
+Dieser Befehl fragt die aktuell im CC1101-Transceiver eingestellte Funkfrequenz ab.
+
+**1. Request Topic und Payload (Senden)**
+
+*   **Topic:** `signalduino/v1/commands/get/cc1101/frequency` (ersetze `signalduino/v1` durch dein konfiguriertes `{base_topic}`)
+*   **Payload:** Muss eine `req_id` zur Korrelation der Antwort enthalten. Ist keine `req_id` im Payload enthalten, wird automatisch der Wert `"NO_REQ_ID"` verwendet.
+[source,json]
+----
+{
+    "req_id": "client-12345-freq-req-A"
+}
+----
+
+**2. Response Topic und Payload (Empfangen)**
+
+*   **Erfolgs-Topic:** `signalduino/v1/responses`
+*   **Fehler-Topic:** `signalduino/v1/errors`
+
+*Erfolgreiche Antwort (auf \`signalduino/v1/responses\`):*
+[source,json]
+----
+{
+    "command": "get/cc1101/frequency",
+    "success": true,
+    "req_id": "client-12345-freq-req-A",
+    "payload": {
+        "frequency_mhz": 433.920
+    }
+}
+----
+
+*Fehlerhafte Antwort (auf \`signalduino/v1/errors\`):*
+[source,json]
+----
+{
+    "command": "get/cc1101/frequency",
+    "success": false,
+    "req_id": "client-12345-freq-req-A",
+    "error": "Hardware nicht initialisiert"
+}
+----
+
+Beispiel mit `mosquitto_pub` und `mosquitto_sub` (angenommen `base_topic` ist `signalduino/v1`):
+
+[source,bash]
+----
+# Zum Senden des Requests
+mosquitto_pub -h localhost -t "signalduino/v1/commands/get/cc1101/frequency" -m '{"req_id": "test-123"}'
+
+# Zum Empfangen der Antwort
+mosquitto_sub -h localhost -t "signalduino/v1/responses"
+----
+
+===== Allgemeine Command-Topics
+
+Alle anderen allgemeinen Befehle folgen ebenfalls diesem Schema, wobei `{command}` den Pfad nach `/commands/` darstellt.
 
 Beispiel mit `mosquitto_pub`:
 
 [source,bash]
 ----
-include::../examples/bash/mosquitto_pub_example.sh[]
+# Sende Request für System-Version
+mosquitto_pub -h localhost -t "signalduino/v1/commands/get/system/version" -m '{"req_id": "test-version"}'
+
+# Antwort empfängst du auf signalduino/v1/responses
 ----
+
+==== Code-Beispiel: Direkte Nutzung der Command-API
 
 ==== Code-Beispiel: Direkte Nutzung der Command-API
 

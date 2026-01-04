@@ -164,7 +164,7 @@ class MqttPublisher:
         if command_name == "get/system/version":
             try:
                 # Annahme: self.controller.get_version() gibt ein Dictionary oder einen String zurück
-                version_info = self.controller.get_version()
+                version_info = await self.controller.get_version()
                 
                 response = {
                     "command": command_name,
@@ -187,6 +187,69 @@ class MqttPublisher:
                         "command": command_name,
                         "success": False,
                         "error": "Internal error processing command",
+                    }),
+                    retain=False
+                )
+        elif command_name == "get/cc1101/frequency":
+            req_id = "NO_REQ_ID" # Setze Default
+            try:
+                if payload:
+                    # Payload-String zu Dict konvertieren
+                    payload_dict = json.loads(payload)
+                else:
+                    # Leerer Payload
+                    payload_dict = {}
+
+                req_id = payload_dict.get("req_id", "NO_REQ_ID")
+
+                # Aufruf der asynchronen Controller-Methode
+                # Wir übergeben immer ein Dict an die Controller-Methode
+                frequency_mhz = await self.controller.get_frequency(payload_dict)
+                
+                response = {
+                    "command": command_name,
+                    "success": True,
+                    "req_id": req_id,
+                    "payload": {
+                        "frequency_mhz": round(frequency_mhz, 4)
+                    },
+                }
+                
+                await self.publish_simple(
+                    subtopic="responses", 
+                    payload=json.dumps(response), 
+                    retain=False
+                )
+                self.logger.info("Successfully published current frequency for req_id %s.", req_id)
+                
+            except json.JSONDecodeError as e:
+                self.logger.error(
+                    "JSON Decode Error for command %s with payload '%s': %s", 
+                    command_name, 
+                    payload, 
+                    e
+                )
+                
+                await self.publish_simple(
+                    subtopic="errors",
+                    payload=json.dumps({
+                        "command": command_name,
+                        "success": False,
+                        "req_id": req_id,
+                        "error": f"Invalid JSON payload: {e}",
+                    }),
+                    retain=False
+                )
+            except Exception as e:
+                self.logger.exception("Error processing %s command.", command_name)
+                    
+                await self.publish_simple(
+                    subtopic="errors",
+                    payload=json.dumps({
+                        "command": command_name,
+                        "success": False,
+                        "req_id": req_id, # req_id ist jetzt außerhalb des try/except gesetzt
+                        "error": f"Internal error processing command: {e}",
                     }),
                     retain=False
                 )

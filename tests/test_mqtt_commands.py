@@ -1,7 +1,7 @@
 import logging
 import os
 import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch, AsyncMock, call
 from asyncio import Queue
 import re
 
@@ -9,6 +9,7 @@ import pytest
 from aiomqtt import Client as AsyncMqttClient
 
 from signalduino.mqtt import MqttPublisher
+from signalduino.commands import MqttCommandDispatcher
 from signalduino.controller import SignalduinoController
 from signalduino.transport import BaseTransport
 from signalduino.commands import SignalduinoCommands
@@ -235,3 +236,63 @@ async def test_controller_handles_rawmsg_command(signalduino_controller, mock_ai
             expected_response_line="OK\n",
             cmd_args=raw_message
         )
+
+@pytest.mark.asyncio
+async def test_controller_handles_get_frequency(signalduino_controller, mock_aiomqtt_client_cls, mock_logger):
+    """
+    Testet den 'get/cc1101/frequency' MQTT-Befehl, der intern 3x read_cc1101_register aufruft.
+    Dies verifiziert, dass das 'command=' Argument anstelle von 'payload=' korrekt übergeben wird.
+    """
+    # Wir benötigen 'call' aus unittest.mock, das am Anfang der Datei importiert wurde.
+
+    # Simuliere die Antworten für die drei Register-Lesebefehle (C0D, C0E, C0F)
+    # FREQ2 (0D) -> 0x21
+    # FREQ1 (0E) -> 0x62
+    # FREQ0 (0F) -> 0x00
+    mock_responses = [
+        "C0D = 21", # FREQ2
+        "C0E = 62", # FREQ1
+        "C0F = 00", # FREQ0
+    ]
+    
+    send_command_mock = AsyncMock(side_effect=mock_responses)
+    
+    # Überschreibe die interne Referenz im Commands-Objekt, da es sich um ein gebundenes Callable handelt
+    signalduino_controller.commands._send_command = send_command_mock
+
+    # 1. Dispatcher und Payload vorbereiten
+    command_path = "get/cc1101/frequency"
+    mqtt_payload = '{"req_id": "test_freq"}'
+    
+    # Dispatcher manuell erstellen, da der MqttPublisher im Fixture gemockt ist
+    dispatcher = MqttCommandDispatcher(controller=signalduino_controller)
+
+    # 2. Asynchronen Kontext des Controllers starten
+    async with signalduino_controller:
+    
+        # 3. Dispatch ausführen
+        # Die Dispatch-Methode erwartet den Command Path und den rohen JSON String.
+        result = await dispatcher.dispatch(command_path, mqtt_payload)
+        
+        # 4. Assertions
+        
+        # F_REG = (0x21 << 16) | (0x62 << 8) | 0x00 = 2187776
+        # Frequency = (26.0 / 65536.0) * F_REG = 868.35 MHz
+        FXOSC = 26.0
+        DIVIDER = 65536.0
+        f_reg = (0x21 << 16) | (0x62 << 8) | 0x00
+        expected_frequency = (FXOSC / DIVIDER) * f_reg
+        
+        assert result['status'] == "OK"
+        assert result['req_id'] == "test_freq"
+        # Überprüfe den berechneten Frequenzwert
+        assert abs(result['data'] - expected_frequency) < 1e-6
+        
+        # Überprüfe, ob send_command mit den korrekten Argumenten aufgerufen wurde
+        expected_pattern = re.compile(r'C[A-Fa-f0-9]{2}\s=\s[0-9A-Fa-f]+$|ccreg 00:')
+
+        send_command_mock.assert_has_calls([
+            call(command='C0D', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
+            call(command='C0E', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
+            call(command='C0F', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
+        ])
