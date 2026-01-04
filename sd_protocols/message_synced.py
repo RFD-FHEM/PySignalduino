@@ -71,7 +71,7 @@ class MessageSyncedMixin:
         for pidx, pval in patterns.items():
             norm_patterns[pidx] = round(pval / clock_abs, 1)
         
-        print(f"DEBUG: Patterns: {patterns}, Clock: {clock_abs}, Norm: {norm_patterns}")
+        logging.debug(f"Patterns: {patterns}, Clock: {clock_abs}, Norm: {norm_patterns}")
 
         decoded_messages = []
         
@@ -84,7 +84,7 @@ class MessageSyncedMixin:
             if proto_clock > 0:
                 # Perl: SIGNALduino_inTol(prop_clock, clockabs, clockabs*0.30)
                 if abs(proto_clock - clock_abs) > (clock_abs * 0.3):
-                    print(f"DEBUG: Protocol {pid} clock mismatch: {proto_clock} vs {clock_abs}")
+                    logging.debug(f"Protocol {pid} clock mismatch: {proto_clock} vs {clock_abs}")
                     continue
 
             # Check Patterns
@@ -127,7 +127,7 @@ class MessageSyncedMixin:
 
                 pstr = pattern_exists(search_pattern, norm_patterns, raw_data)
 
-                print(f"DEBUG: Protocol {pid} Key {key} Pattern {search_pattern} Result {pstr}")
+                logging.debug(f"Protocol {pid} Key {key} Pattern {search_pattern} Result {pstr}")
 
                 if pstr != -1:
                     pattern_lookup[pstr] = representation

@@ -3,6 +3,7 @@ Pattern matching utilities for SIGNALduino protocols.
 Ports logic from SIGNALduino_PatternExists and related Perl functions.
 """
 from __future__ import annotations
+import logging
 import math
 import itertools
 from typing import Dict, List, Any, Optional, Tuple, Union
@@ -96,7 +97,7 @@ def pattern_exists(search_pattern: List[float], pattern_list: Dict[str, float], 
     if total_combinations > 10000:
         if debug_callback:
             debug_callback(f"Too many combinations: {total_combinations}. Aborting pattern match.")
-        print(f"DEBUG: Too many combinations: {total_combinations} for {search_pattern}")
+        logging.debug(f"Too many combinations: {total_combinations} for {search_pattern}")
         return -1
 
     product = cartesian_product(candidates_list)
