@@ -11,9 +11,16 @@ from aiomqtt.message import Message # Korrekter Import
 
 from signalduino.mqtt import MqttPublisher
 from signalduino.types import DecodedMessage, RawFrame
-from signalduino.controller import SignalduinoController
 from signalduino.transport import BaseTransport
+from signalduino.controller import SignalduinoController
 
+@pytest.fixture
+def mock_controller():
+    """Fixture for a simple mocked SignalduinoController."""
+    mock_controller = MagicMock(spec=SignalduinoController)
+    # Setze eine Dummy-get_version Methode, die vom Publisher aufgerufen wird
+    mock_controller.get_version = AsyncMock(return_value="MockVersion")
+    return mock_controller
 
 # Definiere eine minimale DecodedMessage-Instanz für Tests
 @pytest.fixture
@@ -77,14 +84,14 @@ def set_mqtt_env_vars():
 # Netzwerkimplementierung zu vermeiden.
 @patch("signalduino.mqtt.mqtt.Client")
 @pytest.mark.asyncio
-async def test_mqtt_publisher_init(MockClient, set_mqtt_env_vars):
+async def test_mqtt_publisher_init(MockClient, set_mqtt_env_vars, mock_controller):
     """Testet die Initialisierung des MqttPublisher (nur Attribut-Initialisierung)."""
-    publisher = MqttPublisher()
+    publisher = MqttPublisher(mock_controller)
     
     # Überprüfen der Konfiguration
     assert publisher.mqtt_host == "test-host"
     assert publisher.mqtt_port == 1883
-    assert publisher.mqtt_topic == "test/signalduino"
+    assert publisher.base_topic == "test/signalduino/v1"
     assert publisher.mqtt_username == "test-user"
     assert publisher.mqtt_password == "test-pass"
 
@@ -95,7 +102,7 @@ async def test_mqtt_publisher_init(MockClient, set_mqtt_env_vars):
 
 @patch("signalduino.mqtt.mqtt.Client")
 @pytest.mark.asyncio
-async def test_mqtt_publisher_publish_success(MockClient, mock_decoded_message, caplog):
+async def test_mqtt_publisher_publish_success(MockClient, mock_decoded_message, caplog, mock_controller):
     """Testet publish(): Sollte verbinden und dann veröffentlichen."""
     caplog.set_level(logging.DEBUG)
     
@@ -109,13 +116,13 @@ async def test_mqtt_publisher_publish_success(MockClient, mock_decoded_message, 
     MockClient.return_value.__aenter__ = AsyncMock(return_value=None)
     MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
 
-    publisher = MqttPublisher()
+    publisher = MqttPublisher(mock_controller)
     
     async with publisher:
         await publisher.publish(mock_decoded_message)
     
     # Überprüfe den publish-Aufruf
-    expected_topic = f"{publisher.mqtt_topic}/messages"
+    expected_topic = f"{publisher.base_topic}/state/messages"
     
     mock_client_instance.publish.assert_called_once()
     
@@ -131,12 +138,12 @@ async def test_mqtt_publisher_publish_success(MockClient, mock_decoded_message, 
     assert "raw" not in payload_dict # raw sollte entfernt werden
     assert call_kwargs == {} # assert {} da keine kwargs im Code von MqttPublisher.publish übergeben werden
 
-    assert "Published message for protocol 1 to test/signalduino/messages" in caplog.text
+    assert "Published message for protocol 1 to test/signalduino/v1/state/messages" in caplog.text
 
 
 @patch("signalduino.mqtt.mqtt.Client")
 @pytest.mark.asyncio
-async def test_mqtt_publisher_publish_simple(MockClient, caplog):
+async def test_mqtt_publisher_publish_simple(MockClient, caplog, mock_controller):
     """Testet publish_simple(): Sollte verbinden und dann einfache Nachricht veröffentlichen."""
     caplog.set_level(logging.DEBUG)
     
@@ -149,13 +156,13 @@ async def test_mqtt_publisher_publish_simple(MockClient, caplog):
     MockClient.return_value.__aenter__ = AsyncMock(return_value=None)
     MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
     
-    publisher = MqttPublisher()
+    publisher = MqttPublisher(mock_controller)
     
     async with publisher:
         await publisher.publish_simple("status", "online", retain=True) # qos entfernt
     
     # Überprüfe den publish-Aufruf
-    expected_topic = f"{publisher.mqtt_topic}/status"
+    expected_topic = f"{publisher.base_topic}/status"
     
     mock_client_instance.publish.assert_called_once()
     (call_topic, call_payload), call_kwargs = mock_client_instance.publish.call_args
@@ -165,13 +172,13 @@ async def test_mqtt_publisher_publish_simple(MockClient, caplog):
     assert call_kwargs['retain'] is True
     assert 'qos' not in call_kwargs # qos sollte nicht übergeben werden, um KeyError zu vermeiden
     
-    assert "Published simple message to test/signalduino/status: online" in caplog.text
+    assert "Published simple message to test/signalduino/v1/status: online" in caplog.text
 
 
 @patch("signalduino.mqtt.mqtt.Client")
 @pytest.mark.asyncio
-async def test_mqtt_publisher_command_listener(MockClient, caplog):
-    """Testet den asynchronen Befehls-Listener und den Callback."""
+async def test_mqtt_publisher_command_listener(MockClient, caplog, mock_controller):
+    """Testet den asynchronen Befehls-Listener und die interne Verarbeitung."""
     caplog.set_level(logging.DEBUG)
     
     # Konfiguriere den MockClient-Kontextmanager-Rückgabewert, um das asynchrone await-Problem zu beheben
@@ -184,62 +191,170 @@ async def test_mqtt_publisher_command_listener(MockClient, caplog):
     MockClient.return_value.__aenter__ = AsyncMock(return_value=None)
     MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
 
-    # Mock des asynchronen Message-Generators
+    # Mock des asynchronen Message-Generators, um "get/system/version" zu senden
     async def mock_messages_generator():
-        # aiomqtt.message.Message (früher paho.mqtt.client.MQTTMessage) muss gemockt werden
-        mock_msg_version = Mock(spec=Message)
-        # topic muss ein Mock sein, dessen __str__ den Topic-String liefert
-        mock_msg_version.topic = MagicMock()
-        mock_msg_version.topic.__str__.return_value = "test/signalduino/commands/version"
-        mock_msg_version.payload = b"GET"
-        
-        mock_msg_set = Mock(spec=Message)
-        mock_msg_set.topic = MagicMock()
-        mock_msg_set.topic.__str__.return_value = "test/signalduino/commands/set/XE"
-        mock_msg_set.payload = b"1"
+        # aiomqtt.message.Message muss gemockt werden
+        mock_msg_get_version = Mock(spec=Message)
+        mock_msg_get_version.topic = MagicMock()
+        mock_msg_get_version.topic.__str__.return_value = "test/signalduino/v1/commands/get/system/version"
+        mock_msg_get_version.payload = b'{"req_id": "test_req_version"}'
 
-        yield mock_msg_version
-        yield mock_msg_set
-        
-        # Simuliere endloses Warten, bis Task abgebrochen wird
-        while True:
-            await asyncio.sleep(100)
-    
+        yield mock_msg_get_version
+        # Generator endet hier
+
     # Setze den asynchronen Generator als Rückgabewert von __aiter__ des messages-Mocks
     mock_client_instance.messages.__aiter__ = Mock(return_value=mock_messages_generator())
 
-    publisher = MqttPublisher()
-    
-    # Der Callback muss jetzt async sein
-    mock_command_callback = AsyncMock()
-    publisher.register_command_callback(mock_command_callback)
-    
-    # Die subscribtion wird in der Fixture mock_mqtt_client gesetzt. Entferne die Redundanz.
-    
-    async with publisher:
-        # Führe den Listener in einer Task aus
-        listener_task = asyncio.create_task(publisher._command_listener())
+    publisher = MqttPublisher(mock_controller)
 
-        # Warte, bis die beiden Nachrichten verarbeitet sind.
-        await asyncio.sleep(0.5) # Längere Pause, um die Verarbeitung sicherzustellen
-        
-        # Breche die Listener-Task ab, um den Test zu beenden
-        listener_task.cancel()
-        
-        # Warte auf die Task-Stornierung
-        try:
-            await listener_task
-        except asyncio.CancelledError:
-            pass
-        
-    mock_client_instance.subscribe.assert_called_once_with("test/signalduino/commands/#")
+    # Mock publish_simple, das vom Publisher zum Senden der Response aufgerufen wird
+    with patch.object(publisher, 'publish_simple', new=AsyncMock()) as mock_publish_simple:
+    
+        async with publisher:
+            # Listener-Task wird jetzt automatisch in __aenter__ gestartet und verarbeitet die Nachrichten.
 
-    # Überprüfe die Callback-Aufrufe
-    mock_command_callback.assert_any_call("version", "GET")
-    mock_command_callback.assert_any_call("set/XE", "1")
-    assert mock_command_callback.call_count == 2
-    assert "Received MQTT message on test/signalduino/commands/version: GET" in caplog.text
-    assert "Received MQTT message on test/signalduino/commands/set/XE: 1" in caplog.text
+            # Warte, bis die Nachricht verarbeitet ist.
+            await asyncio.sleep(0.1) 
+            
+            # Die Task wird beim Verlassen des async with Blocks von __aexit__ sauber beendet.
+            
+        mock_client_instance.subscribe.assert_called_once_with("test/signalduino/v1/commands/#")
+
+        # Überprüfe die Aufrufe an den Controller
+        mock_controller.get_version.assert_called_once_with({"req_id": "test_req_version"})
+        
+        # Überprüfe den publish_simple Aufruf (als Response)
+        expected_payload_response = json.dumps({
+            "command": "get/system/version",
+            "success": True,
+            "req_id": "test_req_version",
+            "payload": "MockVersion",
+        }) # MqttPublisher serialisiert ohne indent
+
+        mock_publish_simple.assert_called_once_with(
+            subtopic="responses",
+            payload=expected_payload_response,
+            retain=False
+        )
+        assert "Received MQTT message on test/signalduino/v1/commands/get/system/version: {\"req_id\": \"test_req_version\"}" in caplog.text
+
+@patch("signalduino.mqtt.mqtt.Client")
+@pytest.mark.asyncio
+async def test_mqtt_publisher_handle_get_frequency_success(MockClient, caplog, mock_controller):
+    """Testet den asynchronen Befehls-Listener für get/cc1101/frequency bei Erfolg."""
+    caplog.set_level(logging.DEBUG)
+    
+    # Konfiguriere Mocks
+    mock_client_instance = MockClient.return_value
+    mock_client_instance.subscribe = AsyncMock()
+    mock_client_instance.messages = MagicMock()
+    MockClient.return_value.__aenter__ = AsyncMock(return_value=None)
+    MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+
+    # Setze den erwarteten Rückgabewert der Controller-Methode
+    # Der Controller ruft commands.get_frequency auf, welches jetzt das formatierte Dict zurückgibt.
+    mock_controller.get_frequency = AsyncMock(return_value={"frequency_mhz": 433.9201})
+    
+    # Mock des asynchronen Message-Generators, um "get/cc1101/frequency" zu senden
+    async def mock_messages_generator():
+        mock_msg = Mock(spec=Message)
+        mock_msg.topic = MagicMock()
+        mock_msg.topic.__str__.return_value = "test/signalduino/v1/commands/get/cc1101/frequency"
+        # Sende Payload mit req_id, um Konsistenz zu gewährleisten
+        mock_msg.payload = b'{"req_id": "test_req_001"}' 
+
+        yield mock_msg
+        # Generator endet hier
+
+    mock_client_instance.messages.__aiter__ = Mock(return_value=mock_messages_generator())
+
+    publisher = MqttPublisher(mock_controller)
+
+    with patch.object(publisher, 'publish_simple', new=AsyncMock()) as mock_publish_simple:
+    
+        async with publisher:
+            await asyncio.sleep(0.1) 
+            
+        mock_client_instance.subscribe.assert_called_once_with("test/signalduino/v1/commands/#")
+        # Payload muss json.loads(b'{"req_id": "test_req_001"}').get("req_id") sein
+        mock_controller.get_frequency.assert_called_once_with({"req_id": "test_req_001"})
+        
+        # Überprüfe den publish_simple Aufruf (als Response)
+        expected_payload_response = json.dumps({
+            "command": "get/cc1101/frequency",
+            "success": True,
+            "req_id": "test_req_001",
+            "payload": {
+                "frequency_mhz": 433.9201 # gerundet auf 4 Dezimalstellen
+            },
+        }) 
+
+        mock_publish_simple.assert_called_once_with(
+            subtopic="responses",
+            payload=expected_payload_response,
+            retain=False
+        )
+        assert "Successfully handled and published response for command get/cc1101/frequency." in caplog.text
+
+
+@patch("signalduino.mqtt.mqtt.Client")
+@pytest.mark.asyncio
+async def test_mqtt_publisher_handle_empty_payload_fix(MockClient, caplog, mock_controller):
+    """Testet den asynchronen Befehls-Listener bei leerem Payload für Kommandos, die JSON erwarten (Verifizierung des Fixes)."""
+    caplog.set_level(logging.DEBUG)
+    
+    # Konfiguriere Mocks
+    mock_client_instance = MockClient.return_value
+    mock_client_instance.subscribe = AsyncMock()
+    mock_client_instance.messages = MagicMock()
+    MockClient.return_value.__aenter__ = AsyncMock(return_value=None)
+    MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+
+    # Setze den erwarteten Rückgabewert der Controller-Methode
+    # Der Controller ruft commands.get_frequency auf, welches jetzt das formatierte Dict zurückgibt.
+    mock_controller.get_frequency = AsyncMock(return_value={"frequency_mhz": 433.9201})
+    
+    # Mock des asynchronen Message-Generators, um "get/cc1101/frequency" mit leerem Payload zu senden
+    async def mock_messages_generator():
+        mock_msg = Mock(spec=Message)
+        mock_msg.topic = MagicMock()
+        mock_msg.topic.__str__.return_value = "test/signalduino/v1/commands/get/cc1101/frequency"
+        # Sende Payload mit req_id, um Validierung zu gewährleisten
+        mock_msg.payload = b'{"req_id": "test_req_empty"}' 
+
+        yield mock_msg
+        # Generator endet hier
+
+    mock_client_instance.messages.__aiter__ = Mock(return_value=mock_messages_generator())
+
+    publisher = MqttPublisher(mock_controller)
+
+    with patch.object(publisher, 'publish_simple', new=AsyncMock()) as mock_publish_simple:
+    
+        async with publisher:
+            await asyncio.sleep(0.1) 
+            
+        # Überprüfe, dass der Controller mit dem Payload-Dict aufgerufen wurde
+        mock_controller.get_frequency.assert_called_once_with({"req_id": "test_req_empty"})
+        
+        # Überprüfe den publish_simple Aufruf (als Response)
+        expected_payload_response = json.dumps({
+            "command": "get/cc1101/frequency",
+            "success": True,
+            "req_id": "test_req_empty", # req_id aus dem Payload
+            "payload": {
+                "frequency_mhz": 433.9201
+            },
+        }) 
+
+        mock_publish_simple.assert_called_once_with(
+            subtopic="responses",
+            payload=expected_payload_response,
+            retain=False
+        )
+        # Es sollte KEIN JSONDecodeError im Log sein
+        assert "json.decoder.JSONDecodeError" not in caplog.text
+        assert "Successfully handled and published response for command get/cc1101/frequency." in caplog.text
 
 
 # Ersetze die MockTransport-Klasse
@@ -253,10 +368,13 @@ class MockTransport(BaseTransport):
     def is_open(self) -> bool:
         return self._is_open
 
-    async def aopen(self):
+    def closed(self) -> bool:
+        return not self._is_open
+
+    async def open(self):
         self._is_open = True
 
-    async def aclose(self):
+    async def close(self):
         self._is_open = False
 
     async def readline(self, timeout: Optional[float] = None) -> Optional[str]:
@@ -268,11 +386,11 @@ class MockTransport(BaseTransport):
         pass
 
     async def __aenter__(self):
-        await self.aopen()
+        await self.open()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.aclose()
+        await self.close()
 
 
 @patch("signalduino.controller.MqttPublisher")
@@ -308,8 +426,10 @@ async def test_controller_aexit_calls_publisher_aexit(MockMqttPublisher):
     with patch.dict(os.environ, {"MQTT_HOST": "test-host"}, clear=True):
         controller = SignalduinoController(transport=MockTransport())
         
-    async with controller:
-        pass
+    controller._main_tasks = [] # Verhindert, dass aexit leere Tasks abbricht
+    with patch.object(controller, 'initialize', new=AsyncMock()):
+        async with controller:
+            pass
     
     mock_publisher_instance.__aenter__.assert_called_once()
     mock_publisher_instance.__aexit__.assert_called_once()
@@ -337,21 +457,24 @@ async def test_controller_parser_loop_publishes_message(
     # um die Nachricht direkt einzufügen (einfacher als den Transport zu mocken)
     controller = SignalduinoController(transport=mock_transport, parser=mock_parser_instance)
     
-    async with controller:
-        # Starte den Parser-Task manuell, da run() im Test nicht aufgerufen wird
-        parser_task = asyncio.create_task(controller._parser_task())
-        
-        # Fügen Sie die Nachricht manuell in die Queue ein
-        # Die Queue ist eine asyncio.Queue und benötigt await
-        await controller._raw_message_queue.put("MS;P0=1;D=...;\n")
-        
-        # Geben Sie dem Parser-Task Zeit, die Nachricht zu verarbeiten
-        await asyncio.sleep(0.5)
-        
-        # Beende den Parser-Task sauber
-        controller._stop_event.set()
-        await parser_task
-        
-        # Überprüfe, ob der Publisher für die DecodedMessage aufgerufen wurde
-        # Der Publish-Aufruf ist jetzt auch async
-        mock_publisher_instance.publish.assert_called_once_with(mock_decoded_message)
+    with patch.object(controller, 'initialize', new=AsyncMock()):
+        controller._main_tasks = [] 
+        async with controller:
+            # Starte den Parser-Task manuell, da run() im Test nicht aufgerufen wird
+            parser_task = asyncio.create_task(controller._parser_task())
+            
+            # Fügen Sie die Nachricht manuell in die Queue ein
+            # Die Queue ist eine asyncio.Queue und benötigt await
+            await controller._raw_message_queue.put("MS;P0=1;D=...;\n")
+            
+            # Geben Sie dem Parser-Task Zeit, die Nachricht zu verarbeiten
+            await asyncio.sleep(0.5)
+            
+            # Beende den Parser-Task sauber
+            controller._stop_event.set()
+            parser_task.cancel()
+            await asyncio.gather(parser_task, return_exceptions=True)
+            
+            # Überprüfe, ob der Publisher für die DecodedMessage aufgerufen wurde
+            # Der Publish-Aufruf ist jetzt auch async
+            mock_publisher_instance.publish.assert_called_once_with(mock_decoded_message)

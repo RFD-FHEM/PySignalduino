@@ -1,5 +1,10 @@
 # Helper Functions Migration
 
+## References
+
+- **Original Perl Project (RFFHEM)**: [https://github.com/RFD-FHEM/RFFHEM](https://github.com/RFD-FHEM/RFFHEM)
+- **SIGNALDuino Hardware Repository**: [https://github.com/RFD-FHEM/SIGNALDuino](https://github.com/RFD-FHEM/SIGNALDuino)
+
 ## Overview
 This document describes the migration of Perl protocol helper functions to Python.
 

@@ -6,3 +6,6 @@ temp_repo/
 SIGNALDuino-Firmware/
 .devcontainer/devcontainer.env
 .devcontainer/.devcontainer.env
+.devcontainer/mosquitto/data/
+.devcontainer/mosquitto/log/
+.roo/mcp.json

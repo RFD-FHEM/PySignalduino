@@ -1,0 +1,74 @@
+= Architektur-Proposal: {Proposal-Titel}
+:doctype: article
+:encoding: utf-8
+:lang: de
+:author: {Autor}
+:email: {Email}
+:revnumber: 1.0
+:revdate: {Datum}
+:xrefstyle: full
+
+[[status]]
+== Status
+
+|===
+|Status|Datum der letzten Änderung|Entscheidungsträger
+
+|Draft
+|{Datum}
+|{Entscheidungsträger}
+|===
+
+[[zusammenfassung]]
+== 1. Zusammenfassung (Executive Summary)
+
+{Kurze Zusammenfassung des Proposals.}
+
+[[problem-definition]]
+== 2. Problemstellung und Motivation
+
+{Detaillierte Beschreibung des Problems, das gelöst werden soll, und der Grund, warum diese Lösung benötigt wird.}
+
+[[ziele]]
+== 3. Ziele
+
+{Klare, messbare Ziele des Proposals.}
+
+[[vorgeschlagene-architektur]]
+== 4. Vorgeschlagene Architektur
+
+{Detaillierte Beschreibung der vorgeschlagenen Architektur, Komponenten und deren Interaktion.}
+
+=== 4.1. Komponenten-Diagramm (Mermaid)
+
+[mermaid]
+----
+{Mermaid Diagramm}
+----
+
+=== 4.2. Sequenz-Diagramm (Mermaid)
+
+[mermaid]
+----
+{Mermaid Diagramm für den Hauptablauf}
+----
+
+[[schnittstellen]]
+== 5. Betroffene Schnittstellen (APIs, MQTT Topics)
+
+{Auflistung und Beschreibung aller neuen oder geänderten Schnittstellen.}
+
+[[alternativen]]
+== 6. Alternativen in Betracht gezogen
+
+{Beschreibung der in Betracht gezogenen Alternativen und der Gründe für deren Ablehnung.}
+
+[[auswirkungen]]
+== 7. Auswirkungen und Migration
+
+{Beschreibung der Auswirkungen auf bestehenden Code und des Migrationspfads.}
+
+[[implementierungsplan]]
+== 8. Implementierungs-Plan
+
+{High-Level Implementierungsschritte (Verweis auf Implementierungs-Plan in Phase 2).}

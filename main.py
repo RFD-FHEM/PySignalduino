@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from signalduino.constants import SDUINO_CMD_TIMEOUT
 from signalduino.controller import SignalduinoController
 from signalduino.exceptions import SignalduinoConnectionError, SignalduinoCommandTimeout
+from signalduino.mqtt import MqttPublisher
 from signalduino.transport import SerialTransport, TCPTransport
 from signalduino.types import DecodedMessage, RawFrame # NEU: RawFrame
 
@@ -58,7 +59,7 @@ async def _async_run(args: argparse.Namespace):
         logger.info(f"Initialisiere serielle Verbindung auf {args.serial} mit {args.baud} Baud...")
         transport = SerialTransport(port=args.serial, baudrate=args.baud)
     elif args.tcp:
-        logger.info(f"Initialisiere TCP Verbindung zu {args.tcp}:{args.port}...")
+        logger.info(f"Initializing TCP connection to {args.tcp}:{args.port}...")
         transport = TCPTransport(host=args.tcp, port=args.port)
 
     # Wenn weder --serial noch --tcp (oder deren ENV-Defaults) gesetzt sind
@@ -67,18 +68,42 @@ async def _async_run(args: argparse.Namespace):
         sys.exit(1)
 
     # Controller initialisieren
+    # Wir initialisieren den Controller zuerst (mit mqtt_publisher=None),
+    # um ihn als Argument an MqttPublisher übergeben zu können (zirkuläre Abhängigkeit).
     controller = SignalduinoController(
         transport=transport,
         message_callback=message_callback,
-        logger=logger
+        logger=logger,
+        mqtt_publisher=None # Wird später zugewiesen
     )
+
+    # MQTT Publisher explizit initialisieren, falls Host in Argumenten gesetzt
+    mqtt_publisher = None
+    # args.mqtt_host ist gesetzt, wenn es entweder als CLI-Argument übergeben wurde
+    # oder wenn es als Umgebungsvariable gesetzt war (Standardwert in main()).
+    # Wir prüfen hier nur, ob ein Wert vorhanden ist, da der Controller sonst
+    # intern die Umgebungsvariable MQTT_HOST prüft.
+    if args.mqtt_host:
+        logger.info(f"Initializing MQTT publisher for host: {args.mqtt_host}")
+        mqtt_publisher = MqttPublisher(
+            logger=logger,
+            controller=controller, # Korrektur: Fügt das fehlende 'controller'-Argument hinzu
+            host=args.mqtt_host,
+            port=args.mqtt_port,
+            username=args.mqtt_username,
+            password=args.mqtt_password,
+            topic=args.mqtt_topic,
+        )
+        # Weisen Sie den Publisher dem Controller nachträglich zu.
+        controller.mqtt_publisher = mqtt_publisher # NEU: Nachträgliche Zuweisung
+
     
     # Starten
     try:
-        logger.info("Verbinde zum Signalduino...")
+        logger.info("Connecting to Signalduino...")
         # NEU: Verwende async with Block
         async with controller:
-            logger.info("Verbunden! Starte Initialisierung und Hauptschleife...")
+            logger.info("Connected! Starting initialization and main loop...")
             
             # Starte die Hauptschleife, warte auf deren Beendigung oder ein Timeout
             await controller.run(timeout=args.timeout)

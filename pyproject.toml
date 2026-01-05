@@ -19,6 +19,7 @@ include = ["signalduino", "sd_protocols"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+timeout = 30
 
 [tool.pytest-asyncio]
 mode = "auto"

@@ -1,0 +1,116 @@
+= Architekturproposal: Implementierung der MQTT SET-Befehle für CC1101-Parameter
+:revdate: 2026-01-04
+:sectnums:
+:mermaid:
+
+// Absicht und Zielsetzung
+== 1. Zielsetzung und Scope
+Dieses Architekturproposal beschreibt die Implementierung der CC1101-Parameter-Set-Befehle über MQTT. Die Funktionalität umfasst das Setzen von Frequenz, Bandbreite, Datenrate, Sensitivity und Ramping-Level (Rampl). Das Ziel ist es, eine konsistente, zuverlässige Kette vom MQTT-Topic bis zum seriellen Kommando an den Signalduino zu gewährleisten.
+
+== 2. Betroffene Komponenten
+|===
+|Komponente |Verantwortlichkeit |Änderungsumfang
+
+|`signalduino/mqtt.py` (`MqttCommandDispatcher`)
+|Verbindung zwischen Topic und Controller-Methode.
+|Minimal, da die Pfade und Schemata bereits in [`SignalduinoCommands.COMMAND_MAP`](signalduino/commands.py) definiert sind.
+
+|`signalduino/controller.py` (`SignalduinoController`)
+|Entpacken der MQTT-Payloads und Aufruf der korrespondierenden Methoden in `SignalduinoCommands`.
+|Erweiterung um 5 neue Public-Methoden: `set_cc1101_frequency`, `set_cc1101_bandwidth`, `set_cc1101_datarate`, `set_cc1101_sensitivity`, `set_cc1101_rampl`.
+
+|`signalduino/commands.py` (`SignalduinoCommands`)
+|Niedrigstufige Kommunikation mit dem Signalduino-Gerät; Umrechnung von physikalischen Werten in CC1101-Registerwerte.
+|Implementierung neuer/vollständiger Methoden: `set_frequency`, `set_datarate`.
+|Prüfung und ggf. Vervollständigung/Anpassung von: `set_bwidth`, `set_sens`, `set_rampl`.
+|===
+
+== 3. Architektonischer Flow und Sequenz
+Der Befehlsfluss folgt dem etablierten Muster des MQTT Command Dispatchers.
+
+[mermaid, set-command-sequence, svg]
+....
+sequenceDiagram
+    participant M as MQTT Client
+    participant D as MqttCommandDispatcher
+    participant C as SignalduinoController
+    participant S as SignalduinoCommands
+    participant SD as Signalduino (Serial)
+    
+    M->>D: PUBLISH set/cc1101/frequency {"value": 433.92, ...}
+    D->>C: set_cc1101_frequency(payload)
+    C->>S: set_frequency(value_mhz)
+    S->>S: Berechne FREQ2, FREQ1, FREQ0
+    S->>SD: Sende W0F<FREQ2>
+    SD-->>S: ACK/NACK (Implizit: Timeout)
+    S->>SD: Sende W10<FREQ1>
+    SD-->>S: ACK/NACK
+    S->>SD: Sende W11<FREQ0>
+    SD-->>S: ACK/NACK
+    S->>S: cc1101_write_init()
+    S->>C: return "OK"
+    C->>D: return "OK"
+    D->>M: PUBLISH status/cc1101/frequency (optional: result)
+....
+
+=== 3.1. Detaillierte Implementierung in `SignalduinoCommands`
+
+Die Methoden in `SignalduinoCommands` sind für die Umrechnung und das Senden der spezifischen seriellen Befehle verantwortlich.
+
+==== 3.1.1. `async def set_frequency(self, frequency_mhz: float, timeout: float = 2.0)`
+* **Berechnung:** Frequenz in MHz muss in die 3-Byte-Registerwerte (FREQ2, FREQ1, FREQ0) umgerechnet werden.
+  [source, python]
+  ----
+  # Freq = f_xosc * FREQ / 2^16. Bei f_xosc = 26 MHz
+  # FREQ = frequency_mhz * 1_000_000 * 2**16 / 26_000_000
+  # FREQ = frequency_mhz * 2560
+  # FREQ = (FREQ2 << 16) + (FREQ1 << 8) + FREQ0
+  ----
+* **Befehlssatz:** Drei separate `W`-Befehle, gefolgt von `cc1101_write_init()`.
+  - `W0F<FREQ2_hex>`
+  - `W10<FREQ1_hex>`
+  - `W11<FREQ0_hex>`
+
+==== 3.1.2. `async def set_datarate(self, datarate_kbaud: float, timeout: float = 2.0)`
+* **Berechnung:** Die Datenrate in kBaud muss in die Registerwerte MDMCFG4 (DRATE_E) und MDMCFG3 (DRATE_M) umgerechnet werden. Diese Berechnung ist komplex und wird aus der CC1101-Dokumentation oder dem existierenden Signalduino-Code abgeleitet.
+  [source, python]
+  ----
+  # Data Rate = f_ref * (256 + DRATE_M) * 2^DRATE_E / (2^28)
+  # Wobei f_ref = 26 MHz
+  ----
+* **Befehlssatz:** Zwei separate `W`-Befehle (Register-Adresse `0x10` und `0x11`), gefolgt von `cc1101_write_init()`.
+
+==== 3.1.3. `async def set_bwidth(self, bwidth_khz: float, timeout: float = 2.0)`
+* **Existierender Code:** Der existierende Code in `SignalduinoCommands` verwendet den Spezialbefehl `C101<BW>`.
+* **Entscheidung:** Wir behalten den `C101<BW>` Befehl bei, sofern er die Bandbreite korrekt setzt und die Komplexität der CC1101-Berechnung umgeht. Eine Überprüfung der Berechnung in der Implementierungsphase ist notwendig.
+* **Befehlssatz:** Ein `C101XX` Befehl, gefolgt von `cc1101_write_init()`.
+
+==== 3.1.4. `async def set_sensitivity(self, sensitivity_dbm: float, timeout: float = 2.0)`
+* **Befehlssatz:** Verwendet den generischen Register-Write-Befehl `W1F`. Die Umrechnungslogik von dB-Wert in den Signalduino-spezifischen Wert (`9X`-Format) erfolgt in der Python-Implementierung.
+* **Serial Command:** `W1F<Value>`, gefolgt von `cc1101_write_init()`.
+
+==== 3.1.5. `async def set_rampl(self, rampl_value: int, timeout: float = 2.0)`
+* **Befehlssatz:** Verwendet den generischen Register-Write-Befehl `W1D`. Die Umrechnungslogik von dB-Wert in den Registerindex (`00`-`07`) erfolgt in der Python-Implementierung.
+* **Serial Command:** `W1D<Index>`, gefolgt von `cc1101_write_init()`.
+
+=== 3.2. MQTT Payload und `req_id`-Behandlung
+
+Das Feld `req_id` in allen MQTT-Command-Payloads (sowohl `set/...` als auch `get/...` und `command/...`) ist ab sofort *optional*.
+
+* **Anfrage:** Wird `req_id` nicht in der Anfrage gesendet, darf die Payload-Validierung nicht fehlschlagen.
+* **Antwort:** Bei Fehlen der `req_id` in der Anfrage wird das Feld `req_id` in der Antwort-Payload (Topics `responses` und `errors`) den Wert `null` (JSON null) annehmen.
+
+== 4. Fehlerbehandlung und Validierung
+1. **Validierung (Dispatcher):** Die MQTT-Payloads werden durch das in [`SignalduinoCommands.COMMAND_MAP`](signalduino/commands.py) definierte `schema` (z.B. `FREQ_SCHEMA`, `DATARATE_SCHEMA`) vor dem Aufruf der Controller-Methode validiert.
+2. **Serial-Kommunikation:** `SignalduinoCommands._send_command` wird bei Timeout eine `SignalduinoCommandTimeout` werfen. Diese wird im `SignalduinoController` gefangen und als NACK-Statusmeldung zurückgegeben.
+3. **`cc1101_write_init`:** Nach jedem Set-Vorgang muss `SignalduinoCommands.cc1101_write_init()` aufgerufen werden, um die CC1101-Konfiguration erneut in das Chip-Register zu schreiben und die Änderungen zu aktivieren.
+
+== 5. Teststrategie
+* **Unit Tests (`tests/test_mqtt_cc1101.py` oder neu: `tests/test_set_commands.py`):**
+  - Testen, dass die `SignalduinoCommands.set_XXX`-Methoden bei gegebenen physikalischen Werten (z.B. Frequenz in MHz) die korrekten seriellen Befehle (`W0F...`, `W10...`, `W11...` für Frequenz) an `_send_command` senden.
+  - Verifizieren, dass nach den Set-Befehlen `cc1101_write_init()` aufgerufen wird.
+* **Integration Tests (`tests/test_mqtt_commands.py`):**
+  - Testen des gesamten Flows vom MQTT-Topic bis zur Befehlsausführung, indem `_send_command` gemockt und die Argumente geprüft werden.
+
+== 6. Konformitätsprüfung
+Dieses Proposal ist konform mit dem "Architecture-First Development Process". Die Architekturentscheidungen werden vor der Implementierung getroffen und dokumentiert.

@@ -3,19 +3,27 @@
 {
 	"name": "Python 3",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/python:2-3-bookworm",
-	"features": {
-		//"ghcr.io/hspaans/devcontainer-features/pytest:2": {}
-	},
-
+	"dockerComposeFile": "docker-compose.yml",
+	"workspaceFolder": "/workspaces/PySignalduino",
+	"service": "devcontainer",
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
-
+	"features": {
+		"ghcr.io/devcontainers/features/node:1": {
+			"nodeGypDependencies": true,
+			"installYarnUsingApt": true,
+			"version": "lts",
+			"pnpmVersion": "latest",
+			"nvmVersion": "latest"
+		},
+		"ghcr.io/devcontainer-community/devcontainer-features/astral.sh-uv:1": {
+			"shellautocompletion": true,
+			"version": "latest"
+		}
+		//"ghcr.io/hspaans/devcontainer-features/pytest:2": {}
+	},
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
-
-	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "pip3 install --user -r requirements-dev.txt  -r requirements.txt || exit 0",
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -23,11 +31,6 @@
 			]
 		}
 	},
-	"runArgs": ["--env-file", ".devcontainer/devcontainer.env"]
-
-	// Configure tool-specific properties.
-	// "customizations": {},
-
-	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
+	// Use 'postCreateCommand' to run commands after the container is created.
+	"postCreateCommand": "pip3 install --user -r requirements-dev.txt  -r requirements.txt || exit 0"
 }

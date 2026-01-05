@@ -45,6 +45,8 @@ class MessageUnsyncedMixin:
         mu_protocols = self.get_keys('clockabs')
         
         for pid in mu_protocols:
+            if not self.check_property(pid, 'active', True):
+                continue
             self._logging(f"MU checking PID {pid}", 5)
             # Prepare working copy of raw_data and patterns
             # (Perl does this per protocol iteration because filterfunc might modify them)
@@ -144,63 +146,40 @@ class MessageUnsyncedMixin:
             # Construct Regex
             # Perl: $regex="(?:$startStr)($signalRegex)"; where signalRegex is (one|zero|float){min,}
             
-            signal_or_group = "|".join(signal_regex_parts)
-            if self.get_property(pid, 'reconstructBit'):
-                 # Add endPatternLookup keys
-                 extras = [re.escape(k) for k in end_pattern_lookup.keys()]
-                 if extras:
-                     signal_or_group += "|" + "|".join(extras)
+            # Build the base repeating pattern (signal_group_inner)
+            # Optimization for catastrophic backtracking (e.g., P61: '12|11' -> '1(2|1)') 
+            # Only apply if all parts share the same length and single-character prefix.
             
-            length_min = self.check_property(pid, 'length_min', 0)
-            # length_max = self.check_property(pid, 'length_max', '') 
+            unescaped_parts = list(pattern_lookup.keys())
+            signal_group_inner = "|".join(signal_regex_parts) # Default: unoptimized
             
-            # Python re doesn't support variable length lookbehind or similar easily, 
-            # but here we are matching forward.
-            # Perl loop: while ( $rawData =~ m/$regex/g)
-            # regex = (?:$startStr)((?:p1|p2|...){min,})
-            
-            # We already sliced raw_data to start at startStr if present.
-            # So startStr is at the beginning of current_raw_data.
-            # However, if startStr was found, it is consumed? 
-            # Perl: $rawData = substr($rawData, $message_start);
-            # regex = "(?:$startStr)($signalRegex)";
-            # So it matches startStr again at the beginning? 
-            # Wait, if we sliced it, the first chars ARE startStr.
-            
-            # Let's try to match iteratively
-            
-            full_regex_str = f"(?:{re.escape(start_str)})((?:{signal_or_group}){{ {length_min}, }})"
-            if self.get_property(pid, 'reconstructBit'):
-                 # Perl: $signalRegex .= '(?:' . join('|',keys %endPatternLookupHash) . ')?';
-                 # This is appended to the repeating group? No.
-                 # Perl code:
-                 # $signalRegex .= qq[{$length_min,}];
-                 # if (defined(...reconstructBit...)) { $signalRegex .= '(?:' . join('|',keys %endPatternLookupHash) . ')?'; }
-                 # So it's ((?:p1|p2){min,}(?:partial)?)
-                 pass # Logic handled below manually or we construct regex precisely
-                 
-            # It seems cleaner to just use the regex to find the data part
-            # Constructing complex regex in Python from dynamic parts
-            
-            # Simplified approach:
-            # 1. We are at start of potential message (startStr)
-            # 2. Extract as many valid chunks as possible
-            
-            # Re-implementing Perl's while loop over matches
-            # The regex matches the *entire* message (start + data).
-            
-            # Adjust signal_or_group for the repeating part
-            signal_group_inner = "|".join(signal_regex_parts)
-            
+            try:
+                # Check if optimization is possible (all same length, same prefix, length > 1)
+                if unescaped_parts and all(len(p) == len(unescaped_parts[0]) for p in unescaped_parts) and len(unescaped_parts[0]) > 1:
+                    first_part = unescaped_parts[0]
+                    prefix = first_part[0]
+                    
+                    if all(p.startswith(prefix) for p in unescaped_parts):
+                        suffixes = [p[1:] for p in unescaped_parts]
+                        
+                        # Reconstruct the inner group: prefix(?:suffix1|suffix2|...)
+                        # Note: re.escape is safe even for single characters
+                        signal_group_inner = re.escape(prefix) + "(?:" + "|".join(re.escape(s) for s in suffixes) + ")"
+                        self._logging(f"MU Demod: Optimized repeating pattern for PID {pid}: {signal_group_inner}", 5)
+            except Exception:
+                # Fallback to default in case of unexpected pattern data
+                pass
+                
             # Handle reconstructBit logic for regex end
             reconstruct_part = ""
             if self.get_property(pid, 'reconstructBit') and end_pattern_lookup:
                 reconstruct_part = "(?:" + "|".join([re.escape(k) for k in end_pattern_lookup.keys()]) + ")?"
             
-            # We need to compile this regex
+            length_min = self.check_property(pid, 'length_min', 0)
+
             # Note: Python f-string braces need escaping
             regex_pattern = f"(?:{re.escape(start_str)})((?:{signal_group_inner}){{{length_min},}}{reconstruct_part})"
-            
+
             try:
                 # print(f"DEBUG: Compiling regex for {pid}: {regex_pattern[:50]}...")
                 matcher = re.compile(regex_pattern)

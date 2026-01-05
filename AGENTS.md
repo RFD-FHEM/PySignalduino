@@ -15,6 +15,14 @@ This file provides guidance to agents when working with code in this repository.
   oder um eine längere Laufzeit zu analysieren:
   `python3 main.py --timeout 30`
 
+## Test Timeout Configuration
+- Für pytest wurde ein globaler Timeout von 30 Sekunden in der `pyproject.toml` konfiguriert:
+  ```toml
+  [tool.pytest.ini_options]
+  timeout = 30
+  ```
+- Die erforderliche Abhängigkeit `pytest-timeout` wurde zur `requirements-dev.txt` hinzugefügt.
+
 ## Mandatory Documentation and Test Maintenance
 
 Diese Richtlinie gilt für alle AI-Agenten, die Code oder Systemkonfigurationen in diesem Repository ändern. Jede Änderung **muss** eine vollständige Analyse der Auswirkungen auf die zugehörige Dokumentation und die Testsuite umfassen.
@@ -83,7 +91,7 @@ Dieser Abschnitt definiert den verbindlichen Arbeitsablauf für die Entwicklung 
   - Aufteilung in konkrete Arbeitspakete (Tasks)
   - Definition von Akzeptanzkriterien für jede Komponente
   - Planung von Teststrategien (Unit, Integration, System)
-  - Ressourcen- und Zeitplanung
+  - Ressourcen- und Zeitplaning
   - Erstellung von Mockups/Prototypen für kritische Pfade
 - **Deliverables:**
   - Implementierungsplan mit Task-Breakdown
@@ -244,3 +252,44 @@ flowchart TD
 Dieser Architecture-First Development Process ist für **alle** neuen Funktionen und wesentlichen Änderungen verbindlich. Ausnahmen sind nur bei kritischen Bugfixes erlaubt und müssen durch einen Emergency-ADR dokumentiert werden. Jede Abweichung vom Prozess muss vom Architecture Owner genehmigt werden.
 
 Die Einhaltung dieses Prozesses gewährleistet, dass Design-Entscheidungen bewusst getroffen, dokumentiert und nachvollziehbar sind, was die langfristige Wartbarkeit, Skalierbarkeit und Qualität des PySignalduino-Projekts sicherstellt.
+
+## Fehlerbehebungsprozess
+### Problemidentifikation
+1. **Symptom:** ImportError oder ModuleNotFoundError während der Testausführung
+2. **Ursachenanalyse:**
+   - Überprüfen der Traceback-Meldung auf fehlende Module
+   - Vergleich mit requirements.txt und requirements-dev.txt
+   - Prüfen der Dokumentation auf Installationsanweisungen
+
+### Lösungsimplementierung (Abhängigkeiten)
+1. **requirements-dev.txt aktualisieren:**
+   - Modulname zur Datei hinzufügen
+   - Commit mit Conventional Commits Syntax erstellen (z.B. "fix: add <module> to requirements-dev.txt")
+2. **Dokumentation prüfen:**
+   - Sicherstellen, dass Installationsanweisungen in README.md und docs/ aktuell sind
+
+### Problemidentifikation (Hohe CPU-Last im Parser)
+1. **Symptom:** Anhaltende 100% CPU-Auslastung auf einem oder mehreren Kernen während des Parsens von MU/MC-Nachrichten.
+2. **Ursachenanalyse:**
+   - **Parser-Architektur prüfen:** Der gesamte Parservorgang sollte in [`signalduino/controller.py`](signalduino/controller.py) über `asyncio.to_thread` abgewickelt werden.
+   - **Protokoll-Ineffizienz:** Die synchrone Demodulationsschleife in [`sd_protocols/message_unsynced.py`](sd_protocols/message_unsynced.py) oder [`sd_protocols/manchester.py`](sd_protocols/manchester.py) blockiert den Worker-Thread zu lange.
+3. **Validierung:** Temporäres Hinzufügen von Zeit-Logging (z.B. mit `time.perf_counter()`) in der Protokollschleife in `demodulate_mu` zur Identifizierung des blockierenden Protokolls.
+
+### Lösungsimplementierung (Parser-Performance)
+1. **Backtracking-Hölle vermeiden:** Wenn ein Protokoll eine sehr lange Demodulationszeit (z.B. > 10ms) aufweist, liegt wahrscheinlich ein Catastrophic Backtracking in einem regulären Ausdruck vor.
+2 **Deaktivierung inaktiver Protokolle:** Die `active`-Prüfung in `demodulate_mu` sollte verwendet werden, um inaktive Protokolle auszuschließen.
+
+### Verifikation
+1. **Installation testen:**
+   ```bash
+   pip install -r requirements-dev.txt
+   pytest
+   ```
+2. **Tests erneut ausführen:**
+   ```bash
+   timeout 60 pytest ./tests/
+   ```
+
+### Dokumentation
+- **AGENTS.md aktualisieren:** Diese Prozessbeschreibung hinzufügen
+- **Commit erstellen:** Änderungen mit aussagekräftiger Nachricht committen

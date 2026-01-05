@@ -1,20 +1,12 @@
-import json 
-import logging
+import json
 import re
-import asyncio
 import os
-import traceback
+import time
+import logging
+import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import (
-    Any,
-    Awaitable,
-    Callable,
-    List,
-    Optional,
-    Pattern,
-)
+from typing import Any, Awaitable, Callable, List, Optional, Dict, Tuple, Pattern
 
-# threading, queue, time entfernt
 from .commands import SignalduinoCommands
 from .constants import (
     SDUINO_CMD_TIMEOUT,
@@ -23,716 +15,426 @@ from .constants import (
     SDUINO_INIT_WAIT_XQ,
     SDUINO_STATUS_HEARTBEAT_INTERVAL,
 )
-from .exceptions import SignalduinoCommandTimeout, SignalduinoConnectionError
-from .mqtt import MqttPublisher # Muss jetzt async sein
+from .exceptions import SignalduinoCommandTimeout, SignalduinoConnectionError, CommandValidationError
+from .mqtt import MqttPublisher
+from aiomqtt.exceptions import MqttError
 from .parser import SignalParser
-from .transport import BaseTransport # Muss jetzt async sein
+from .transport import BaseTransport
 from .types import DecodedMessage, PendingResponse, QueuedCommand
 
 
 class SignalduinoController:
     """Orchestrates the connection, command queue and message parsing using asyncio."""
 
+    async def run(self, timeout: Optional[float] = None) -> None:
+        """Run the main loop until the timeout is reached or the stop event is set."""
+        try:
+            if timeout is not None:
+                await asyncio.wait_for(self._stop_event.wait(), timeout=timeout)
+            else:
+                await self._stop_event.wait()
+        except asyncio.TimeoutError:
+            self.logger.info("Main loop timeout reached.")
+        except Exception as e:
+            self.logger.error(f"Error in main loop: {e}")
+            raise
+    """Orchestrates the connection, command queue and message parsing using asyncio."""
+
     def __init__(
         self,
-        transport: BaseTransport, # Erwartet asynchrone Implementierung
+        transport: BaseTransport,
         parser: Optional[SignalParser] = None,
-        # Callback ist jetzt ein Awaitable, da es im Async-Kontext aufgerufen wird
         message_callback: Optional[Callable[[DecodedMessage], Awaitable[None]]] = None,
         logger: Optional[logging.Logger] = None,
+        mqtt_publisher: Optional[MqttPublisher] = None,
     ) -> None:
         self.transport = transport
-        # send_command muss jetzt async sein
-        self.commands = SignalduinoCommands(self.send_command)
         self.parser = parser or SignalParser()
         self.message_callback = message_callback
         self.logger = logger or logging.getLogger(__name__)
-
-        self.mqtt_publisher: Optional[MqttPublisher] = None
-        if os.environ.get("MQTT_HOST"):
-            self.mqtt_publisher = MqttPublisher(logger=self.logger)
-            # handle_mqtt_command muss jetzt async sein
-            self.mqtt_publisher.register_command_callback(self._handle_mqtt_command)
-
-        # Ersetze threading-Objekte durch asyncio-Äquivalente
-        self._stop_event = asyncio.Event()
-        self._raw_message_queue: asyncio.Queue[str] = asyncio.Queue()
+        
+        # NEU: Automatische Initialisierung des MqttPublisher, wenn keine Instanz übergeben wird und
+        # die Umgebungsvariable MQTT_HOST gesetzt ist.
+        if mqtt_publisher is None and os.environ.get("MQTT_HOST"):
+            self.mqtt_publisher = MqttPublisher(controller=self, logger=self.logger)
+        else:
+            self.mqtt_publisher = mqtt_publisher
+        
         self._write_queue: asyncio.Queue[QueuedCommand] = asyncio.Queue()
+        self._raw_message_queue: asyncio.Queue[str] = asyncio.Queue()
         self._pending_responses: List[PendingResponse] = []
         self._pending_responses_lock = asyncio.Lock()
-        self._init_complete_event = asyncio.Event() # NEU: Event für den Abschluss der Initialisierung
-
-        # Timer-Handles (jetzt asyncio.Task anstelle von threading.Timer)
-        self._heartbeat_task: Optional[asyncio.Task[Any]] = None
-        self._init_task_xq: Optional[asyncio.Task[Any]] = None
-        self._init_task_start: Optional[asyncio.Task[Any]] = None
-        
-        # Liste der Haupt-Tasks für die run-Methode
+        self._init_complete_event = asyncio.Event()
+        self._stop_event = asyncio.Event()
         self._main_tasks: List[asyncio.Task[Any]] = []
-
-        self.init_retry_count = 0
-        self.init_reset_flag = False
-        self.init_version_response: Optional[str] = None # Hinzugefügt für _check_version_resp
-
-    # Asynchroner Kontextmanager
-    async def __aenter__(self) -> "SignalduinoController":
-        """Opens transport and starts MQTT connection if configured."""
-        self.logger.info("Entering SignalduinoController async context.")
         
-        # 1. Transport öffnen (Nutzt den aenter des Transports)
-        # NEU: Transport muss als Kontextmanager verwendet werden
-        if self.transport:
-            await self.transport.__aenter__()
-
-        # 2. MQTT starten
-        if self.mqtt_publisher:
-            # Nutzt den aenter des MqttPublishers
-            await self.mqtt_publisher.__aenter__()
-            self.logger.info("MQTT publisher started.")
-            
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> Optional[bool]:
-        """Stops all tasks, closes transport and MQTT connection."""
-        self.logger.info("Exiting SignalduinoController async context.")
-        
-        # 1. Stopp-Event setzen und alle Tasks abbrechen
-        self._stop_event.set()
-        
-        # Tasks abbrechen (Heartbeat, Init-Tasks, etc.)
-        tasks_to_cancel = [
-            self._heartbeat_task,
-            self._init_task_xq,
-            self._init_task_start,
-        ]
-        
-        # Haupt-Tasks abbrechen (Reader, Parser, Writer)
-        # Wir warten nicht auf den Parser/Writer, da sie mit der Queue arbeiten.
-        # Wir müssen nur die Task-Handles abbrechen, da run() bereits auf die kritischen gewartet hat.
-        tasks_to_cancel.extend(self._main_tasks)
-
-        for task in tasks_to_cancel:
-            if task and not task.done():
-                self.logger.debug("Cancelling task: %s", task.get_name())
-                task.cancel()
-
-        # Warte auf das Ende aller Tasks, ignoriere CancelledError
-        # Füge einen kurzen Timeout hinzu, um zu verhindern, dass es unbegrenzt blockiert
-        # Wir sammeln die Futures und warten darauf mit einem Timeout
-        tasks = [t for t in tasks_to_cancel if t is not None and not t.done()]
-        if tasks:
-            try:
-                await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=2.0)
-            except asyncio.TimeoutError:
-                self.logger.warning("Timeout waiting for controller tasks to finish.")
-            
-        self.logger.debug("All controller tasks cancelled.")
-
-        # 2. Transport und MQTT schließen (Nutzt die aexit der Komponenten)
-        if self.transport:
-            # transport.__aexit__ aufrufen
-            await self.transport.__aexit__(exc_type, exc_val, exc_tb)
-            
-        if self.mqtt_publisher:
-            # mqtt_publisher.__aexit__ aufrufen
-            await self.mqtt_publisher.__aexit__(exc_type, exc_val, exc_tb)
-
-        # Lasse nur CancelledError und ConnectionError zu
-        if exc_type and not issubclass(exc_type, (asyncio.CancelledError, SignalduinoConnectionError)):
-            self.logger.error("Exception occurred in async context: %s: %s", exc_type.__name__, exc_val)
-            # Rückgabe False, um die Exception weiterzuleiten
-            return False 
-        
-        return None # Unterdrücke die Exception (CancelledError/ConnectionError sind erwartet/ok)
-
-
-    async def initialize(self) -> None:
-        """Starts the initialization process."""
-        self.logger.info("Initializing device...")
+        # MQTT and initialization state
         self.init_retry_count = 0
         self.init_reset_flag = False
         self.init_version_response = None
-        self._init_complete_event.clear() # NEU: Event für erneute Initialisierung zurücksetzen
-
-        if self._stop_event.is_set():
-            self.logger.warning("initialize called but stop event is set.")
-            return
-
-        # Plane Disable Receiver (XQ) und warte kurz
-        if self._init_task_xq and not self._init_task_xq.done():
-            self._init_task_xq.cancel()
-        # Verwende asyncio.create_task für verzögerte Ausführung
-        self._init_task_xq = asyncio.create_task(self._delay_and_send_xq())
-        self._init_task_xq.set_name("sd-init-xq")
+        self._heartbeat_task: Optional[asyncio.Task[None]] = None
+        self._init_task_xq: Optional[asyncio.Task[None]] = None
+        self._init_task_start: Optional[asyncio.Task[None]] = None
         
-        # Plane StartInit (Get Version)
-        if self._init_task_start and not self._init_task_start.done():
-            self._init_task_start.cancel()
-        self._init_task_start = asyncio.create_task(self._delay_and_start_init())
-        self._init_task_start.set_name("sd-init-start")
+        mqtt_topic_root = self.mqtt_publisher.base_topic if self.mqtt_publisher else None
+        self.commands = SignalduinoCommands(self.send_command, mqtt_topic_root)
+
+    def get_cached_version(self) -> Optional[str]:
+        """Returns the cached firmware version string."""
+        return self.init_version_response
+
+    async def get_version(self, payload: Dict[str, Any]) -> str:
+        """Requests the firmware version from the device and returns the raw response string."""
+        # Der Payload wird vom MqttCommandDispatcher übergeben, wird aber im commands.get_version ignoriert.
+        # commands.get_version ist eine asynchrone Methode in SignalduinoCommands, die 'V' sendet.
+        return await self.commands.get_version()
+
+    async def get_frequency(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Delegates to SignalduinoCommands to get the current CC1101 frequency."""
+        # Der Payload wird vom MqttCommandDispatcher übergeben, aber von commands.get_frequency ignoriert.
+        return await self.commands.get_frequency(payload)
+
+    async def factory_reset(self, payload: Dict[str, Any]) -> str:
+        """Delegates to SignalduinoCommands to execute a factory reset (e)."""
+        # Payload wird zur Validierung akzeptiert, aber ignoriert.
+        return await self.commands.factory_reset()
+
+    async def get_bandwidth(self, payload: Dict[str, Any]) -> float:
+        """Delegates to SignalduinoCommands to get the current CC1101 bandwidth in kHz."""
+        return await self.commands.get_bandwidth(payload)
+
+    async def get_rampl(self, payload: Dict[str, Any]) -> int:
+        """Delegates to SignalduinoCommands to get the current CC1101 receiver amplification in dB."""
+        return await self.commands.get_rampl(payload)
+
+    async def get_sensitivity(self, payload: Dict[str, Any]) -> int:
+        """Delegates to SignalduinoCommands to get the current CC1101 sensitivity in dB."""
+        return await self.commands.get_sensitivity(payload)
+
+    async def get_data_rate(self, payload: Dict[str, Any]) -> float:
+        """Delegates to SignalduinoCommands to get the current CC1101 data rate in kBaud."""
+        return await self.commands.get_data_rate(payload)
+    
+    # --- CC1101 Hardware Status SET-Methoden ---
+
+    async def set_cc1101_frequency(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Sets the CC1101 RF frequency from an MQTT command."""
+        await self.commands.set_frequency(payload["value"])
+        return {"status": "Frequency set successfully", "value": payload["value"]}
+
+    async def set_cc1101_bandwidth(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Sets the CC1101 IF bandwidth from an MQTT command."""
+        await self.commands.set_bwidth(payload["value"])
+        return {"status": "Bandwidth set successfully", "value": payload["value"]}
+
+    async def set_cc1101_datarate(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Sets the CC1101 data rate from an MQTT command."""
+        await self.commands.set_datarate(payload["value"])
+        return {"status": "Data rate set successfully", "value": payload["value"]}
         
-    async def _delay_and_send_xq(self) -> None:
-        """Helper to delay before sending XQ."""
-        try:
-            await asyncio.sleep(SDUINO_INIT_WAIT_XQ)
-            await self._send_xq()
-        except asyncio.CancelledError:
-            self.logger.debug("_delay_and_send_xq cancelled.")
-        except Exception as e:
-            self.logger.exception("Error in _delay_and_send_xq: %s", e)
+    async def set_cc1101_sensitivity(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Sets the CC1101 sensitivity from an MQTT command."""
+        await self.commands.set_sens(payload["value"])
+        return {"status": "Sensitivity set successfully", "value": payload["value"]}
 
-    async def _delay_and_start_init(self) -> None:
-        """Helper to delay before starting init."""
-        try:
-            await asyncio.sleep(SDUINO_INIT_WAIT)
-            await self._start_init()
-        except asyncio.CancelledError:
-            self.logger.debug("_delay_and_start_init cancelled.")
-        except Exception as e:
-            self.logger.exception("Error in _delay_and_start_init: %s", e)
-
-    async def _send_xq(self) -> None:
-        """Sends XQ command."""
-        if self._stop_event.is_set():
-            return
-        try:
-            self.logger.debug("Sending XQ to disable receiver during init")
-            # commands.disable_receiver ist jetzt ein awaitable
-            await self.commands.disable_receiver()
-        except Exception as e:
-            self.logger.warning("Failed to send XQ: %s", e)
-
-    async def _start_init(self) -> None:
-        """Attempts to get the device version to confirm initialization."""
-        if self._stop_event.is_set():
-            return
-
-        self.logger.info("StartInit, get version, retry = %d", self.init_retry_count)
-
-        if self.init_retry_count >= SDUINO_INIT_MAXRETRY:
-            if not self.init_reset_flag:
-                self.logger.warning("StartInit, retry count reached. Resetting device.")
-                self.init_reset_flag = True
-                await self._reset_device()
-            else:
-                self.logger.error("StartInit, retry count reached after reset. Stopping controller.")
-                self._stop_event.set() # Setze Stopp-Event, aexit wird das Schließen übernehmen
-            return
-
-        response: Optional[str] = None
-        try:
-            # commands.get_version ist jetzt ein awaitable
-            response = await self.commands.get_version(timeout=2.0)
-        except Exception as e:
-            self.logger.debug("StartInit: Exception during version check: %s", e)
-
-        await self._check_version_resp(response)
-
-    async def _check_version_resp(self, msg: Optional[str]) -> None:
-        """Handles the response from the version command."""
-        if self._stop_event.is_set():
-            return
-
-        if msg:
-            self.logger.info("Initialized %s", msg.strip())
-            self.init_reset_flag = False
-            self.init_retry_count = 0
-            self.init_version_response = msg
-
-            # NEU: Versionsmeldung per MQTT veröffentlichen
-            if self.mqtt_publisher:
-                # publish_simple ist jetzt awaitable
-                await self.mqtt_publisher.publish_simple("status/version", msg.strip(), retain=True)
-
-            # Enable Receiver XE
-            try:
-                self.logger.info("Enabling receiver (XE)")
-                # commands.enable_receiver ist jetzt ein awaitable
-                await self.commands.enable_receiver()
-            except Exception as e:
-                self.logger.warning("Failed to enable receiver: %s", e)
-
-            # Check for CC1101
-            if "cc1101" in msg.lower():
-                self.logger.info("CC1101 detected")
-            
-            # NEU: Starte Heartbeat-Task
-            await self._start_heartbeat_task()
-            
-            # NEU: Signalisiere den Abschluss der Initialisierung
-            self._init_complete_event.set()
-
-        else:
-            self.logger.warning("StartInit: No valid version response.")
-            self.init_retry_count += 1
-            # Initialisierung wiederholen
-            # Verzögere den Aufruf, um eine Busy-Loop bei Verbindungsfehlern zu vermeiden
-            await asyncio.sleep(1.0) 
-            await self._start_init()
-
-    async def _reset_device(self) -> None:
-        """Resets the device by closing and reopening the transport."""
-        self.logger.info("Resetting device...")
-        # Nutze aexit/aenter Logik, um die Verbindung zu schließen/wiederherzustellen
-        await self.__aexit__(None, None, None) # Schließt Transport und stoppt Tasks/Publisher
-        # Kurze Pause für den Reset
-        await asyncio.sleep(2.0)
-        # NEU: Der Controller ist neu gestartet und muss wieder in den async Kontext eintreten
-        await self.__aenter__()
-        
-        # Manuell die Initialisierung starten
-        self.init_version_response = None
-        self._init_complete_event.clear() # NEU: Event für erneute Initialisierung zurücksetzen
-        
-        try:
-            await self._send_xq()
-            await self._start_init()
-        except Exception as e:
-            self.logger.error("Failed to re-initialize device after reset: %s", e)
-            self._stop_event.set()
-
-    async def _reader_task(self) -> None:
-        """Continuously reads from the transport and puts lines into a queue."""
-        self.logger.debug("Reader task started.")
-        while not self._stop_event.is_set():
-            try:
-                # Nutze await für die asynchrone Transport-Leseoperation
-                # Setze ein Timeout, um CancelledError zu erhalten, falls nötig, und um andere Events zu ermöglichen
-                line = await asyncio.wait_for(self.transport.readline(), timeout=0.1)
-                
-                if line:
-                    self.logger.debug("RX RAW: %r", line)
-                    await self._raw_message_queue.put(line)
-            except asyncio.TimeoutError:
-                continue # Queue ist leer, Schleife fortsetzen
-            except SignalduinoConnectionError as e:
-                # Im Falle eines Verbindungsfehlers das Stopp-Event setzen und die Schleife beenden.
-                self.logger.error("Connection error in reader task: %s", e)
-                self._stop_event.set()
-                break # Schleife verlassen
-            except asyncio.CancelledError:
-                break # Bei Abbruch beenden
-            except Exception:
-                if not self._stop_event.is_set():
-                    self.logger.exception("Unhandled exception in reader task")
-                # Kurze Pause, um eine Endlosschleife zu vermeiden
-                await asyncio.sleep(0.1) 
-        self.logger.debug("Reader task finished.")
-
-    async def _parser_task(self) -> None:
-        """Continuously processes raw messages from the queue."""
-        self.logger.debug("Parser task started.")
-        while not self._stop_event.is_set():
-            try:
-                # Nutze await für das asynchrone Lesen aus der Queue
-                raw_line = await asyncio.wait_for(self._raw_message_queue.get(), timeout=0.1)
-                self._raw_message_queue.task_done() # Wichtig für asyncio.Queue
-                
-                if self._stop_event.is_set():
-                    continue
-
-                line_data = raw_line.strip()
-                
-                # Nachrichten, die mit \x02 (STX) beginnen, sind Sensordaten und sollten nie als Kommandoantworten behandelt werden.
-                if line_data.startswith("\x02"):
-                    pass # Gehe direkt zum Parsen
-                elif await self._handle_as_command_response(line_data): # _handle_as_command_response muss async sein
-                    continue
-
-                if line_data.startswith("XQ") or line_data.startswith("XR"):
-                    # Abfangen der Receiver-Statusmeldungen XQ/XR
-                    self.logger.debug("Found receiver status: %s", line_data)
-                    continue
-
-                decoded_messages = self.parser.parse_line(line_data)
-                for message in decoded_messages:
-                    if self.mqtt_publisher:
-                        try:
-                            # publish ist jetzt awaitable
-                            await self.mqtt_publisher.publish(message)
-                        except Exception:
-                            self.logger.exception("Error in MQTT publish")
-
-                    if self.message_callback:
-                        try:
-                            # message_callback ist jetzt awaitable
-                            await self.message_callback(message)
-                        except Exception:
-                            self.logger.exception("Error in message callback")
-
-            except asyncio.TimeoutError:
-                continue # Queue ist leer, Schleife fortsetzen
-            except asyncio.CancelledError:
-                break # Bei Abbruch beenden
-            except Exception:
-                if not self._stop_event.is_set():
-                    self.logger.exception("Unhandled exception in parser task")
-        self.logger.debug("Parser task finished.")
-
-    async def _writer_task(self) -> None:
-        """Continuously processes the write queue."""
-        self.logger.debug("Writer task started.")
-        while not self._stop_event.is_set():
-            try:
-                # Nutze await für das asynchrone Lesen aus der Queue
-                command = await asyncio.wait_for(self._write_queue.get(), timeout=0.1)
-                self._write_queue.task_done()
-                
-                if not command.payload or self._stop_event.is_set():
-                    continue
-
-                await self._send_and_wait(command)
-            except asyncio.TimeoutError:
-                continue # Queue ist leer, Schleife fortsetzen
-            except asyncio.CancelledError:
-                break # Bei Abbruch beenden
-            except SignalduinoCommandTimeout as e:
-                self.logger.warning("Writer task: %s", e)
-            except Exception:
-                if not self._stop_event.is_set():
-                    self.logger.exception("Unhandled exception in writer task")
-        self.logger.debug("Writer task finished.")
-
-    async def _send_and_wait(self, command: QueuedCommand) -> None:
-        """Sends a command and waits for a response if required."""
-        if not command.expect_response:
-            self.logger.debug("Sending command (fire-and-forget): %s", command.payload)
-            # transport.write_line ist jetzt awaitable
-            await self.transport.write_line(command.payload)
-            return
-
-        pending = PendingResponse(
-            command=command,
-            event=asyncio.Event(), # Füge ein asyncio.Event hinzu
-            deadline=datetime.now(timezone.utc) + timedelta(seconds=command.timeout),
-            response=None
-        )
-        # Nutze asyncio.Lock für asynchrone Sperren
-        async with self._pending_responses_lock:
-            self._pending_responses.append(pending)
-
-        self.logger.debug("Sending command (expect response): %s", command.payload)
-        await self.transport.write_line(command.payload)
-
-        try:
-            # Warte auf das Event mit Timeout
-            await asyncio.wait_for(pending.event.wait(), timeout=command.timeout)
-
-            if command.on_response and pending.response:
-                # on_response ist ein synchrones Callable und kann direkt aufgerufen werden
-                command.on_response(pending.response)
-
-        except asyncio.TimeoutError:
-            raise SignalduinoCommandTimeout(
-                f"Command '{command.description or command.payload}' timed out"
-            ) from None
-        finally:
-            async with self._pending_responses_lock:
-                if pending in self._pending_responses:
-                    self._pending_responses.remove(pending)
-
-    async def _handle_as_command_response(self, line: str) -> bool:
-        """Checks if a line matches any pending command response."""
-        # Nutze asyncio.Lock
-        async with self._pending_responses_lock:
-            # Iteriere rückwärts, um sicheres Entfernen zu ermöglichen
-            for i in range(len(self._pending_responses) - 1, -1, -1):
-                pending = self._pending_responses[i]
-
-                if datetime.now(timezone.utc) > pending.deadline:
-                    self.logger.warning("Pending response for '%s' expired.", pending.command.payload)
-                    del self._pending_responses[i]
-                    continue
-
-                if pending.command.response_pattern and pending.command.response_pattern.search(line):
-                    self.logger.debug("Matched response for '%s': %s", pending.command.payload, line)
-                    pending.response = line
-                    # Setze das asyncio.Event
-                    pending.event.set()
-                    del self._pending_responses[i]
-                    return True
-        return False
-
-    async def send_raw_command(self, command: str, expect_response: bool = False, timeout: float = 2.0) -> Optional[str]:
-        """Queues a raw command and optionally waits for a specific response."""
-        # send_command ist jetzt awaitable
-        return await self.send_command(payload=command, expect_response=expect_response, timeout=timeout)
+    async def set_cc1101_rampl(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Sets the CC1101 receiver amplification (Rampl) from an MQTT command."""
+        await self.commands.set_rampl(payload["value"])
+        return {"status": "Rampl set successfully", "value": payload["value"]}
+    
+    async def get_cc1101_settings(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Delegates to SignalduinoCommands to get all key CC1101 settings."""
+        return await self.commands.get_cc1101_settings(payload)
 
     async def send_command(
         self,
-        payload: str,
+        command: str,
         expect_response: bool = False,
-        timeout: float = 2.0,
+        timeout: Optional[float] = None,
         response_pattern: Optional[Pattern[str]] = None,
     ) -> Optional[str]:
-        """Queues a command and optionally waits for a specific response."""
-        
-        if not expect_response:
-            # Nutze await für asynchrone Queue-Operation
-            await self._write_queue.put(QueuedCommand(payload=payload, timeout=0))
+        """Send a command to the Signalduino and optionally wait for a response.
+
+        Args:
+            command: The command to send.
+            expect_response: Whether to wait for a response.
+            timeout: Timeout in seconds for waiting for a response.
+            response_pattern: Optional regex pattern to match against responses.
+
+        Returns:
+            The response if expect_response is True, otherwise None.
+
+        Raises:
+            SignalduinoCommandTimeout: If no response is received within the timeout.
+            SignalduinoConnectionError: If the connection is lost.
+        """
+        if self.transport.closed():
+            raise SignalduinoConnectionError("Transport is closed")
+
+        if expect_response:
+            return await self._send_and_wait(command, timeout or SDUINO_CMD_TIMEOUT, response_pattern)
+        else:
+            await self._write_queue.put(QueuedCommand(
+                payload=command,
+                expect_response=False,
+                timeout=timeout or SDUINO_CMD_TIMEOUT
+            ))
             return None
 
-        # NEU: Verwende asyncio.Future anstelle einer threading.Queue
-        response_future: asyncio.Future[str] = asyncio.Future()
+    async def __aenter__(self) -> "SignalduinoController":
+        await self.transport.open()
+        if self.mqtt_publisher:
+            try:
+                await self.mqtt_publisher.__aenter__()
+            except MqttError as exc:
+                self.logger.warning("Konnte keine Verbindung zum MQTT-Broker herstellen: %s", exc)
+        try:
+            await self.initialize() # Wichtig: Initialisierung nach dem Öffnen des Transports und Publishers
+        except SignalduinoConnectionError as exc:
+            self.logger.error("Verbindungsfehler während der Initialisierung, setze fort: %s", exc)
+            
+        return self
 
-        def on_response(response: str):
-            # Prüfe, ob das Future nicht bereits abgeschlossen ist (z.B. durch Timeout im Caller)
-            if not response_future.done():
-                response_future.set_result(response)
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        self._stop_event.set()
+        for task in self._main_tasks:
+            task.cancel()
+        await asyncio.gather(*self._main_tasks, return_exceptions=True)
+        if self.mqtt_publisher:
+            await self.mqtt_publisher.__aexit__(exc_type, exc_val, exc_tb)
+        await self.transport.close()
 
-        if response_pattern is None:
-            response_pattern = re.compile(
-                f".*{re.escape(payload)}.*|.*OK.*", re.IGNORECASE
-            )
+    async def _reader_task(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                self.logger.debug("Reader task waiting for line...")
+                line = await self.transport.readline()
+                if line is not None:
+                    self.logger.debug(f"Reader task received line: {line}")
+                    await self._raw_message_queue.put(line)
+                
+                await asyncio.sleep(0.01)  # Ensure minimal yield time to prevent 100% CPU usage
+            except Exception as e:
+                self.logger.error(f"Reader task error: {e}")
+                break
 
-        command = QueuedCommand(
-            payload=payload,
-            timeout=timeout,
+    async def _parser_task(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                line = await self._raw_message_queue.get()
+                if line:
+                    # Führe die rechenintensive Parsing-Logik in einem separaten Thread aus.
+                    # Dadurch wird die asyncio-Event-Schleife nicht blockiert.
+                    decoded = await asyncio.to_thread(self.parser.parse_line, line)
+                    if decoded and self.message_callback:
+                        await self.message_callback(decoded[0])
+                    if self.mqtt_publisher and decoded:
+                        # Verwende die neue MqttPublisher.publish(message: DecodedMessage) Signatur
+                        await self.mqtt_publisher.publish(decoded[0])
+                    await self._handle_as_command_response(line)
+                
+                # Ensure a minimal yield time for other tasks when the queue is rapidly processed.
+                await asyncio.sleep(0.01)
+            except Exception as e:
+                self.logger.error(f"Parser task error: {e}")
+                break
+
+    async def _writer_task(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                cmd = await self._write_queue.get()
+                await self.transport.write_line(cmd.payload)
+                self._write_queue.task_done()
+            except Exception as e:
+                self.logger.error(f"Writer task error: {e}")
+                break
+
+    async def initialize(self, timeout: Optional[float] = None) -> None:
+        """Initialize the connection by starting tasks and retrieving firmware version.
+        
+        Args:
+            timeout: Optional timeout in seconds. Defaults to SDUINO_INIT_MAXRETRY * SDUINO_INIT_WAIT
+        """
+        self._main_tasks = [
+            asyncio.create_task(self._reader_task(), name="sd-reader"),
+            asyncio.create_task(self._parser_task(), name="sd-parser"),
+            asyncio.create_task(self._writer_task(), name="sd-writer")
+        ]
+        
+        # Start initialization task
+        self._init_task_start = asyncio.create_task(self._init_task_start_loop())
+        self._main_tasks.append(self._init_task_start)
+        self._main_tasks.append(self._init_task_start)
+        
+        # Calculate timeout
+        init_timeout = timeout if timeout is not None else SDUINO_INIT_MAXRETRY * SDUINO_INIT_WAIT
+        
+        try:
+            await asyncio.wait_for(self._init_complete_event.wait(), timeout=init_timeout)
+        except asyncio.TimeoutError:
+            self.logger.error("Initialization timed out after %s seconds", init_timeout)
+            self._stop_event.set()  # Signal all tasks to stop
+            self._init_complete_event.set()  # Unblock waiters
+            
+            # Cancel all tasks
+            tasks = [t for t in [*self._main_tasks, self._init_task_start] if t is not None]
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            
+            raise SignalduinoConnectionError(f"Initialization timed out after {init_timeout} seconds")
+            
+        self.logger.info("Signalduino Controller initialized successfully.")
+
+    async def _send_and_wait(self, command: str, timeout: float, response_pattern: Optional[Pattern[str]] = None) -> str:
+        """Send a command and wait for a response matching the pattern."""
+        future = asyncio.Future()
+        self.logger.debug(f"Creating QueuedCommand for '{command}' with timeout {timeout}")
+        queued_cmd = QueuedCommand(
+            payload=command,
             expect_response=True,
+            timeout=timeout,
             response_pattern=response_pattern,
-            on_response=on_response,
-            description=payload,
+            on_response=lambda line: (
+                self.logger.debug(f"Received response for '{command}': {line}"),
+                future.set_result(line)
+            )[-1]
         )
-
-        await self._write_queue.put(command)
+        
+        # Create and store PendingResponse
+        pending = PendingResponse(
+            command=queued_cmd,
+            deadline=datetime.now(timezone.utc) + timedelta(seconds=timeout),
+            event=asyncio.Event(),
+            future=future,
+            response=None
+        )
+        async with self._pending_responses_lock:
+            self._pending_responses.append(pending)
+        
+        await self._write_queue.put(queued_cmd)
+        self.logger.debug(f"Queued command '{command}', waiting for response...")
 
         try:
-            # Warte auf das Future mit Timeout
-            return await asyncio.wait_for(response_future, timeout=timeout)
+            result = await asyncio.wait_for(future, timeout=timeout)
+            self.logger.debug(f"Successfully received response for '{command}': {result}")
+            return result
         except asyncio.TimeoutError:
-            await asyncio.sleep(0)  # Gib dem Event-Loop eine Chance, _stop_event zu setzen.
-            # Code Refactor: Timeout vs. dead connection
-            self.logger.debug("Command timeout reached for %s", payload)
-            # Differentiate between connection drop and normal command timeout
-            # Check for a closed transport or a stopped controller
-            if self._stop_event.is_set() or (self.transport and self.transport.closed()):
-                self.logger.error(
-                    "Command '%s' timed out. Connection appears to be dead (transport closed or controller stopping).", payload
-                )
-                raise SignalduinoConnectionError(
-                    f"Command '{payload}' failed: Connection dropped."
-                ) from None
+            self.logger.warning(f"Timeout waiting for response to '{command}'")
+            async with self._pending_responses_lock:
+                if pending in self._pending_responses:
+                    self._pending_responses.remove(pending)
+            raise SignalduinoCommandTimeout("Command timed out")
+        except Exception as e:
+            async with self._pending_responses_lock:
+                if future in self._pending_responses:
+                    self._pending_responses.remove(future)
+            if 'socket is closed' in str(e) or 'cannot reuse' in str(e):
+                raise SignalduinoConnectionError(str(e))
+            raise
+
+    async def _handle_as_command_response(self, line: str) -> None:
+        """Check if the received line matches any pending command response."""
+        self.logger.debug(f"Checking line for command response: {line}")
+        async with self._pending_responses_lock:
+            self.logger.debug(f"Current pending responses: {len(self._pending_responses)}")
+            for pending in self._pending_responses:
+                try:
+                    self.logger.debug(f"Checking pending response: {pending.payload}")
+                    if pending.response_pattern:
+                        self.logger.debug(f"Testing pattern: {pending.response_pattern}")
+                        if pending.response_pattern.match(line):
+                            self.logger.debug(f"Matched response pattern for command: {pending.payload}")
+                            pending.future.set_result(line)
+                            self._pending_responses.remove(pending)
+                            return
+                    self.logger.debug(f"Testing direct match for: {pending.payload}")
+                    if line.startswith(pending.payload):
+                        self.logger.debug(f"Matched direct response for command: {pending.payload}")
+                        pending.future.set_result(line)
+                        self._pending_responses.remove(pending)
+                        return
+                except Exception as e:
+                    self.logger.error(f"Error processing pending response: {e}")
+                    continue
+            self.logger.debug("No matching pending response found")
+
+    async def _init_task_start_loop(self) -> None:
+        """Main initialization task that handles version check and XQ command."""
+        try:
+            # 1. Deaktivieren des Empfängers (XQ) und Warten auf Abschluss der Warteschlange
+            self.logger.info("Disabling Signalduino receiver (XQ) before version check...")
+            await self.send_command("XQ", expect_response=False)
+            await asyncio.sleep(SDUINO_INIT_WAIT) # Warte, bis der Befehl verarbeitet wurde
+
+            # 2. Retry logic for 'V' command (Version)
+            version_response = None
+            for attempt in range(SDUINO_INIT_MAXRETRY):
+                try:
+                    self.logger.info("Requesting firmware version (attempt %s of %s)...",
+                                    attempt + 1, SDUINO_INIT_MAXRETRY)
+                    version_response = await self.send_command("V", expect_response=True)
+                    if version_response:
+                        self.init_version_response = version_response.strip()
+                        self.logger.info("Firmware version received: %s", self.init_version_response)
+                        break  # Success
+                except SignalduinoCommandTimeout:
+                    self.logger.warning("Version request timed out. Retrying in %s seconds...",
+                                      SDUINO_INIT_WAIT)
+                    await asyncio.sleep(SDUINO_INIT_WAIT)
+                except SignalduinoConnectionError as e:
+                    self.logger.error("Connection error during initialization: %s", e)
+                    raise
             else:
-                # Annahme: Transport-API wirft SignalduinoConnectionError bei Trennung.
-                # Wenn dies nicht der Fall ist, wird ein Timeout angenommen.
-                self.logger.warning(
-                    "Command '%s' timed out. Treating as no response from device.", payload
-                )
-                raise SignalduinoCommandTimeout(f"Command '{payload}' timed out") from None
+                self.logger.error("Failed to initialize Signalduino after %s attempts.",
+                                SDUINO_INIT_MAXRETRY)
+                self._init_complete_event.set()  # Ensure event is set to unblock
+                raise SignalduinoConnectionError("Maximum initialization retries reached.")
+
+            # 2. Activate receiver (XE) after successful version check (V).
+            if version_response:
+                self.logger.info("Enabling Signalduino receiver (XE)...")
+                await self.send_command("XE", expect_response=False)
+
+            self._init_complete_event.set()
+            return
+            
+        except Exception as e:
+            self.logger.error(f"Initialization task error: {e}")
+            self._init_complete_event.set()  # Ensure event is set to unblock
+            raise
+
+    async def _schedule_xq_command(self) -> None:
+        """Schedule the XQ command to be sent periodically."""
+        while not self._stop_event.is_set():
+            try:
+                await asyncio.sleep(SDUINO_INIT_WAIT_XQ)
+                await self.send_command("XQ", expect_response=False)
+            except Exception as e:
+                self.logger.error(f"XQ scheduling error: {e}")
+                break
 
     async def _start_heartbeat_task(self) -> None:
-        """Schedules the periodic status heartbeat task."""
-        if not self.mqtt_publisher:
-            return
-
-        if self._heartbeat_task and not self._heartbeat_task.done():
-            self._heartbeat_task.cancel()
-            
-        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-        self._heartbeat_task.set_name("sd-heartbeat")
-        self.logger.info("Heartbeat task started, interval: %d seconds.", SDUINO_STATUS_HEARTBEAT_INTERVAL)
+        """Start the heartbeat task if not already running."""
+        if not self._heartbeat_task or self._heartbeat_task.done():
+            self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
     async def _heartbeat_loop(self) -> None:
-        """The main loop for the periodic status heartbeat."""
-        try:
-            while not self._stop_event.is_set():
-                await asyncio.sleep(SDUINO_STATUS_HEARTBEAT_INTERVAL)
+        """Periodically publish status heartbeat messages."""
+        while not self._stop_event.is_set():
+            try:
                 await self._publish_status_heartbeat()
-        except asyncio.CancelledError:
-            self.logger.debug("Heartbeat loop cancelled.")
-        except Exception as e:
-            self.logger.exception("Unhandled exception in heartbeat loop: %s", e)
-            
+                await asyncio.sleep(SDUINO_STATUS_HEARTBEAT_INTERVAL)
+            except Exception as e:
+                self.logger.error(f"Heartbeat loop error: {e}")
+                break
+
     async def _publish_status_heartbeat(self) -> None:
-        """Publishes the current device status."""
-        if not self.mqtt_publisher or not await self.mqtt_publisher.is_connected():
-            self.logger.warning("Cannot publish heartbeat; publisher not connected.")
-            return
-            
-        try:
-            # 1. Heartbeat/Alive message (Retain: True)
-            await self.mqtt_publisher.publish_simple("status/alive", "online", retain=True)
-            self.logger.info("Heartbeat executed. Status: alive")
-
-            # 2. Status data (version, ram, uptime)
-            status_data = {}
-            
-            # Version
-            if self.init_version_response:
-                status_data["version"] = self.init_version_response.strip()
-            
-            # Free RAM
-            try:
-                # commands.get_free_ram ist awaitable
-                ram_resp = await self.commands.get_free_ram()
-                # Format: R: 1234
-                if ":" in ram_resp:
-                    status_data["free_ram"] = ram_resp.split(":")[-1].strip()
-                else:
-                    status_data["free_ram"] = ram_resp.strip()
-            except SignalduinoConnectionError:
-                 # Bei Verbindungsfehler: Controller anweisen zu stoppen/neu zu verbinden
-                self.logger.error(
-                    "Heartbeat failed: Connection dropped during get_free_ram. Triggering stop."
-                )
-                self._stop_event.set() # Stopp-Event setzen, aexit wird das Schließen übernehmen
-                return
-            except Exception as e:
-                self.logger.warning("Could not get free RAM for heartbeat: %s", e)
-                status_data["free_ram"] = "error"
-                
-            # Uptime
-            try:
-                # commands.get_uptime ist awaitable
-                uptime_resp = await self.commands.get_uptime()
-                # Format: t: 1234
-                if ":" in uptime_resp:
-                    status_data["uptime"] = uptime_resp.split(":")[-1].strip()
-                else:
-                    status_data["uptime"] = uptime_resp.strip()
-            except SignalduinoConnectionError:
-                self.logger.error(
-                    "Heartbeat failed: Connection dropped during get_uptime. Triggering stop."
-                )
-                self._stop_event.set() # Stopp-Event setzen, aexit wird das Schließen übernehmen
-                return
-            except Exception as e:
-                self.logger.warning("Could not get uptime for heartbeat: %s", e)
-                status_data["uptime"] = "error"
-            
-            # Publish all collected data
-            if status_data:
-                payload = json.dumps(status_data)
-                await self.mqtt_publisher.publish_simple("status/data", payload)
-            
-        except Exception as e:
-            self.logger.error("Error during status heartbeat: %s", e)
-
-    async def _handle_mqtt_command(self, command: str, payload: str) -> None:
-        """Handles commands received via MQTT."""
-        self.logger.info("Handling MQTT command: %s (payload: %s)", command, payload)
-
-        if not self.mqtt_publisher or not await self.mqtt_publisher.is_connected():
-            self.logger.warning("Cannot handle MQTT command; publisher not connected.")
-            return
-
-        # Mapping von MQTT-Befehl zu einer async-Methode (ohne Args) oder einer Lambda-Funktion (mit Args)
-        # Alle Methoden sind jetzt awaitables
-        command_mapping = {
-            "version": self.commands.get_version,
-            "freeram": self.commands.get_free_ram,
-            "uptime": self.commands.get_uptime,
-            "cmds": self.commands.get_cmds,
-            "ping": self.commands.ping,
-            "config": self.commands.get_config,
-            "ccconf": self.commands.get_ccconf,
-            "ccpatable": self.commands.get_ccpatable,
-            # lambda muss jetzt awaitables zurückgeben
-            "ccreg": lambda p: self.commands.read_cc1101_register(int(p, 16)),
-            "rawmsg": lambda p: self.commands.send_raw_message(p),
-        }
-
-        if command == "help":
-            self.logger.warning("Ignoring deprecated 'help' MQTT command (use 'cmds').")
-            await self.mqtt_publisher.publish_simple(f"error/{command}", "Deprecated command. Use 'cmds'.")
-            return
-        
-        if command in command_mapping:
-            response: Optional[str] = None
-            try:
-                # Execute the corresponding command method
-                cmd_func = command_mapping[command]
-                if command in ["ccreg", "rawmsg"]:
-                    if not payload:
-                        self.logger.error("Command '%s' requires a payload argument.", command)
-                        await self.mqtt_publisher.publish_simple(f"error/{command}", "Missing payload argument.")
-                        return
-                    
-                    # Die lambda-Funktion gibt ein awaitable zurück, das ausgeführt werden muss
-                    awaitable_response = cmd_func(payload)
-                    response = await awaitable_response
-                else:
-                    # Die Methode ist ein awaitable, das ausgeführt werden muss
-                    response = await cmd_func()
-                
-                self.logger.info("Got response for %s: %s", command, response)
-                
-                # Publish result back to MQTT
-                # Wir stellen sicher, dass die Antwort ein String ist, da die Befehlsmethoden str zurückgeben sollen.
-                # Sollte nur ein Problem sein, wenn die Command-Methode None zurückgibt (was sie nicht sollte).
-                response_str = str(response) if response is not None else "OK"
-                await self.mqtt_publisher.publish_simple(f"result/{command}", response_str)
-
-            except SignalduinoCommandTimeout:
-                self.logger.error("Timeout waiting for command response: %s", command)
-                await self.mqtt_publisher.publish_simple(f"error/{command}", "Timeout")
-                
-            except Exception as e:
-                self.logger.error("Error executing command %s: %s", command, e)
-                await self.mqtt_publisher.publish_simple(f"error/{command}", f"Error: {e}")
-
-        else:
-            self.logger.warning("Unknown MQTT command: %s", command)
-            await self.mqtt_publisher.publish_simple(f"error/{command}", "Unknown command")
-
-
-    async def run(self, timeout: Optional[float] = None) -> None:
-        """
-        Starts the main asynchronous tasks (reader, parser, writer) 
-        and waits for them to complete or for a connection loss.
-        """
-        self.logger.info("Starting main controller tasks...")
-
-        # 1. Haupt-Tasks erstellen und starten (Muss VOR initialize() erfolgen, damit der Reader
-        # die Initialisierungsantwort empfangen kann)
-        reader_task = asyncio.create_task(self._reader_task(), name="sd-reader")
-        parser_task = asyncio.create_task(self._parser_task(), name="sd-parser")
-        writer_task = asyncio.create_task(self._writer_task(), name="sd-writer")
-        
-        self._main_tasks = [reader_task, parser_task, writer_task]
-        
-        # 2. Initialisierung starten (führt Versionsprüfung durch und startet Heartbeat)
-        await self.initialize()
-        
-        # 3. Auf den Abschluss der Initialisierung warten (mit zusätzlichem Timeout)
-        try:
-            self.logger.info("Waiting for initialization to complete...")
-            await asyncio.wait_for(self._init_complete_event.wait(), timeout=SDUINO_CMD_TIMEOUT * 2)
-            self.logger.info("Initialization complete.")
-        except asyncio.TimeoutError:
-            self.logger.error("Initialization timed out after %s seconds.", SDUINO_CMD_TIMEOUT * 2)
-            # Wenn die Initialisierung fehlschlägt, stoppen wir den Controller (aexit)
-            self._stop_event.set()
-            # Der Timeout kann dazu führen, dass die await-Kette unterbrochen wird. Wir fahren fort.
-
-        # 4. Auf eine der kritischen Haupt-Tasks warten (Reader/Writer werden bei Verbindungsabbruch beendet)
-        # Parser sollte weiterlaufen, bis die Queue leer ist. Reader/Writer sind die kritischen Tasks.
-        critical_tasks = [reader_task, writer_task]
-
-        # Führe ein Wait mit optionalem Timeout aus, das mit `asyncio.wait_for` implementiert wird
-        if timeout is not None:
-            try:
-                # Warten auf die kritischen Tasks, bis sie fertig sind oder ein Timeout eintritt
-                done, pending = await asyncio.wait_for(
-                    asyncio.wait(critical_tasks, return_when=asyncio.FIRST_COMPLETED),
-                    timeout=timeout
-                )
-                self.logger.info("Run finished due to timeout or task completion.")
-
-            except asyncio.TimeoutError:
-                self.logger.info("Run finished due to timeout (%s seconds).", timeout)
-                # Das aexit wird sich um das Aufräumen kümmern
-            
-        else:
-            # Warten, bis eine der kritischen Tasks abgeschlossen ist
-            done, pending = await asyncio.wait(
-                critical_tasks,
-                return_when=asyncio.FIRST_COMPLETED
-            )
-            # Wenn ein Task unerwartet beendet wird (z.B. durch Fehler), sollte er in `done` sein.
-            # Wenn das Stopp-Event nicht gesetzt ist, war es ein Fehler.
-            if any(t.exception() for t in done) and not self._stop_event.is_set():
-                self.logger.error("A critical controller task finished with an exception.")
-
-        # Das aexit im async with Block wird sich um das Aufräumen kümmern
-        # (Schließen des Transports, Abbrechen aller Tasks).
+        """Publish a status heartbeat message via MQTT."""
+        if self.mqtt_publisher:
+            status = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "version": self.init_version_response,
+                "connected": not self.transport.closed()
+            }
+            await self.mqtt_publisher.publish_simple("status/heartbeat", json.dumps(status))

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable, Optional, Pattern, Awaitable, Any
@@ -49,5 +50,12 @@ class PendingResponse:
 
     command: QueuedCommand
     deadline: datetime
-    event: Any # Wird durch asyncio.Event im Controller gesetzt
+    event: asyncio.Event
+    future: asyncio.Future
+    response_pattern: Optional[Pattern[str]] = None
+    payload: str = ""
     response: Optional[str] = None
+
+    def __post_init__(self):
+        self.payload = self.command.payload
+        self.response_pattern = self.command.response_pattern

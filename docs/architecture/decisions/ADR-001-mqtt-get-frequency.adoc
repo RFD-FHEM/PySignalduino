@@ -1,0 +1,53 @@
+= 001. Implementierung des MQTT-Befehls get/frequency
+:author: Roo
+:revdate: 2026-01-03
+:status: Accepted
+
+[[status]]
+== Status
+
+Angenommen.
+
+[[context]]
+== Kontext
+
+Das PySignalduino-Projekt benötigt eine Methode, um die aktuell im CC1101-Transceiver eingestellte Funkfrequenz über das MQTT-Interface abzufragen, hauptsächlich für Diagnose- und Statuszwecke.
+
+Die Frequenz-Konfiguration des CC1101 erfolgt über drei Register: FREQ2 (0x0D), FREQ1 (0x0E) und FREQ0 (0x0F), die zusammen den 24-Bit-Wert $F_{REG}$ bilden. Die Berechnung der tatsächlichen Frequenz basiert auf der CC1101-Dokumentation (Kapitel 18.2 Frequency Programming) und verwendet eine Quarzfrequenz von $26 \, \text{MHz}$ ($F_{XOSC}$).
+
+Die Formel lautet:
+$$f_{RF} = \frac{F_{XOSC}}{2^{16}} \times F_{REG}$$
+
+Bei $F_{XOSC} = 26 \, \text{MHz}$ ergibt sich:
+$$f_{RF} = \frac{26}{65536} \times F_{REG} \, \text{MHz}$$
+
+[[decision]]
+== Entscheidung
+
+Wir implementieren den `get/frequency` Befehl als Teil der `MqttHandler`- und `Commands`-Klassen.
+
+1.  *MQTT Topic*: Der Befehl wird über `cmd/get/frequency` empfangen (komplettes Topic: `<base_topic>/commands/get/frequency`).
+2.  *Antwort Topic*: Die Antwort wird über das etablierte Antwort-Topic (`<base_topic>/responses`) veröffentlicht, um Konsistenz mit dem bestehenden `get/system/version` Befehl zu gewährleisten. Der Payload muss das Feld `command` enthalten, um die Herkunft zu kennzeichnen.
+3.  *Berechnungslogik*: Die Berechnung wird exakt nach der CC1101-Formel unter Verwendung von $F_{XOSC} = 26 \, \text{MHz}$ durchgeführt.
+    *   Wir erstellen eine asynchrone Methode in `signalduino/hardware.py` (z.B. `get_frequency_registers()`) zum Auslesen von FREQ2, FREQ1, FREQ0.
+    *   Wir implementieren die Berechnung in `signalduino/commands.py` (z.B. `get_frequency()`), um die Abhängigkeit der Hardware vom Command Layer zu kapseln.
+    *   Das Ergebnis wird auf 4 Dezimalstellen gerundet (in MHz), um eine hohe Genauigkeit bei der Anzeige zu gewährleisten.
+
+[[consequences]]
+== Konsequenzen
+
+*   *Positiv*: Benutzer können die eingestellte Frequenz einfach über MQTT abfragen, was die Diagnose erleichtert.
+*   *Positiv*: Die Verwendung der offiziellen CC1101-Formel und der 26 MHz Oszillatorfrequenz gewährleistet Korrektheit und Konsistenz.
+*   *Negativ*: Es müssen neue Methoden in `signalduino/hardware.py`, `signalduino/commands.py` und `signalduino/mqtt.py` implementiert werden.
+*   *Negativ*: Die Hardware-Klasse muss um die Logik zum Lesen der drei Register erweitert werden, möglicherweise durch eine neue Abstraktionsebene, falls dies in Zukunft für andere Dreifachregister notwendig wird.
+
+[[alternatives]]
+== Alternativen
+
+*   *Alternative 1: Berechnung auf der Hardware-Ebene:*
+    *   *Beschreibung:* Die Frequenzberechnung direkt in der `Hardware`-Klasse durchführen.
+    *   *Begründung:* Abgelehnt. Die `Commands`-Klasse dient als Business-Logik-Schicht, während die `Hardware`-Klasse die I/O-Schicht ist. Die Berechnung gehört zur Business-Logik, nicht zur reinen Register-Abstraktion.
+
+*   *Alternative 2: Keine dedizierte Frequenzberechnung:*
+    *   *Beschreibung:* Nur $F_{REG}$ als rohen 24-Bit-Wert zurückgeben und die Berechnung dem MQTT-Client überlassen.
+    *   *Begründung:* Abgelehnt. Dies würde die Komplexität auf die Client-Seite verlagern und die Fehleranfälligkeit erhöhen. Das PySignalduino-Gateway sollte die kanonische Frequenz in einer Standardeinheit (MHz) bereitstellen.
