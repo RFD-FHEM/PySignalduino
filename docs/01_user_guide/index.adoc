@@ -80,3 +80,4 @@ Ausführliche Anleitungen finden Sie in den folgenden Kapiteln.
 
 include::installation.adoc[]
 include::usage.adoc[]
+include::mqtt_api.adoc[]

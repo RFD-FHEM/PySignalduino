@@ -1,0 +1,265 @@
+= MQTT API Reference
+:doctype: book
+:icons: font
+:toc: left
+:toclevels: 2
+:sectnums:
+
+[[_mqtt_introduction]]
+== Einführung
+
+Die MQTT-Schnittstelle ermöglicht die Steuerung des PySignalduino-Gateways und den Empfang von dekodierten Nachrichten. Alle Befehle und Antworten verwenden das JSON-Format.
+
+=== Topics und Struktur
+
+Die Basis aller Topics ist `<base_topic>/v1`, wobei `<base_topic>` standardmäßig `signalduino` ist. Alle Beispiele verwenden `signalduino/v1` als Basis.
+
+|===
+| Zweck | Topic-Format | Anmerkungen
+
+| Befehl senden (Request)
+| `signalduino/v1/commands/<command_path>`
+| Senden Sie hier die JSON-Payload, um einen Befehl auszuführen.
+
+| Befehlsantwort (Success)
+| `signalduino/v1/responses`
+| Erfolgreiche Antworten von `get/` und `set/` Befehlen.
+
+| Befehlsfehler (Error)
+| `signalduino/v1/errors`
+| Fehler (z.B. Validierung oder Timeout).
+
+| Empfangene Nachrichten
+| `signalduino/v1/state/messages`
+| Dekodierte Funknachrichten.
+|===
+
+=== Request- und Response-Format
+
+Alle Requests verwenden das folgende JSON-Format. Für einfache Befehle (meiste GETs) kann die Payload einfach `{}` sein.
+
+[cols="1,3", options="header"]
+|===
+| Feld | Beschreibung
+
+| `req_id`
+| *(Optional)* Eine Korrelations-ID (`string`) zur Zuordnung von Request und Response.
+
+| `value`
+| *(Nur für einfache SET-Befehle)* Der Wert, der gesetzt werden soll. Typ variiert (Zahl, String).
+
+| `parameters`
+| *(Nur für komplexe Befehle)* Ein Objekt für Befehle mit mehreren Argumenten (z.B. `command/send/msg`).
+|===
+
+Eine erfolgreiche Response auf `signalduino/v1/responses` hat folgende Struktur:
+
+[source,json]
+----
+{
+  "command": "der/ausgeführte/befehl",
+  "success": true,
+  "req_id": "F001",
+  "payload": {
+    // Die tatsächlichen Daten, z.B. Frequenz-Wert, Versionsstring, etc.
+  }
+}
+----
+
+[[_get_commands]]
+== GET Commands (Status und Konfiguration abrufen)
+
+GET-Befehle benötigen eine leere Payload (`{}`) oder nur eine `req_id`.
+
+[cols="1,1,3", options="header"]
+|===
+| Befehlspfad | Antwort-Payload (Beispiel `payload`) | Beschreibung
+
+| `get/system/version`
+| `"V 3.3.1-dev..."`
+| Firmware-Version.
+
+| `get/system/freeram`
+| `"1234"`
+| Verfügbarer RAM-Speicher.
+
+| `get/system/uptime`
+| `"56789"`
+| System-Laufzeit.
+
+| `get/config/decoder`
+| `"MS=1;MU=1;MC=1;MN=1"`
+| Aktuelle Decoder-Konfiguration (aktivierte Protokollfamilien).
+
+| `get/cc1101/config`
+| `"C0D11=0F"`
+| CC1101 Konfigurationsregister-Dump.
+
+| `get/cc1101/patable`
+| `"C3E = C0 C1 C2 C3 C4 C5 C6 C7"`
+| CC1101 PA-Tabelle.
+
+| `get/cc1101/register`
+| `"C00 = 29"`
+| Liest den Wert eines einzelnen CC1101-Registers (Adresse 0x00). Der Befehl nimmt keinen Wert in der Payload entgegen und liest standardmäßig Register 0x00.
+
+| `get/cc1101/frequency`
+| `{"frequency_mhz": 868.3500}`
+| Aktuelle RF-Frequenz in MHz.
+
+| `get/cc1101/bandwidth`
+| `102.0`
+| Aktuelle IF-Bandbreite in kHz.
+
+| `get/cc1101/rampl`
+| `30`
+| Aktuelle Empfängerverstärkung (LNA Gain) in dB. Mögliche Werte: `24, 27, 30, 33, 36, 38, 40, 42`.
+
+| `get/cc1101/sensitivity`
+| `12`
+| Aktuelle Empfindlichkeit in dB. Mögliche Werte: `4, 8, 12, 16`.
+
+| `get/cc1101/datarate`
+| `4.8`
+| Aktuelle Datenrate in kBaud.
+
+| `get/cc1101/settings`
+| `{"frequency_mhz": 868.35, "bandwidth": 102.0, "rampl": 30, "sens": 12, "datarate": 4.8}`
+| Aggregierte Abfrage aller CC1101-Haupteinstellungen.
+|===
+
+[[_set_commands]]
+== SET Commands (Konfigurationsänderungen)
+
+SET-Befehle, die einen Wert setzen, verwenden das `value`-Feld. Befehle, die nur eine Aktion auslösen, benötigen eine leere Payload. Nach allen CC1101-SET-Befehlen wird automatisch eine Re-Initialisierung des Chips durchgeführt.
+
+=== Einfache SET-Befehle (Aktionen)
+
+Diese Befehle benötigen nur eine leere Payload (`{}`) oder eine `req_id`.
+
+|===
+| Befehlspfad | Beschreibung | Beispiel `mosquitto_pub`
+
+| `set/factory_reset`
+| Setzt EEPROM-Defaults zurück und startet das Gerät neu.
+| `mosquitto_pub -t signalduino/v1/commands/set/factory_reset -m '{}'`
+
+| `set/config/decoder_ms_enable`
+| Aktiviert den "Synced Message (MS)" Decoder (`CE S`).
+| `mosquitto_pub -t signalduino/v1/commands/set/config/decoder_ms_enable -m '{"req_id": "DECODER01"}'`
+
+| `set/config/decoder_ms_disable`
+| Deaktiviert den "Synced Message (MS)" Decoder (`CD S`).
+| `mosquitto_pub -t signalduino/v1/commands/set/config/decoder_ms_disable -m '{}'`
+
+| `set/config/decoder_mu_enable`
+| Aktiviert den "Unsynced Message (MU)" Decoder (`CE U`).
+| `mosquitto_pub -t signalduino/v1/commands/set/config/decoder_mu_enable -m '{}'`
+
+| `set/config/decoder_mu_disable`
+| Deaktiviert den "Unsynced Message (MU)" Decoder (`CD U`).
+| `mosquitto_pub -t signalduino/v1/commands/set/config/decoder_mu_disable -m '{}'`
+
+| `set/config/decoder_mc_enable`
+| Aktiviert den "Manchester Coded Message (MC)" Decoder (`CE C`).
+| `mosquitto_pub -t signalduino/v1/commands/set/config/decoder_mc_enable -m '{}'`
+
+| `set/config/decoder_mc_disable`
+| Deaktiviert den "Manchester Coded Message (MC)" Decoder (`CD C`).
+| `mosquitto_pub -t signalduino/v1/commands/set/config/decoder_mc_disable -m '{}'`
+|===
+
+=== CC1101 Parameter SET-Befehle
+
+Diese Befehle benötigen das Feld `value` im Payload, das gegen ein definiertes JSON-Schema validiert wird.
+
+|===
+| Befehlspfad | Wert (`value`) | Erlaubte Werte | Beispiel `mosquitto_pub`
+
+| `set/cc1101/frequency`
+| RF-Frequenz in MHz (`float`)
+| `315.0` bis `915.0`
+| `mosquitto_pub -t signalduino/v1/commands/set/cc1101/frequency -m '{"value": 433.92}'`
+
+| `set/cc1101/rampl`
+| Empfängerverstärkung in dB (`int`)
+| `24, 27, 30, 33, 36, 38, 40, 42`
+| `mosquitto_pub -t signalduino/v1/commands/set/cc1101/rampl -m '{"value": 38}'`
+
+| `set/cc1101/sensitivity`
+| Empfindlichkeit in dB (`int`)
+| `4, 8, 12, 16`
+| `mosquitto_pub -t signalduino/v1/commands/set/cc1101/sensitivity -m '{"value": 12}'`
+
+| `set/cc1101/patable`
+| PA-Power-Level (`string`)
+| `-30_dBm, -20_dBm, -15_dBm, -10_dBm, -5_dBm, 0_dBm, 5_dBm, 7_dBm, 10_dBm`
+| `mosquitto_pub -t signalduino/v1/commands/set/cc1101/patable -m '{"value": "5_dBm"}'`
+
+| `set/cc1101/bandwidth`
+| IF-Bandbreite in kHz (`float`)
+| Bestimmte Enum-Werte (z.B. `58, 102, 203, 406`). Es wird der nächstgelegene unterstützte Wert gesetzt.
+| `mosquitto_pub -t signalduino/v1/commands/set/cc1101/bandwidth -m '{"value": 102.0}'`
+
+| `set/cc1101/datarate`
+| Datenrate in kBaud (`float`)
+| `0.0247955` bis `1621.83`
+| `mosquitto_pub -t signalduino/v1/commands/set/cc1101/datarate -m '{"value": 4.8}'`
+
+| `set/cc1101/deviation`
+| Frequenzabweichung in kHz (`float`)
+| `1.586914` bis `380.859375`
+| `mosquitto_pub -t signalduino/v1/commands/set/cc1101/deviation -m '{"value": 50.0}'`
+|===
+
+[[_complex_commands]]
+== Komplexe Befehle
+
+Komplexe Befehle verwenden das `parameters`-Feld im Payload.
+
+=== `command/send/msg`
+
+Dieser Befehl sendet eine vorab encodierte Nachricht an das Signalduino-Gerät, die direkt an die Firmware übergeben wird.
+
+[source,json]
+----
+{
+  "req_id": "SEND007",
+  "parameters": {
+    "protocol_id": 1,
+    "data": "AABBCC",
+    "repeats": 3,
+    "clock_us": 350,
+    "frequency_mhz": 433.92
+  }
+}
+----
+
+|===
+| Parameter | Typ | Erforderlich | Beschreibung
+
+| `protocol_id`
+| `int`
+| Ja
+| Die ID des zu verwendenden Protokolls (z.B. `P1`).
+
+| `data`
+| `string`
+| Ja
+| Die zu sendenden Daten als Hex- oder Binär-String.
+
+| `repeats`
+| `int`
+| Nein (Standard: 1)
+| Die Anzahl der Wiederholungen (`R<n>`).
+
+| `clock_us`
+| `int`
+| Nein
+| Optionale Taktfrequenz in Mikrosekunden (`C<n>`).
+
+| `frequency_mhz`
+| `float`
+| Nein
+| Optionale Frequenz in MHz (`F<val>`).
+|===
