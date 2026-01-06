@@ -4,6 +4,7 @@
 ====
 Da PySignalduino noch in aktiver Entwicklung ist, können sich Code-Strukturen und APIs schnell ändern.
 Bitte synchronisieren Sie Ihren Fork regelmäßig mit dem upstream-Repository.
+====
 
 Beiträge zum Projekt sind willkommen!
 
@@ -52,11 +53,12 @@ Es gibt keine strikte CI-Prüfung, aber konsistenter Stil wird erwartet.
 Für alle AsciiDoc-Dateien im `docs/` Verzeichnis ist die Regel "Ein Satz pro Zeile" verpflichtend.
 Dies erleichtert die Überprüfung von Änderungen mittels `git diff`.
 
-[NOTE]
+[IMPORTANT]
 ====
 Jeder Satz muss auf einer neuen Zeile beginnen.
 Ein Satz endet typischerweise mit einem Punkt (`.`), Ausrufezeichen (`!`) oder Fragezeichen (`?`).
 Achten Sie darauf, dass Codeblöcke und Tabellen nicht betroffen sind.
+====
 
 == Tests ausführen
 

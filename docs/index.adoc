@@ -16,30 +16,28 @@ Dadurch werden verschiedenste proprietäre Funkprotokolle für die Nutzung in Sm
 Die verfügbare Hardware-Basis reicht von einfachen Arduino/nanoCUL-Lösungen bis hin zu erweiterten Varianten wie dem Maple-SignalDuino und dem ESP32-SignalDuino, die erweiterte Funktionen (z.B. WLAN) bieten.
 
 .Übersicht: Hardware und Funktion
-[NOTE]
-====
 
 [mermaid]
 ----
 graph TD
-    subgraph Input (Funksignale)
+    subgraph "Input (Funksignale)"
         A[433/868 MHz Signale]
         B[Sensoren / Fernbedienungen]
     end
 
-    subgraph Hardware-Plattform
+    subgraph "Hardware-Plattform"
         C[CC1101 Funkmodul]
         D[Arduino Nano]
         E[ESP8266 / ESP32]
     end
 
-    subgraph PySignalduino (Software-Verarbeitung)
+    subgraph "PySignalduino (Software-Verarbeitung)"
         F[Empfangen / Senden]
         G[Protokolldemodulation]
-        H[Dekodierung (Protokolle)]
+        H[Dekodierung Protokolle]
     end
 
-    subgraph Output (Home Automation)
+    subgraph "Output (Home Automation)"
         I[MQTT Bridge]
         J[Serielle Schnittstelle]
         K[FHEM / Home Assistant / ioBroker]
@@ -47,18 +45,17 @@ graph TD
 
     A --> C
     B --> C
-    C -- Funksignale --> F
-    D -- Strom/Schnittstelle --> F
-    E -- Strom/Schnittstelle --> F
+    C -- "Funksignale" --> F
+    D -- "Strom/Schnittstelle" --> F
+    E -- "Strom/Schnittstelle" --> F
 
-    F -- Rohdaten --> G
-    G -- Demodulierte Daten --> H
-    H -- Decodierte Nachricht --> I
-    H -- Decodierte Nachricht --> J
+    F -- "Rohdaten" --> G
+    G -- "Demodulierte Daten" --> H
+    H -- "Decodierte Nachricht" --> I
+    H -- "Decodierte Nachricht" --> J
     I --> K
     J --> K
 ----
-====
 
 [[section-historie]]
 == Projektgeschichte und Entwicklung

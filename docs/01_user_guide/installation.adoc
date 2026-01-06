@@ -1,4 +1,4 @@
-= Installation
+== Installation
 
 [NOTE]
 ====
@@ -31,7 +31,9 @@ Die einfachste Methode ist die Installation aus dem geklonten Repository im Entw
 
 [source,bash]
 ----
-include::../examples/bash/install_via_pip.sh[]
+git clone https://github.com/Ein-Einfaches-Beispiel/PySignalduino.git
+cd PySignalduino
+pip install -e .
 ----
 
 Dadurch wird das Paket `signalduino-mqtt` in Ihrer Python-Umgebung installiert und alle Runtime-Abhängigkeiten werden erfüllt.
@@ -42,7 +44,7 @@ Falls Sie das Paket nicht installieren, sondern nur die Abhängigkeiten nutzen m
 
 [source,bash]
 ----
-include::../examples/bash/install_requirements.sh[]
+pip install -r requirements.txt
 ----
 
 Die Datei `requirements.txt` enthält die gleichen Pakete wie oben aufgelistet.
@@ -53,7 +55,7 @@ Für Beiträge zum Projekt oder zum Ausführen der Tests installieren Sie zusät
 
 [source,bash]
 ----
-include::../examples/bash/install_dev_requirements.sh[]
+pip install -r requirements-dev.txt
 ----
 
 Dies installiert:
@@ -69,7 +71,7 @@ Dies installiert:
 
 [source,bash]
 ----
-include::../examples/bash/verify_installation.sh[]
+python3 main.py --help
 ----
 
 Sie sollten eine Ausgabe mit allen verfügbaren Kommandozeilenoptionen sehen.
