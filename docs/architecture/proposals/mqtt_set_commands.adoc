@@ -5,7 +5,9 @@
 
 // Absicht und Zielsetzung
 == 1. Zielsetzung und Scope
-Dieses Architekturproposal beschreibt die Implementierung der CC1101-Parameter-Set-Befehle über MQTT. Die Funktionalität umfasst das Setzen von Frequenz, Bandbreite, Datenrate, Sensitivity und Ramping-Level (Rampl). Das Ziel ist es, eine konsistente, zuverlässige Kette vom MQTT-Topic bis zum seriellen Kommando an den Signalduino zu gewährleisten.
+Dieses Architekturproposal beschreibt die Implementierung der CC1101-Parameter-Set-Befehle über MQTT.
+Die Funktionalität umfasst das Setzen von Frequenz, Bandbreite, Datenrate, Sensitivity und Ramping-Level (Rampl).
+Das Ziel ist es, eine konsistente, zuverlässige Kette vom MQTT-Topic bis zum seriellen Kommando an den Signalduino zu gewährleisten.
 
 == 2. Betroffene Komponenten
 |===

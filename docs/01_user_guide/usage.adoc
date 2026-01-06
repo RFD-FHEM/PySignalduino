@@ -54,7 +54,8 @@ include::../../main.py[lines=55..84]
 
 ==== Heartbeat-Funktionalität
 
-Der Publisher sendet regelmäßig einen Heartbeat („online“) unter `{topic}/status`, solange die Verbindung besteht. Bei Verbindungsabbruch wird „offline“ gepublished.
+Der Publisher sendet regelmäßig einen Heartbeat („online“) unter `{topic}/status`, solange die Verbindung besteht.
+Bei Verbindungsabbruch wird „offline“ gepublished.
 
 ==== Beispiel: Manuelle Nutzung des MqttPublisher
 
@@ -106,7 +107,9 @@ Die folgenden Befehle werden unterstützt (Auswahl):
 
 ==== Persistenz-Funktionalität
 
-Befehle, die die Hardware-Konfiguration ändern (z. B. `write_register`, `set_patable`), werden in der Regel im EEPROM des SIGNALDuino persistent gespeichert. Die Persistenz wird durch die Firmware gewährleistet; PySignalduino sendet lediglich die entsprechenden Kommandos.
+Befehle, die die Hardware-Konfiguration ändern (z.
+B. `write_register`, `set_patable`), werden in der Regel im EEPROM des SIGNALDuino persistent gespeichert.
+Die Persistenz wird durch die Firmware gewährleistet; PySignalduino sendet lediglich die entsprechenden Kommandos.
 
 ==== Nutzung über MQTT
 

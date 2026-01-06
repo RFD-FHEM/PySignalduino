@@ -1,8 +1,5 @@
 = MQTT API Reference
-:doctype: book
-:icons: font
-:toc: left
-:toclevels: 2
+:doctype: book :icons: font :toc: left :toclevels: 2
 :sectnums:
 
 [[_mqtt_introduction]]
@@ -12,7 +9,9 @@ Die MQTT-Schnittstelle ermöglicht die Steuerung des PySignalduino-Gateways und 
 
 === Topics und Struktur
 
-Die Basis aller Topics ist `<base_topic>/v1`, wobei `<base_topic>` standardmäßig `signalduino` ist. Alle Beispiele verwenden `signalduino/v1` als Basis.
+Der **Standard-Topic** für alle MQTT-Operationen ist `signalduino/v1`. 
+Dieser Wert kann über die Umgebungsvariable `MQTT_TOPIC` oder den CLI-Parameter `--mqtt-topic` angepasst werden. Wenn nur der Basis-Topic (z.B. `foo`) gesetzt wird, ist der finale Topic immer versionsspezifisch: `foo/v1`.
+Alle nachfolgenden Beispiele verwenden `signalduino/v1` als Basis.
 
 |===
 | Zweck | Topic-Format | Anmerkungen

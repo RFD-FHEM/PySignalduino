@@ -1,10 +1,5 @@
 = ADR 002: Verwendung des MqttCommandDispatcher für die MQTT-Befehlsbehandlung
-:doctype: article
-:encoding: utf-8
-:lang: de
-:status: Accepted
-:decided-at: 2026-01-04
-:decided-by: Roo (Architekt)
+:doctype: article :encoding: utf-8 :lang: de :status: Accepted :decided-at: 2026-01-04 :decided-by: Roo (Architekt)
 
 [[kontext]]
 == Kontext

@@ -2,8 +2,8 @@
 
 [NOTE]
 ====
-Da PySignalduino noch in aktiver Entwicklung ist, können sich Code-Strukturen und APIs schnell ändern. Bitte synchronisieren Sie Ihren Fork regelmäßig mit dem upstream-Repository.
-====
+Da PySignalduino noch in aktiver Entwicklung ist, können sich Code-Strukturen und APIs schnell ändern.
+Bitte synchronisieren Sie Ihren Fork regelmäßig mit dem upstream-Repository.
 
 Beiträge zum Projekt sind willkommen!
 
@@ -23,7 +23,7 @@ Das Projekt verwendet `poetry` für die Abhängigkeitsverwaltung. Installieren S
 
 [source,bash]
 ----
-include::../../examples/bash/install_dev_deps.sh[]
+include::../examples/bash/install_dev_deps.sh[]
 ----
 
 Oder verwenden Sie `poetry install` (falls Poetry konfiguriert ist).
@@ -42,10 +42,21 @@ Das Projekt folgt PEP 8. Verwenden Sie `black` für automatische Formatierung un
 
 [source,bash]
 ----
-include::../../examples/bash/format_code.sh[]
+include::../examples/bash/format_code.sh[]
 ----
 
 Es gibt keine strikte CI-Prüfung, aber konsistenter Stil wird erwartet.
+
+=== Dokumentationsstil
+
+Für alle AsciiDoc-Dateien im `docs/` Verzeichnis ist die Regel "Ein Satz pro Zeile" verpflichtend.
+Dies erleichtert die Überprüfung von Änderungen mittels `git diff`.
+
+[NOTE]
+====
+Jeder Satz muss auf einer neuen Zeile beginnen.
+Ein Satz endet typischerweise mit einem Punkt (`.`), Ausrufezeichen (`!`) oder Fragezeichen (`?`).
+Achten Sie darauf, dass Codeblöcke und Tabellen nicht betroffen sind.
 
 == Tests ausführen
 
@@ -53,14 +64,14 @@ Das Projekt nutzt `pytest`. Stellen Sie sicher, dass `requirements-dev.txt` inst
 
 [source,bash]
 ----
-include::../../examples/bash/run_pytest.sh[]
+include::../examples/bash/run_pytest.sh[]
 ----
 
 Für spezifische Testmodule:
 
 [source,bash]
 ----
-include::../../examples/bash/run_specific_tests.sh[]
+include::../examples/bash/run_specific_tests.sh[]
 ----
 
 === Asyncio-Tests
@@ -91,7 +102,7 @@ Coverage-Bericht generieren:
 
 [source,bash]
 ----
-include::../../examples/bash/coverage_report.sh[]
+include::../examples/bash/coverage_report.sh[]
 ----
 
 Der Bericht wird im Verzeichnis `htmlcov/` erstellt.

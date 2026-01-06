@@ -1,12 +1,5 @@
 = Architektur-Proposal: {Proposal-Titel}
-:doctype: article
-:encoding: utf-8
-:lang: de
-:author: {Autor}
-:email: {Email}
-:revnumber: 1.0
-:revdate: {Datum}
-:xrefstyle: full
+:doctype: article :encoding: utf-8 :lang: de :author: {Autor} :email: {Email} :revnumber: 1.0 :revdate: {Datum} :xrefstyle: full
 
 [[status]]
 == Status
@@ -44,6 +37,7 @@
 [mermaid]
 ----
 {Mermaid Diagramm}
+
 ----
 
 === 4.2. Sequenz-Diagramm (Mermaid)

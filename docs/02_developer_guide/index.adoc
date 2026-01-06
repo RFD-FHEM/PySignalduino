@@ -2,8 +2,7 @@
 
 Dieser Abschnitt beschreibt die Architektur, wie man zur Entwicklung beitragen kann (Contributing) und wie man Tests durchführt.
 
-include::architecture.adoc[]
-include::contribution.adoc[]
+include::architecture.adoc[] include::contribution.adoc[]
 
 == Weitere Ressourcen
 

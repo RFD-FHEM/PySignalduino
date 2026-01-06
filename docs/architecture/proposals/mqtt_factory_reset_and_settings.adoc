@@ -1,12 +1,5 @@
 = Architektur-Proposal: MQTT-basierter Factory Reset und Hardware-Status
-:doctype: article
-:encoding: utf-8
-:lang: de
-:author: Roo (Architekt)
-:email: roo@pythonsignalduino.com
-:revnumber: 1.0
-:revdate: 2026-01-04
-:xrefstyle: full
+:doctype: article :encoding: utf-8 :lang: de :author: Roo (Architekt) :email: roo@pythonsignalduino.com :revnumber: 1.0 :revdate: 2026-01-04 :xrefstyle: full
 
 [[status]]
 == Status

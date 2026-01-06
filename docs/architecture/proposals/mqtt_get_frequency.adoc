@@ -1,10 +1,7 @@
 = Architektur-Proposal: MQTT-Kommando `get/cc1101/frequency`
-:author: Roo
-:revdate: 2026-01-03
-:page-layout: proposal
+:author: Roo :revdate: 2026-01-03 :page-layout: proposal
 :sectnums:
-:toc: left
-:toclevels: 3
+:toc: left :toclevels: 3
 
 [[section-hintergrund]]
 == 1. Hintergrund und Motivation

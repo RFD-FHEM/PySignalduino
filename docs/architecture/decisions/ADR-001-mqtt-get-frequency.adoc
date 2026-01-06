@@ -1,7 +1,5 @@
 = 001. Implementierung des MQTT-Befehls get/frequency
-:author: Roo
-:revdate: 2026-01-03
-:status: Accepted
+:author: Roo :revdate: 2026-01-03 :status: Accepted
 
 [[status]]
 == Status
