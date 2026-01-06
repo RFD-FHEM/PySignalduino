@@ -87,14 +87,14 @@ class SignalduinoCommands:
     async def get_ccconf(self, timeout: float = 2.0) -> Dict[str, str]:
         """CC1101 configuration registers (C0DnF). Returns a dictionary with the raw string."""
         # Response-Pattern aus 00_SIGNALduino.pm, Zeile 86, angepasst an Python regex
-        response = await self._send_command(command="C0DnF", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C0Dn11=[a-f0-9]+', re.IGNORECASE))
+        response = await self._send_command(command="C0DnF", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C0Dn11\s*=\s*[a-f0-9]+', re.IGNORECASE))
         # Kapselt den rohen String, um die MQTT-Antwort konsistent als Dict zurückzugeben
         return {"cc1101_config_string": response}
         
     async def get_ccpatable(self, timeout: float = 2.0) -> str:
         """CC1101 PA table (C3E)"""
         # Response-Pattern aus 00_SIGNALduino.pm, Zeile 88
-        return await self._send_command(command="C3E", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C3E\s=\s.*'))
+        return await self._send_command(command="C3E", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C3E\s*=\s*.*'))
         
     async def factory_reset(self, timeout: float = 5.0) -> Dict[str, str]:
         """Sets EEPROM defaults, effectively a factory reset (e).
@@ -133,7 +133,7 @@ class SignalduinoCommands:
         """Liest einen CC1101-Registerwert und gibt ihn als Integer zurück."""
         response = await self.read_cc1101_register(register_address)
         # Stellt sicher, dass wir nur den Wert nach 'C[A-Fa-f0-9]{2} = ' extrahieren
-        match = re.search(r'C[A-Fa-f0-9]{2}\s=\s([0-9A-Fa-f]+)', response, re.IGNORECASE)
+        match = re.search(r'C[A-Fa-f0-9]{2}\s*=\s*([0-9A-Fa-f]+)', response, re.IGNORECASE)
         if match:
             return int(match.group(1), 16)
         # Fängt auch den Fall 'ccreg 00:' (default-Antwort) oder andere unerwartete Antworten ab
@@ -264,7 +264,7 @@ class SignalduinoCommands:
         """Read CC1101 register (C<reg>)"""
         hex_addr = f"{register_address:02X}"
         # Response-Pattern: ccreg 00: oder Cxx = yy (aus 00_SIGNALduino.pm, Zeile 87)
-        return await self._send_command(command=f"C{hex_addr}", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C[a-f0-9]{2}\s=\s[a-f0-9]+|ccreg 00:', re.IGNORECASE))
+        return await self._send_command(command=f"C{hex_addr}", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C[a-f0-9]{2}\s*=\s*[a-f0-9]+|ccreg 00:', re.IGNORECASE))
 
     async def _get_frequency_registers(self) -> int:
         """Liest die CC1101 Frequenzregister (FREQ2, FREQ1, FREQ0) und kombiniert sie zu einem 24-Bit-Wert (F_REG)."""
