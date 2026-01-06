@@ -20,12 +20,18 @@ jobs:
         with:
           ruby-version: 3.4
 
+      # INSTALLATION: Installiere asciidoctor-kroki Gem für Mermaid-Unterstützung
+      - name: Install Asciidoctor Kroki Gem
+        run: gem install asciidoctor-kroki
+
       - uses: reitzig/actions-asciidoctor@v2.0.2
         with:
           version: 2.0.26
 
-      - name: run asciidoctor
-        run:  asciidoctor -R docs -D build/site/html -a docinfo=shared -a toc=left -a toclevels=2 'docs/index.adoc'
+      - name: run asciidoctor with Kroki extension
+        # Registriere die Kroki-Extension (-r asciidoctor-kroki) und aktiviere sie (-a kroki=). 
+        # Mermaid-Diagramme werden mit dem Kroki-Server gerendert.
+        run: asciidoctor -R docs -D build/site/html -a docinfo=shared -a toc=left -a toclevels=2 -r asciidoctor-kroki -a kroki= 'docs/index.adoc'
       
       - name: Setup Python for Sitemap Generation
         uses: actions/setup-python@v5
