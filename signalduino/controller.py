@@ -360,17 +360,20 @@ class SignalduinoController:
             self.logger.debug(f"Current pending responses: {len(self._pending_responses)}")
             for pending in self._pending_responses:
                 try:
-                    self.logger.debug(f"Checking pending response: {pending.payload}")
-                    if pending.response_pattern:
-                        self.logger.debug(f"Testing pattern: {pending.response_pattern}")
-                        if pending.response_pattern.match(line):
-                            self.logger.debug(f"Matched response pattern for command: {pending.payload}")
+                    self.logger.debug(f"Checking pending response for command: {pending.command.payload}. Line: {line.strip()}")
+                    
+                    pattern = pending.command.response_pattern
+                    if pattern:
+                        self.logger.debug(f"Testing pattern: {pattern.pattern}")
+                        if pattern.match(line):
+                            self.logger.debug(f"Matched response pattern for command: {pending.command.payload}")
                             pending.future.set_result(line)
                             self._pending_responses.remove(pending)
                             return
-                    self.logger.debug(f"Testing direct match for: {pending.payload}")
-                    if line.startswith(pending.payload):
-                        self.logger.debug(f"Matched direct response for command: {pending.payload}")
+                            
+                    self.logger.debug(f"Testing direct match for: {pending.command.payload}")
+                    if line.startswith(pending.command.payload):
+                        self.logger.debug(f"Matched direct response for command: {pending.command.payload}")
                         pending.future.set_result(line)
                         self._pending_responses.remove(pending)
                         return

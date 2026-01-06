@@ -75,7 +75,13 @@ class SignalduinoCommands:
         
     async def get_config(self, timeout: float = 2.0) -> Dict[str, int]:
         """Decoder configuration (CG) - Returns parsed dictionary."""
-        response = await self._send_command(command="CG", expect_response=True, timeout=timeout)
+        config_pattern = re.compile(r'^MS=[01];MU=[01];MC=[01];Mred=[01](;M[A-Za-z0-9]+=[01])*$')
+        response = await self._send_command(
+            command="CG",
+            expect_response=True,
+            timeout=timeout,
+            response_pattern=config_pattern
+        )
         return self._parse_decoder_config(response)
         
     async def get_ccconf(self, timeout: float = 2.0) -> Dict[str, str]:
