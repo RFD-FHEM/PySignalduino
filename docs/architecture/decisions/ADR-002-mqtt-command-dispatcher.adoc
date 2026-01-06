@@ -15,9 +15,9 @@ Die zentrale Verwaltung der Befehle und deren Validierung ist eine bewährte Met
 
 Die hartcodierte `if/elif`-Logik in `signalduino/mqtt.py` wird durch die Verwendung des `MqttCommandDispatcher` ersetzt.
 
-1. Der `MqttPublisher` in `signalduino/mqtt.py` wird eine Instanz des `MqttCommandDispatcher` erhalten.
-2. Die Methode `_handle_command` in `MqttPublisher` wird umgeschrieben, um den eingehenden Befehlspfad und Payload direkt an `MqttCommandDispatcher.dispatch()` zu übergeben.
-3. Die Fehler- und Erfolgsantworten werden vom `MqttCommandDispatcher` zurückgegeben und von `MqttPublisher` an die entsprechenden MQTT-Topics (`/responses` und `/errors`) publiziert.
+. Der `MqttPublisher` in `signalduino/mqtt.py` wird eine Instanz des `MqttCommandDispatcher` erhalten.
+. Die Methode `_handle_command` in `MqttPublisher` wird umgeschrieben, um den eingehenden Befehlspfad und Payload direkt an `MqttCommandDispatcher.dispatch()` zu übergeben.
+. Die Fehler- und Erfolgsantworten werden vom `MqttCommandDispatcher` zurückgegeben und von `MqttPublisher` an die entsprechenden MQTT-Topics (`/responses` und `/errors`) publiziert.
 
 [[konsequenzen]]
 == Konsequenzen

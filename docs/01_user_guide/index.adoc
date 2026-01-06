@@ -71,10 +71,10 @@ Die Hauptkomponenten sind:
 
 Für einen schnellen Einstieg folgen Sie diesen Schritten:
 
-1. **Installation**: Siehe link:installation.adoc[Installationsanleitung].
-2. **Konfiguration**: Setzen Sie die erforderlichen Umgebungsvariablen (z.B. `SIGNALDUINO_SERIAL_PORT`, `MQTT_HOST`).
-3. **Programm starten**: Führen Sie `python3 main.py` aus.
-4. **MQTT‑Nachrichten überwachen**: Abonnieren Sie das Topic `signalduino/messages`, um dekodierte Signale zu empfangen.
+. **Installation**: Siehe link:installation.adoc[Installationsanleitung].
+. **Konfiguration**: Setzen Sie die erforderlichen Umgebungsvariablen (z.B. `SIGNALDUINO_SERIAL_PORT`, `MQTT_HOST`).
+. **Programm starten**: Führen Sie `python3 main.py` aus.
+. **MQTT‑Nachrichten überwachen**: Abonnieren Sie das Topic `signalduino/messages`, um dekodierte Signale zu empfangen.
 
 Ausführliche Anleitungen finden Sie in den folgenden Kapiteln.
 

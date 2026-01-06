@@ -13,9 +13,9 @@ Dieses Proposal beschreibt die Implementierung des MQTT-Kommandos `get/cc1101/fr
 
 Der Befehl wird über das MQTT-Topic `[base_topic]/commands/get/cc1101/frequency` empfangen und löst eine Kette von Funktionsaufrufen aus:
 
-1.  *`signalduino/mqtt.py`*: Empfängt das Kommando und ruft die Kommando-Logik auf.
-2.  *`signalduino/commands.py`*: Implementiert die High-Level-Logik, welche die Registerwerte von der Hardware abruft und die Frequenz berechnet.
-3.  *`signalduino/hardware.py`*: Stellt eine neue Methode zum Lesen der FREQ2, FREQ1 und FREQ0 Register bereit.
+.  *`signalduino/mqtt.py`*: Empfängt das Kommando und ruft die Kommando-Logik auf.
+.  *`signalduino/commands.py`*: Implementiert die High-Level-Logik, welche die Registerwerte von der Hardware abruft und die Frequenz berechnet.
+.  *`signalduino/hardware.py`*: Stellt eine neue Methode zum Lesen der FREQ2, FREQ1 und FREQ0 Register bereit.
 
 Das Ergebnis wird als JSON-Objekt auf dem zentralen Antwort-Topic (`<base_topic>/responses`) veröffentlicht, um Konsistenz mit bestehenden Befehlen zu gewährleisten.
 

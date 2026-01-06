@@ -24,9 +24,9 @@ $$f_{RF} = \frac{26}{65536} \times F_{REG} \, \text{MHz}$$
 
 Wir implementieren den `get/frequency` Befehl als Teil der `MqttHandler`- und `Commands`-Klassen.
 
-1.  *MQTT Topic*: Der Befehl wird über `cmd/get/frequency` empfangen (komplettes Topic: `<base_topic>/commands/get/frequency`).
-2.  *Antwort Topic*: Die Antwort wird über das etablierte Antwort-Topic (`<base_topic>/responses`) veröffentlicht, um Konsistenz mit dem bestehenden `get/system/version` Befehl zu gewährleisten. Der Payload muss das Feld `command` enthalten, um die Herkunft zu kennzeichnen.
-3.  *Berechnungslogik*: Die Berechnung wird exakt nach der CC1101-Formel unter Verwendung von $F_{XOSC} = 26 \, \text{MHz}$ durchgeführt.
+.  *MQTT Topic*: Der Befehl wird über `cmd/get/frequency` empfangen (komplettes Topic: `<base_topic>/commands/get/frequency`).
+.  *Antwort Topic*: Die Antwort wird über das etablierte Antwort-Topic (`<base_topic>/responses`) veröffentlicht, um Konsistenz mit dem bestehenden `get/system/version` Befehl zu gewährleisten. Der Payload muss das Feld `command` enthalten, um die Herkunft zu kennzeichnen.
+.  *Berechnungslogik*: Die Berechnung wird exakt nach der CC1101-Formel unter Verwendung von $F_{XOSC} = 26 \, \text{MHz}$ durchgeführt.
     *   Wir erstellen eine asynchrone Methode in `signalduino/hardware.py` (z.B. `get_frequency_registers()`) zum Auslesen von FREQ2, FREQ1, FREQ0.
     *   Wir implementieren die Berechnung in `signalduino/commands.py` (z.B. `get_frequency()`), um die Abhängigkeit der Hardware vom Command Layer zu kapseln.
     *   Das Ergebnis wird auf 4 Dezimalstellen gerundet (in MHz), um eine hohe Genauigkeit bei der Anzeige zu gewährleisten.

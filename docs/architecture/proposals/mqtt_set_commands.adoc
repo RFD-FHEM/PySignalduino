@@ -5,6 +5,7 @@
 
 // Absicht und Zielsetzung
 == 1. Zielsetzung und Scope
+
 Dieses Architekturproposal beschreibt die Implementierung der CC1101-Parameter-Set-Befehle über MQTT.
 Die Funktionalität umfasst das Setzen von Frequenz, Bandbreite, Datenrate, Sensitivity und Ramping-Level (Rampl).
 Das Ziel ist es, eine konsistente, zuverlässige Kette vom MQTT-Topic bis zum seriellen Kommando an den Signalduino zu gewährleisten.
@@ -103,9 +104,9 @@ Das Feld `req_id` in allen MQTT-Command-Payloads (sowohl `set/...` als auch `get
 * **Antwort:** Bei Fehlen der `req_id` in der Anfrage wird das Feld `req_id` in der Antwort-Payload (Topics `responses` und `errors`) den Wert `null` (JSON null) annehmen.
 
 == 4. Fehlerbehandlung und Validierung
-1. **Validierung (Dispatcher):** Die MQTT-Payloads werden durch das in [`SignalduinoCommands.COMMAND_MAP`](signalduino/commands.py) definierte `schema` (z.B. `FREQ_SCHEMA`, `DATARATE_SCHEMA`) vor dem Aufruf der Controller-Methode validiert.
-2. **Serial-Kommunikation:** `SignalduinoCommands._send_command` wird bei Timeout eine `SignalduinoCommandTimeout` werfen. Diese wird im `SignalduinoController` gefangen und als NACK-Statusmeldung zurückgegeben.
-3. **`cc1101_write_init`:** Nach jedem Set-Vorgang muss `SignalduinoCommands.cc1101_write_init()` aufgerufen werden, um die CC1101-Konfiguration erneut in das Chip-Register zu schreiben und die Änderungen zu aktivieren.
+. **Validierung (Dispatcher):** Die MQTT-Payloads werden durch das in [`SignalduinoCommands.COMMAND_MAP`](signalduino/commands.py) definierte `schema` (z.B. `FREQ_SCHEMA`, `DATARATE_SCHEMA`) vor dem Aufruf der Controller-Methode validiert.
+. **Serial-Kommunikation:** `SignalduinoCommands._send_command` wird bei Timeout eine `SignalduinoCommandTimeout` werfen. Diese wird im `SignalduinoController` gefangen und als NACK-Statusmeldung zurückgegeben.
+. **`cc1101_write_init`:** Nach jedem Set-Vorgang muss `SignalduinoCommands.cc1101_write_init()` aufgerufen werden, um die CC1101-Konfiguration erneut in das Chip-Register zu schreiben und die Änderungen zu aktivieren.
 
 == 5. Teststrategie
 * **Unit Tests (`tests/test_mqtt_cc1101.py` oder neu: `tests/test_set_commands.py`):**
