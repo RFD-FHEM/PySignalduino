@@ -264,7 +264,7 @@ class SignalduinoCommands:
         """Read CC1101 register (C<reg>)"""
         hex_addr = f"{register_address:02X}"
         # Response-Pattern: ccreg 00: oder Cxx = yy (aus 00_SIGNALduino.pm, Zeile 87)
-        return await self._send_command(command=f"C{hex_addr}", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C[A-Fa-f0-9]{2}\s=\s[0-9A-Fa-f]+$|ccreg 00:'))
+        return await self._send_command(command=f"C{hex_addr}", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C[A-Fa-f0-9]{2}\s=\s[0-9A-Fa-f]+|ccreg 00:'))
 
     async def _get_frequency_registers(self) -> int:
         """Liest die CC1101 Frequenzregister (FREQ2, FREQ1, FREQ0) und kombiniert sie zu einem 24-Bit-Wert (F_REG)."""
