@@ -2,7 +2,9 @@
 
 == Übersicht
 
-PySignalduino ist modular aufgebaut und trennt die Protokolldefinitionen (JSON) strikt von der Verarbeitungslogik (Python). Seit der Migration zu asyncio (Version 0.9.0) folgt das System einer ereignisgesteuerten, asynchronen Architektur, die auf asyncio-Tasks und -Queues basiert. Dies ermöglicht eine effiziente Verarbeitung von Sensordaten, Kommandos und MQTT-Nachrichten ohne Blockierung.
+PySignalduino ist modular aufgebaut und trennt die Protokolldefinitionen (JSON) strikt von der Verarbeitungslogik (Python).
+Seit der Migration zu asyncio (Version 0.9.0) folgt das System einer ereignisgesteuerten, asynchronen Architektur, die auf asyncio-Tasks und -Queues basiert.
+Dies ermöglicht eine effiziente Verarbeitung von Sensordaten, Kommandos und MQTT-Nachrichten ohne Blockierung.
 
 == Kernkomponenten
 
@@ -154,9 +156,10 @@ Die Sitemap wird durch das Python-Skript `tools/generate_sitemap.py` generiert, 
 
 Das Skript kann manuell ausgeführt werden:
 
-```bash
+[source,bash]
+----
 python tools/generate_sitemap.py --build-dir build/site/html --output sitemap.xml --branch main
-```
+----
 
 === robots.txt-Konfiguration
 

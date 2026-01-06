@@ -1,19 +1,20 @@
 = 003. Verwendung von CC1101-Standardformeln für Frequenz und Datenrate
-:revdate: 2026-01-04
-:status: Accepted
+:revdate: 2026-01-04 :status: Accepted
 
 == Context
 Die Implementierung der MQTT SET-Befehle für CC1101-Parameter (Frequenz, Datenrate) erfordert die Umrechnung von physikalischen Werten (MHz, kBaud) in die spezifischen Registerwerte des CC1101-Chips.
 
 Andere Parameter wie Bandbreite, Sensitivity und Rampl verwendeten früher spezielle, abstraktere Kommandos des Signalduino-Firmware-Protokolls (`C101`, `X4C`, `X5C`).
 
-Um die Steuerung der CC1101-Parameter zu konsolidieren, wurden die Spezialbefehle (`X4C`, `X5C`) in der Python-Implementierung durch generische Register-Writes (`W`) ersetzt, wobei die Umrechnungslogik (z.B. Index in Registerwert) in Python implementiert wurde.
+Um die Steuerung der CC1101-Parameter zu konsolidieren, wurden die Spezialbefehle (`X4C`, `X5C`) in der Python-Implementierung durch generische Register-Writes (`W`) ersetzt, wobei die Umrechnungslogik (z.B.
+Index in Registerwert) in Python implementiert wurde.
 
 Für Frequenz und Datenrate existiert keine solche Abstraktion im Signalduino-Protokoll, oder die vorhandene Logik ist unvollständig/unzureichend für eine präzise Steuerung.
 
 
 == Decision
-Die Umrechnung von Frequenz (MHz) in die drei Registerwerte (FREQ2, FREQ1, FREQ0) und die Umrechnung der Datenrate (kBaud) in MDMCFG4/MDMCFG3-Registerwerte erfolgt *direkt* in der Python-Implementierung von `SignalduinoCommands` unter Verwendung der im CC1101-Datenblatt definierten Standardformeln (z.B. Freq = f_xosc * FREQ / 2^16).
+Die Umrechnung von Frequenz (MHz) in die drei Registerwerte (FREQ2, FREQ1, FREQ0) und die Umrechnung der Datenrate (kBaud) in MDMCFG4/MDMCFG3-Registerwerte erfolgt *direkt* in der Python-Implementierung von `SignalduinoCommands` unter Verwendung der im CC1101-Datenblatt definierten Standardformeln (z.B.
+Freq = f_xosc * FREQ / 2^16).
 
 Diese Registerwerte werden dann über generische CC1101-Schreibbefehle des Signalduino-Protokolls (`W<RegisterAddress><Value>`) übertragen.
 

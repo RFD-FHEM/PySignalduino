@@ -1,10 +1,5 @@
 = ADR {Nummer}: {Titel}
-:doctype: article
-:encoding: utf-8
-:lang: de
-:status: {Status}
-:decided-at: {Datum}
-:decided-by: {Entscheidungsträger}
+:doctype: article :encoding: utf-8 :lang: de :status: {Status} :decided-at: {Datum} :decided-by: {Entscheidungsträger}
 
 [[kontext]]
 == Kontext

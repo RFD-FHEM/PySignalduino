@@ -1,11 +1,9 @@
 = SIGNALduino - Projektübersicht
-:doctype: book
-:homepage: index.html
-:description: Der SIGNALduino ist ein vielseitiges Funkmodul zum Empfangen und Senden von 433/868MHz Signalen in Smart-Home-Umgebungen wie FHEM. Er dient als Signal-Transceiver und Protokolldekoder.
-:keywords: SIGNALduino, FHEM, 433MHz, 868MHz, Smart Home, Funkprotokolle, DIY, Arduino, ESP32
-:toc: left
-:toclevels: 2
+:doctype: book :homepage: index.html :description: Der SIGNALduino ist ein vielseitiges Funkmodul zum Empfangen und Senden von 433/868MHz Signalen in Smart-Home-Umgebungen wie FHEM.
+:keywords: SIGNALduino, FHEM, 433MHz, 868MHz, Smart Home, Funkprotokolle, DIY, Arduino, ESP32 :toc: left :toclevels: 2
 :experimental:
+
+Er dient als Signal-Transceiver und Protokolldekoder.
 
 [[section-uebersicht]]
 == Zweck und Funktion
@@ -17,7 +15,47 @@ Dadurch werden verschiedenste proprietäre Funkprotokolle für die Nutzung in Sm
 
 Die verfügbare Hardware-Basis reicht von einfachen Arduino/nanoCUL-Lösungen bis hin zu erweiterten Varianten wie dem Maple-SignalDuino und dem ESP32-SignalDuino, die erweiterte Funktionen (z.B. WLAN) bieten.
 
-image::images/signalduino_uebersicht.png[SIGNALduino Übersicht - Hardware und Funktion]
+.Übersicht: Hardware und Funktion
+
+[mermaid]
+----
+graph TD
+    subgraph "Input (Funksignale)"
+        A[433/868 MHz Signale]
+        B[Sensoren / Fernbedienungen]
+    end
+
+    subgraph "Hardware-Plattform"
+        C[CC1101 Funkmodul]
+        D[Arduino Nano]
+        E[ESP8266 / ESP32]
+    end
+
+    subgraph "PySignalduino (Software-Verarbeitung)"
+        F[Empfangen / Senden]
+        G[Protokolldemodulation]
+        H[Dekodierung Protokolle]
+    end
+
+    subgraph "Output (Home Automation)"
+        I[MQTT Bridge]
+        J[Serielle Schnittstelle]
+        K[FHEM / Home Assistant / ioBroker]
+    end
+
+    A --> C
+    B --> C
+    C -- "Funksignale" --> F
+    D -- "Strom/Schnittstelle" --> F
+    E -- "Strom/Schnittstelle" --> F
+
+    F -- "Rohdaten" --> G
+    G -- "Demodulierte Daten" --> H
+    H -- "Decodierte Nachricht" --> I
+    H -- "Decodierte Nachricht" --> J
+    I --> K
+    J --> K
+----
 
 [[section-historie]]
 == Projektgeschichte und Entwicklung

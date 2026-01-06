@@ -22,6 +22,6 @@ Die Datei `sd_protocols/protocols.json` ist die definitive Quelle für alle Prot
 
 == Neues Protokoll hinzufügen
 
-1. Definition in `protocols.json` ergänzen.
-2. Dekodierungsmethode implementieren (z.B. in `sd_protocols/manchester.py`).
-3. Tests hinzufügen.
+. Definition in `protocols.json` ergänzen.
+. Dekodierungsmethode implementieren (z.B. in `sd_protocols/manchester.py`).
+. Tests hinzufügen.
