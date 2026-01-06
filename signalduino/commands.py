@@ -24,17 +24,46 @@ class SignalduinoCommands:
         self._send_command = send_command
         self.mqtt_topic_root = mqtt_topic_root
         
+    def _parse_decoder_config(self, response: str) -> Dict[str, int]:
+        """Parses the 'MS=1;MU=1;MC=1;Mred=1' firmware response into a dictionary of integers."""
+        config: Dict[str, int] = {}
+        for item in response.strip().split(';'):
+            if '=' in item:
+                key, val = item.split('=', 1)
+                try:
+                    # Wir gehen davon aus, dass die Werte boolesch (0 oder 1) sind.
+                    config[key.strip()] = int(val.strip())
+                except ValueError:
+                    logger.warning("Could not parse decoder config value '%s' for key '%s' as integer.", val, key)
+                    # Falls Parsing fehlschlägt, ignorieren wir den Wert, um Typkonsistenz zu wahren.
+                    pass 
+        return config
+        
     async def get_version(self, timeout: float = 2.0) -> str:
         """Firmware version (V)"""
         return await self._send_command(command="V", expect_response=True, timeout=timeout)
         
-    async def get_free_ram(self, timeout: float = 2.0) -> str:
+    async def get_free_ram(self, timeout: float = 2.0) -> int:
         """Free RAM (R)"""
-        return await self._send_command(command="R", expect_response=True, timeout=timeout)
+        # Firmware typically responds with a numeric value (e.g., "1234")
+        response_pattern = re.compile(r'^(\d+)$')
+        response = await self._send_command(command="R", expect_response=True, timeout=timeout, response_pattern=response_pattern)
         
-    async def get_uptime(self, timeout: float = 2.0) -> str:
+        match = response_pattern.match(response.strip())
+        if match:
+            return int(match.group(1))
+        raise ValueError(f"Unexpected response format for Free RAM: {response}")
+
+    async def get_uptime(self, timeout: float = 2.0) -> int:
         """System uptime (t)"""
-        return await self._send_command(command="t", expect_response=True, timeout=timeout)
+        # Firmware typically responds with a numeric value (e.g., "1234")
+        response_pattern = re.compile(r'^(\d+)$')
+        response = await self._send_command(command="t", expect_response=True, timeout=timeout, response_pattern=response_pattern)
+        
+        match = response_pattern.match(response.strip())
+        if match:
+            return int(match.group(1))
+        raise ValueError(f"Unexpected response format for Uptime: {response}")
         
     async def get_cmds(self, timeout: float = 2.0) -> str:
         """Available commands (?)"""
@@ -44,15 +73,18 @@ class SignalduinoCommands:
         """Ping (P)"""
         return await self._send_command(command="P", expect_response=True, timeout=timeout)
         
-    async def get_config(self, timeout: float = 2.0) -> str:
-        """Decoder configuration (CG)"""
-        return await self._send_command(command="CG", expect_response=True, timeout=timeout)
+    async def get_config(self, timeout: float = 2.0) -> Dict[str, int]:
+        """Decoder configuration (CG) - Returns parsed dictionary."""
+        response = await self._send_command(command="CG", expect_response=True, timeout=timeout)
+        return self._parse_decoder_config(response)
         
-    async def get_ccconf(self, timeout: float = 2.0) -> str:
-        """CC1101 configuration registers (C0DnF)"""
+    async def get_ccconf(self, timeout: float = 2.0) -> Dict[str, str]:
+        """CC1101 configuration registers (C0DnF). Returns a dictionary with the raw string."""
         # Response-Pattern aus 00_SIGNALduino.pm, Zeile 86, angepasst an Python regex
-        return await self._send_command(command="C0DnF", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C0Dn11=[A-F0-9a-f]+'))
-    
+        response = await self._send_command(command="C0DnF", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C0Dn11=[A-F0-9a-f]+'))
+        # Kapselt den rohen String, um die MQTT-Antwort konsistent als Dict zurückzugeben
+        return {"cc1101_config_string": response}
+        
     async def get_ccpatable(self, timeout: float = 2.0) -> str:
         """CC1101 PA table (C3E)"""
         # Response-Pattern aus 00_SIGNALduino.pm, Zeile 88
@@ -501,12 +533,12 @@ SEND_MSG_SCHEMA = {
 COMMAND_MAP: Dict[str, Dict[str, Any]] = {
     # Phase 1: Einfache GET-Befehle (Core)
     'get/system/version': { 'method': 'get_version', 'schema': BASE_SCHEMA, 'description': 'Firmware version (V)' },
-    'get/system/freeram': { 'method': 'get_freeram', 'schema': BASE_SCHEMA, 'description': 'Free RAM (R)' },
+    'get/system/freeram': { 'method': 'get_free_ram', 'schema': BASE_SCHEMA, 'description': 'Free RAM (R)' },
     'get/system/uptime': { 'method': 'get_uptime', 'schema': BASE_SCHEMA, 'description': 'System uptime (t)' },
-    'get/config/decoder': { 'method': 'get_config_decoder', 'schema': BASE_SCHEMA, 'description': 'Decoder configuration (CG)' },
-    'get/cc1101/config': { 'method': 'get_cc1101_config', 'schema': BASE_SCHEMA, 'description': 'CC1101 configuration registers (C0DnF)' },
-    'get/cc1101/patable': { 'method': 'get_cc1101_patable', 'schema': BASE_SCHEMA, 'description': 'CC1101 PA table (C3E)' },
-    'get/cc1101/register': { 'method': 'get_cc1101_register', 'schema': BASE_SCHEMA, 'description': 'Read CC1101 register (C<reg>)' },
+    'get/config/decoder': { 'method': 'get_config', 'schema': BASE_SCHEMA, 'description': 'Decoder configuration (CG)' },
+    'get/cc1101/config': { 'method': 'get_ccconf', 'schema': BASE_SCHEMA, 'description': 'CC1101 configuration registers (C0DnF)' },
+    'get/cc1101/patable': { 'method': 'get_ccpatable', 'schema': BASE_SCHEMA, 'description': 'CC1101 PA table (C3E)' },
+    'get/cc1101/register': { 'method': 'read_cc1101_register', 'schema': BASE_SCHEMA, 'description': 'Read CC1101 register (C<reg>)' },
     'get/cc1101/frequency': { 'method': 'get_frequency', 'schema': BASE_SCHEMA, 'description': 'CC1101 current RF frequency' },
     'get/cc1101/settings': { 'method': 'get_cc1101_settings', 'schema': BASE_SCHEMA, 'description': 'CC1101 key configuration settings (freq, bw, rampl, sens, dr)' },
 

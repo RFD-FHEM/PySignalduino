@@ -89,12 +89,32 @@ class SignalduinoController:
         # commands.get_version ist eine asynchrone Methode in SignalduinoCommands, die 'V' sendet.
         return await self.commands.get_version()
 
+    async def get_free_ram(self, payload: Dict[str, Any]) -> int:
+        """Delegates to SignalduinoCommands to get the free RAM (R)."""
+        return await self.commands.get_free_ram()
+
+    async def get_uptime(self, payload: Dict[str, Any]) -> int:
+        """Delegates to SignalduinoCommands to get the system uptime (t)."""
+        return await self.commands.get_uptime()
+
+    async def get_config(self, payload: Dict[str, Any]) -> Dict[str, int]:
+        """Delegates to SignalduinoCommands to get the decoder configuration (CG)."""
+        return await self.commands.get_config()
+        
+    async def get_ccconf(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Delegates to SignalduinoCommands to get the CC1101 config registers (C0DnF)."""
+        return await self.commands.get_ccconf()
+
+    async def get_ccpatable(self, payload: Dict[str, Any]) -> str:
+        """Delegates to SignalduinoCommands to get the CC1101 PA table (C3E)."""
+        return await self.commands.get_ccpatable()
+
     async def get_frequency(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Delegates to SignalduinoCommands to get the current CC1101 frequency."""
         # Der Payload wird vom MqttCommandDispatcher übergeben, aber von commands.get_frequency ignoriert.
         return await self.commands.get_frequency(payload)
 
-    async def factory_reset(self, payload: Dict[str, Any]) -> str:
+    async def factory_reset(self, payload: Dict[str, Any]) -> Dict[str, str]:
         """Delegates to SignalduinoCommands to execute a factory reset (e)."""
         # Payload wird zur Validierung akzeptiert, aber ignoriert.
         return await self.commands.factory_reset()
