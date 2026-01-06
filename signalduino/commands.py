@@ -133,7 +133,7 @@ class SignalduinoCommands:
         """Liest einen CC1101-Registerwert und gibt ihn als Integer zurück."""
         response = await self.read_cc1101_register(register_address)
         # Stellt sicher, dass wir nur den Wert nach 'C[A-Fa-f0-9]{2} = ' extrahieren
-        match = re.search(r'C[A-Fa-f0-9]{2}\s=\s([0-9A-Fa-f]+)$', response)
+        match = re.search(r'C[A-Fa-f0-9]{2}\s=\s([0-9A-Fa-f]+)', response, re.IGNORECASE)
         if match:
             return int(match.group(1), 16)
         # Fängt auch den Fall 'ccreg 00:' (default-Antwort) oder andere unerwartete Antworten ab
