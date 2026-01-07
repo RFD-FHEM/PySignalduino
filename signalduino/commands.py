@@ -16,6 +16,21 @@ if TYPE_CHECKING:
     
 logger = logging.getLogger(__name__)
 
+CC1101_REGISTER_MAP: Dict[str, int] = {
+    # Configuration Registers
+    "IOCFG2": 0x00, "IOCFG1": 0x01, "IOCFG0": 0x02, "FIFOTHR": 0x03, 
+    "PKTLEN": 0x06, "PKTCTRL1": 0x07, "PKTCTRL0": 0x08, "ADDR": 0x09, 
+    "CHANNR": 0x0A, "FSCTRL1": 0x0B, "FSCTRL0": 0x0C, "FREQ2": 0x0D, 
+    "FREQ1": 0x0E, "FREQ0": 0x0F, "MDMCFG4": 0x10, "MDMCFG3": 0x11, 
+    "MDMCFG2": 0x12, "MDMCFG1": 0x13, "MDMCFG0": 0x14, "DEVIATN": 0x15, 
+    "MCSM1": 0x16, "MCSM0": 0x17, "FOCCFG": 0x19, "BSCFG": 0x1A, 
+    "AGCCTRL2": 0x1B, "AGCCTRL1": 0x1C, "AGCCTRL0": 0x1D, "FSCAL3": 0x1F, 
+    "FSCAL2": 0x20, "FSCAL1": 0x21, "FSCAL0": 0x22, "FSTEST": 0x23, 
+    "PTEST": 0x25, "LTEST": 0x26, "PATABLE": 0x3E,
+    # Status Registers
+    "PARTNUM": 0x30, "VERSION": 0x31, "MARCSTATE": 0x35, "LQI": 0x38, "RSSI": 0x39
+}
+
 # --- BEREICH 1: SignalduinoCommands (Implementierung der seriellen Befehle) ---
 
 class SignalduinoCommands:
@@ -132,7 +147,7 @@ class SignalduinoCommands:
 
     async def _read_register_value(self, register_address: int) -> int:
         """Liest einen CC1101-Registerwert und gibt ihn als Integer zurück."""
-        response_dict = await self.read_cc1101_register(register_address)
+        response_dict = await self._read_cc1101_register_by_address(register_address)
         response = response_dict["register_value"]
         
         # Stellt sicher, dass wir nur den Wert nach 'C[A-Fa-f0-9]{2}\s*=\s*([0-9A-Fa-f]+)' extrahieren
@@ -266,17 +281,40 @@ class SignalduinoCommands:
             
         return best_drate_e, best_drate_m
 
-    async def read_cc1101_register(self, register_address: int, timeout: float = SDUINO_CMD_TIMEOUT) -> Dict[str, str]:
-        """Read CC1101 register (C<reg>)"""
+    async def _read_cc1101_register_by_address(self, register_address: int, timeout: float = SDUINO_CMD_TIMEOUT) -> Dict[str, str]:
+        """Liest CC1101-Register über die numerische Adresse (C<reg>) und gibt die rohe Antwort zurück."""
         hex_addr = f"{register_address:02X}"
         # Response-Pattern: ccreg 00: oder Cxx = yy (aus 00_SIGNALduino.pm, Zeile 87)
-        # Die Regex muss an den Anfang und das Ende der Zeile gebunden werden (re.match wird verwendet)
-        # ^(C[a-f0-9]{2}\s*=\s*[a-f0-9]+|ccreg 00:.*)\s*$
-        # Hinweis: *Der Controller verwendet re.match*, was implizit ^ bindet. 
-        # Wir müssen den Regex also an das Ende binden, um Leerzeichen zu erlauben.
         response_pattern = re.compile(r'^\s*(C[a-f0-9]{2}\s*=\s*[a-f0-9]+|ccreg [a-f0-9]{2}:.*)\s*$', re.IGNORECASE)
         response = await self._send_command(command=f"C{hex_addr}", expect_response=True, timeout=timeout, response_pattern=response_pattern)
         return {"register_value": response}
+
+    async def _read_cc1101_register_by_name(self, register_name: str, timeout: float = SDUINO_CMD_TIMEOUT) -> Dict[str, Any]:
+        """Internal: Read CC1101 register by name (e.g., 'IOCFG2')."""
+        register_name = register_name.upper()
+        register_address = CC1101_REGISTER_MAP.get(register_name)
+        if register_address is None:
+            raise CommandValidationError(f"Unknown CC1101 register name: {register_name}")
+
+        response_dict = await self._read_cc1101_register_by_address(register_address, timeout)
+        
+        # Füge den Registernamen und die Adresse zur Antwort hinzu
+        response_dict["register_name"] = register_name
+        response_dict["address_hex"] = f"{register_address:02X}"
+        
+        return response_dict
+
+    async def read_cc1101_register(self, payload: Dict[str, Any], timeout: float = SDUINO_CMD_TIMEOUT) -> Dict[str, Any]:
+        """
+        MqttCommand: Reads a CC1101 register by name provided in the MQTT payload's 'value' field.
+        The name must be a key from CC1101_REGISTER_MAP.
+        """
+        register_name = payload.get("value")
+        if not register_name:
+            raise CommandValidationError("Payload for read_cc1101_register must contain 'value' with the register name.")
+            
+        # Ruft die interne Methode auf
+        return await self._read_cc1101_register_by_name(str(register_name), timeout=timeout)
 
     async def _get_frequency_registers(self) -> int:
         """Liest die CC1101 Frequenzregister (FREQ2, FREQ1, FREQ0) und kombiniert sie zu einem 24-Bit-Wert (F_REG)."""
@@ -296,15 +334,15 @@ class SignalduinoCommands:
             raise ValueError(f"Unexpected response format for CC1101 register read: {response}")
 
         # FREQ2 (0D)
-        response2 = await self.read_cc1101_register(FREQ2)
+        response2 = await self._read_cc1101_register_by_address(FREQ2)
         freq2 = extract_hex_value(response2["register_value"])
 
         # FREQ1 (0E)
-        response1 = await self.read_cc1101_register(FREQ1)
+        response1 = await self._read_cc1101_register_by_address(FREQ1)
         freq1 = extract_hex_value(response1["register_value"])
         
         # FREQ0 (0F)
-        response0 = await self.read_cc1101_register(FREQ0)
+        response0 = await self._read_cc1101_register_by_address(FREQ0)
         freq0 = extract_hex_value(response0["register_value"])
 
         # Die Register bilden eine 24-Bit-Zahl: (FREQ2 << 16) | (FREQ1 << 8) | FREQ0
@@ -524,6 +562,12 @@ DEVIATN_SCHEMA = create_value_schema({
     "description": "Frequency Deviation in kHz (float)."
 })
 
+CC1101_REGISTER_SCHEMA = create_value_schema({
+    "type": "string",
+    "pattern": r"^[A-Z0-9]{4,8}$", # Registername wie IOCFG2, MCSM0, etc.
+    "description": "CC1101 register name (e.g., 'IOCFG2', 'MCSM0')."
+})
+
 # --- SEND MSG SCHEMA (PHASE 2) ---
 SEND_MSG_SCHEMA = {
     "type": "object",
@@ -556,7 +600,7 @@ COMMAND_MAP: Dict[str, Dict[str, Any]] = {
     'get/config/decoder': { 'method': 'get_config', 'schema': BASE_SCHEMA, 'description': 'Decoder configuration (CG)' },
     'get/cc1101/config': { 'method': 'get_ccconf', 'schema': BASE_SCHEMA, 'description': 'CC1101 configuration registers (C0DnF)' },
     'get/cc1101/patable': { 'method': 'get_ccpatable', 'schema': BASE_SCHEMA, 'description': 'CC1101 PA table (C3E)' },
-    'get/cc1101/register': { 'method': 'read_cc1101_register', 'schema': BASE_SCHEMA, 'description': 'Read CC1101 register (C<reg>)' },
+    'get/cc1101/register': { 'method': 'read_cc1101_register', 'schema': CC1101_REGISTER_SCHEMA, 'description': 'Read CC1101 register (C<reg>)' },
     'get/cc1101/frequency': { 'method': 'get_frequency', 'schema': BASE_SCHEMA, 'description': 'CC1101 current RF frequency' },
     'get/cc1101/settings': { 'method': 'get_cc1101_settings', 'schema': BASE_SCHEMA, 'description': 'CC1101 key configuration settings (freq, bw, rampl, sens, dr)' },
 

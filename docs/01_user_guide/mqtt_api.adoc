@@ -140,8 +140,8 @@ GET-Befehle benötigen eine leere Payload (`{}`) oder nur eine `req_id`.
 | CC1101 PA-Tabelle.
 
 | `get/cc1101/register`
-| `{"register_value": "C00 = 29"}`
-| Liest den Wert eines einzelnen CC1101-Registers (Adresse 0x00). Der Befehl nimmt keinen Wert in der Payload entgegen und liest standardmäßig Register 0x00.
+| `{"register_name": "IOCFG2", "address_hex": "00", "register_value": "C00 = 29"}`
+| Liest den Wert eines einzelnen CC1101-Registers. *Erfordert den Registernamen* im `value`-Feld der Payload (z.B. `{"value": "IOCFG2"}`).
 
 | `get/cc1101/frequency`
 | `{"frequency": 868.3500}`
@@ -303,3 +303,37 @@ Dieser Befehl sendet eine vorab encodierte Nachricht an das Signalduino-Gerät, 
 | Nein
 | Optionale Frequenz in MHz (`F<val>`).
 |===
+
+[[_fhem_integration]]
+== FHEM Integration
+
+PySignalduino lässt sich nahtlos in FHEM integrieren, indem ein MQTT-Broker als Vermittler genutzt wird. Die empfohlene Methode ist die Verwendung des FHEM-Moduls `MQTT2_CLIENT` zur Verbindung mit dem Broker und `MQTT2_DEVICE` zur Repräsentation des Signalduino.
+
+=== Beispielkonfiguration
+
+Eine vollständige Beispielkonfiguration finden Sie in der Datei `.devcontainer/fhem-data/fhem_signalduino_example.cfg`. Im DevContainer wird diese Datei automatisch als FHEM-Konfiguration geladen, sodass `PySignalDuino` sofort verfügbar ist.
+
+[source,fhem]
+----
+# 1. Verbindung zum Broker herstellen (falls noch nicht vorhanden)
+define mqtt_broker MQTT2_CLIENT mqtt:1883
+attr mqtt_broker autocreate simple
+
+# 2. PySignalduino Device definieren
+define PySignalDuino MQTT2_DEVICE
+attr PySignalDuino IODev mqtt_broker
+
+# 3. Readings für empfangene Nachrichten extrahieren
+# Wandelt JSON-Payload automatisch in Readings um
+attr PySignalDuino readingList signalduino/v1/state/messages:.* { json2nameValue($EVENT, '', $JSONMAP) }
+
+# 4. Senden von Befehlen ermöglichen
+attr PySignalDuino setList raw:textField signalduino/v1/commands/set/raw $EVTPART1 \
+cc1101_reg:textField signalduino/v1/commands/set/cc1101_reg $EVTPART1 \
+version:noArg signalduino/v1/commands/get/system/version
+----
+
+=== Wichtige Hinweise
+
+*   **Topics:** Stellen Sie sicher, dass das `readingList` Attribut dem in PySignalduino konfigurierten `MQTT_TOPIC` entspricht (Standard: `signalduino/v1/state/messages`).
+*   **JSON Parsing:** Die Funktion `json2nameValue` in FHEM ist ideal, um die flachen JSON-Objekte von PySignalduino direkt in FHEM Readings umzuwandeln.

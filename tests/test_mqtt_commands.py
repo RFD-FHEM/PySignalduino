@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch, AsyncMock, call
 from asyncio import Queue
 import re
 
+import json
 import pytest
 from aiomqtt import Client as AsyncMqttClient
 
@@ -556,3 +557,54 @@ async def test_controller_handles_get_cc1101_settings(signalduino_controller, mo
         rampl_mock.assert_called_once()
         sens_mock.assert_called_once()
         dr_mock.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_controller_handles_get_cc1101_register(signalduino_controller, mock_aiomqtt_client_cls, mock_logger):
+    """
+    Testet den 'get/cc1101/register' MQTT-Befehl. 
+    Es wird erwartet, dass der Registername im Payload enthalten ist und die Antwort 
+    die geparste Registerinformation zurückgibt.
+    """
+    
+    # 1. Mock _read_cc1101_register_by_address, die die rohe Hardware-Antwort liefert.
+    # MDMCFG4 hat Adresse 0x10. Die erwartete Antwort ist C10 = <Wert>.
+    raw_response_line = "C10 = 02" # Beispielwert
+    
+    # Die Commands-Methode, die wir mocken müssen, ist _read_cc1101_register_by_address, 
+    # da die öffentliche Methode read_cc1101_register sie aufruft.
+    # Da wir uns außerhalb der Klasse befinden, ist dies kompliziert. Stattdessen mocken wir
+    # die gesamte read_cc1101_register Methode in commands.py.
+    
+    # Wir stellen den Mock für die öffentliche Methode in Commands.py bereit:
+    # `async def read_cc1101_register(self, register_name: str, ...)`
+    expected_result_data = {
+        "register_value": raw_response_line,
+        "register_name": "MDMCFG4",
+        "address_hex": "10"
+    }
+    
+    read_reg_mock = AsyncMock(return_value=expected_result_data)
+    signalduino_controller.commands.read_cc1101_register = read_reg_mock
+    
+    # 2. Dispatcher und Payload vorbereiten
+    register_name = "MDMCFG4"
+    command_path = "get/cc1101/register"
+    mqtt_payload = f'{{"req_id": "test_reg", "value": "{register_name}"}}'
+    
+    dispatcher = MqttCommandDispatcher(controller=signalduino_controller)
+
+    async with signalduino_controller:
+    
+        # 3. Dispatch ausführen
+        result = await dispatcher.dispatch(command_path, mqtt_payload)
+        
+        # 4. Assertions
+        assert result['status'] == "OK"
+        assert result['req_id'] == "test_reg"
+        assert result['data'] == expected_result_data
+        
+        # 5. Verifiziere, dass die Commands-Methode mit dem korrekten Payload aufgerufen wurde
+        expected_payload_dict = json.loads(mqtt_payload)
+        read_reg_mock.assert_called_once_with(expected_payload_dict, timeout=SDUINO_CMD_TIMEOUT)
+
