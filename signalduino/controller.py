@@ -105,7 +105,7 @@ class SignalduinoController:
         """Delegates to SignalduinoCommands to get the CC1101 config registers (C0DnF)."""
         return await self.commands.get_ccconf()
 
-    async def get_ccpatable(self, payload: Dict[str, Any]) -> str:
+    async def get_ccpatable(self, payload: Dict[str, Any]) -> Dict[str, str]:
         """Delegates to SignalduinoCommands to get the CC1101 PA table (C3E)."""
         return await self.commands.get_ccpatable()
 
@@ -119,19 +119,19 @@ class SignalduinoController:
         # Payload wird zur Validierung akzeptiert, aber ignoriert.
         return await self.commands.factory_reset()
 
-    async def get_bandwidth(self, payload: Dict[str, Any]) -> float:
+    async def get_bandwidth(self, payload: Dict[str, Any]) -> Dict[str, float]:
         """Delegates to SignalduinoCommands to get the current CC1101 bandwidth in kHz."""
         return await self.commands.get_bandwidth(payload)
 
-    async def get_rampl(self, payload: Dict[str, Any]) -> int:
+    async def get_rampl(self, payload: Dict[str, Any]) -> Dict[str, int]:
         """Delegates to SignalduinoCommands to get the current CC1101 receiver amplification in dB."""
         return await self.commands.get_rampl(payload)
 
-    async def get_sensitivity(self, payload: Dict[str, Any]) -> int:
+    async def get_sensitivity(self, payload: Dict[str, Any]) -> Dict[str, int]:
         """Delegates to SignalduinoCommands to get the current CC1101 sensitivity in dB."""
         return await self.commands.get_sensitivity(payload)
 
-    async def get_data_rate(self, payload: Dict[str, Any]) -> float:
+    async def get_data_rate(self, payload: Dict[str, Any]) -> Dict[str, float]:
         """Delegates to SignalduinoCommands to get the current CC1101 data rate in kBaud."""
         return await self.commands.get_data_rate(payload)
     
@@ -230,7 +230,7 @@ class SignalduinoController:
                 self.logger.debug("Reader task waiting for line...")
                 line = await self.transport.readline()
                 if line is not None:
-                    self.logger.debug(f"Reader task received line: {line}")
+                    self.logger.debug("RAW LINE from transport: %s", line)
                     await self._raw_message_queue.put(line)
                 
                 await asyncio.sleep(0.01)  # Ensure minimal yield time to prevent 100% CPU usage
@@ -355,7 +355,7 @@ class SignalduinoController:
 
     async def _handle_as_command_response(self, line: str) -> None:
         """Check if the received line matches any pending command response."""
-        self.logger.debug(f"Checking line for command response: {line}")
+        self.logger.debug("Hardware response received: %s", line)
         async with self._pending_responses_lock:
             self.logger.debug(f"Current pending responses: {len(self._pending_responses)}")
             for pending in self._pending_responses:
