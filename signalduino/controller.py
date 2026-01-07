@@ -166,6 +166,10 @@ class SignalduinoController:
         """Delegates to SignalduinoCommands to get all key CC1101 settings."""
         return await self.commands.get_cc1101_settings(payload)
 
+    async def read_cc1101_register(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Reads a specific CC1101 register value by name (e.g., 'IOCFG2')."""
+        return await self.commands.read_cc1101_register(payload, timeout=SDUINO_CMD_TIMEOUT)
+
     async def send_command(
         self,
         command: str,

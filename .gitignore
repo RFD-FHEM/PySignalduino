@@ -8,4 +8,7 @@ SIGNALDuino-Firmware/
 .devcontainer/.devcontainer.env
 .devcontainer/mosquitto/data/
 .devcontainer/mosquitto/log/
+.devcontainer/fhem-data/*
+!.devcontainer/fhem-data/fhem_signalduino_example.cfg
+
 .roo/mcp.json

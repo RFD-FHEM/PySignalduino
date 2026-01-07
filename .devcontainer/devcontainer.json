@@ -1,3 +1,4 @@
+
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/python
 {
@@ -9,17 +10,9 @@
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
 	"features": {
-		"ghcr.io/devcontainers/features/node:1": {
-			"nodeGypDependencies": true,
-			"installYarnUsingApt": true,
-			"version": "lts",
-			"pnpmVersion": "latest",
-			"nvmVersion": "latest"
-		},
-		"ghcr.io/devcontainer-community/devcontainer-features/astral.sh-uv:1": {
-			"shellautocompletion": true,
-			"version": "latest"
-		}
+		"ghcr.io/devcontainers/features/node:1": {},
+		"ghcr.io/devcontainer-community/devcontainer-features/astral.sh-uv:1": {},
+		"ghcr.io/braun-daniel/devcontainer-features/asciidoc:1": {}
 		//"ghcr.io/hspaans/devcontainer-features/pytest:2": {}
 	},
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.

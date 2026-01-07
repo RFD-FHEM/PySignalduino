@@ -29,3 +29,18 @@ services:
        - ./mosquitto/log:/mosquitto/log
     command: mosquitto -c /mosquitto/config/mosquitto.conf
     restart: unless-stopped
+  
+  fhem:
+    image: ghcr.io/fhem/fhem-minimal-docker:5-bookworm
+    container_name: fhem-dev-server
+    ports:
+      - '38083:8083' # Expose FHEM web interface on port 38083
+    environment:
+      - CONFIGTYPE=fhem_signalduino_example.cfg
+      - FHEM_PERM_DIR=0777
+      - FHEM_PERM_FILES=0777
+    volumes:
+      - ./fhem-data:/opt/fhem
+    depends_on:
+      - mqtt
+    restart: unless-stopped
