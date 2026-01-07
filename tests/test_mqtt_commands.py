@@ -15,7 +15,7 @@ from signalduino.transport import BaseTransport
 from signalduino.commands import SignalduinoCommands
 from signalduino.exceptions import SignalduinoCommandTimeout
 from signalduino.controller import QueuedCommand # Import QueuedCommand
-
+from signalduino.constants import SDUINO_CMD_TIMEOUT
 
 # Constants
 INTERLEAVED_MESSAGE = "MU;P0=353;P1=-184;D=0123456789;CP=1;SP=0;R=248;\n"
@@ -122,26 +122,74 @@ async def test_controller_handles_version_command(signalduino_controller, mock_a
 
 @pytest.mark.asyncio
 async def test_controller_handles_freeram_command(signalduino_controller, mock_aiomqtt_client_cls):
-    """Test handling of the 'freeram' command."""
+    """
+    Test handling of the 'freeram' command, expecting an integer value.
+    This also verifies the correct response_pattern is passed to _send_command.
+    """
+    
+    # 1. Mock _send_command, das die Raw-Antwort (die das Regex matchen soll) liefert
+    raw_response_line = "1234\n"
+    send_command_mock = AsyncMock(return_value=raw_response_line.strip())
+    signalduino_controller.commands._send_command = send_command_mock
+    
+    # 2. Dispatcher und Payload vorbereiten
+    command_path = "get/system/freeram"
+    mqtt_payload = '{"req_id": "test_freeram"}'
+    
+    dispatcher = MqttCommandDispatcher(controller=signalduino_controller)
+
     async with signalduino_controller:
-        await run_mqtt_command_test(
-            signalduino_controller,
-            mock_aiomqtt_client_cls,
-            mqtt_cmd="freeram",
-            raw_cmd="R",
-            expected_response_line="1234\n"
+        result = await dispatcher.dispatch(command_path, mqtt_payload)
+        
+        # 3. Assertions
+        assert result['status'] == "OK"
+        assert result['req_id'] == "test_freeram"
+        # Erwartet den geparsten Integer-Wert
+        assert result['data'] == 1234 
+        
+        # 4. Überprüfe, ob send_command mit dem korrekten Befehl und dem Regex aufgerufen wurde
+        expected_pattern = re.compile(r'^(\d+)$')
+        send_command_mock.assert_called_once_with(
+            command='R',
+            expect_response=True,
+            timeout=SDUINO_CMD_TIMEOUT,
+            response_pattern=expected_pattern
         )
+
 
 @pytest.mark.asyncio
 async def test_controller_handles_uptime_command(signalduino_controller, mock_aiomqtt_client_cls):
-    """Test handling of the 'uptime' command."""
+    """
+    Test handling of the 'uptime' command, expecting an integer value.
+    """
+    
+    # 1. Mock _send_command
+    raw_response_line = "56789\n"
+    send_command_mock = AsyncMock(return_value=raw_response_line.strip())
+    signalduino_controller.commands._send_command = send_command_mock
+    
+    # 2. Dispatcher und Payload vorbereiten
+    command_path = "get/system/uptime"
+    mqtt_payload = '{"req_id": "test_uptime"}'
+    
+    dispatcher = MqttCommandDispatcher(controller=signalduino_controller)
+
     async with signalduino_controller:
-        await run_mqtt_command_test(
-            signalduino_controller,
-            mock_aiomqtt_client_cls,
-            mqtt_cmd="uptime",
-            raw_cmd="t",
-            expected_response_line="56789\n"
+        result = await dispatcher.dispatch(command_path, mqtt_payload)
+        
+        # 3. Assertions
+        assert result['status'] == "OK"
+        assert result['req_id'] == "test_uptime"
+        # Erwartet den geparsten Integer-Wert
+        assert result['data'] == 56789 
+        
+        # 4. Überprüfe, ob send_command mit dem korrekten Befehl und dem Regex aufgerufen wurde
+        expected_pattern = re.compile(r'^(\d+)$')
+        send_command_mock.assert_called_once_with(
+            command='t',
+            expect_response=True,
+            timeout=SDUINO_CMD_TIMEOUT,
+            response_pattern=expected_pattern
         )
 
 @pytest.mark.asyncio
@@ -170,42 +218,103 @@ async def test_controller_handles_ping_command(signalduino_controller, mock_aiom
 
 @pytest.mark.asyncio
 async def test_controller_handles_config_command(signalduino_controller, mock_aiomqtt_client_cls):
-    """Test handling of the 'config' command."""
+    """
+    Test handling of the 'config' command, expecting a parsed decoder configuration dictionary.
+    """
+    # 1. Mock _send_command
+    raw_response_line = "MS=1;MU=1;MC=1;MN=1\n"
+    send_command_mock = AsyncMock(return_value=raw_response_line.strip())
+    signalduino_controller.commands._send_command = send_command_mock
+    
+    # 2. Dispatcher und Payload vorbereiten
+    command_path = "get/config/decoder"
+    mqtt_payload = '{"req_id": "test_config"}'
+    
+    dispatcher = MqttCommandDispatcher(controller=signalduino_controller)
+
     async with signalduino_controller:
-        await run_mqtt_command_test(
-            signalduino_controller,
-            mock_aiomqtt_client_cls,
-            mqtt_cmd="config",
-            raw_cmd="CG",
-            expected_response_line="MS=1;MU=1;MC=1;MN=1\n"
+        result = await dispatcher.dispatch(command_path, mqtt_payload)
+        
+        # 3. Assertions
+        assert result['status'] == "OK"
+        assert result['req_id'] == "test_config"
+        # Erwartet das geparste Dictionary
+        assert result['data'] == {'MS': 1, 'MU': 1, 'MC': 1, 'MN': 1}
+        
+        # 4. Überprüfe, ob send_command mit dem korrekten Befehl aufgerufen wurde
+        expected_pattern = re.compile(r'^\s*([A-Za-z0-9]+=\d+;?)+\s*$', re.IGNORECASE)
+        send_command_mock.assert_called_once_with(
+            command='CG',
+            expect_response=True,
+            timeout=SDUINO_CMD_TIMEOUT,
+            response_pattern=expected_pattern
         )
 
 @pytest.mark.asyncio
 async def test_controller_handles_ccconf_command(signalduino_controller, mock_aiomqtt_client_cls):
-    """Test handling of the 'ccconf' command."""
-    # The regex r"C0Dn11=[A-F0-9a-f]+" is quite specific. The response is multi-line in reality,
-    # but the controller only matches the first line that matches the pattern.
-    # We simulate the first matching line.
+    """
+    Test handling of the 'ccconf' command, expecting the raw string wrapped in a dictionary.
+    """
+    # 1. Mock _send_command
+    raw_response_line = "C0Dn11=105B1A57C43023B900070018146C070091" # Realistische Hardware-Antwort
+    send_command_mock = AsyncMock(return_value=raw_response_line)
+    signalduino_controller.commands._send_command = send_command_mock
+    
+    # 2. Dispatcher und Payload vorbereiten
+    command_path = "get/cc1101/config"
+    mqtt_payload = '{"req_id": "test_ccconf"}'
+    
+    dispatcher = MqttCommandDispatcher(controller=signalduino_controller)
+
     async with signalduino_controller:
-        await run_mqtt_command_test(
-            controller=signalduino_controller,
-            mock_aiomqtt_client_cls=mock_aiomqtt_client_cls,
-            mqtt_cmd="ccconf",
-            raw_cmd="C0DnF",
-            expected_response_line="C0D11=0F\n"
+        result = await dispatcher.dispatch(command_path, mqtt_payload)
+        
+        # 3. Assertions
+        assert result['status'] == "OK"
+        assert result['req_id'] == "test_ccconf"
+        # Erwartet den gekapselten String
+        assert result['data'] == {'cc1101_config_string': 'C0Dn11=105B1A57C43023B900070018146C070091'}
+        
+        # 4. Überprüfe, ob send_command mit dem korrekten Befehl und Pattern aufgerufen wurde
+        expected_pattern = re.compile(r'^\s*C0D\w*\s*=\s*.*$', re.IGNORECASE)
+        send_command_mock.assert_called_once_with(
+            command='C0DnF',
+            expect_response=True,
+            timeout=SDUINO_CMD_TIMEOUT,
+            response_pattern=expected_pattern
         )
 
 @pytest.mark.asyncio
 async def test_controller_handles_ccpatable_command(signalduino_controller, mock_aiomqtt_client_cls):
     """Test handling of the 'ccpatable' command."""
     # The regex r"^C3E\s=\s.*" expects the beginning of the line.
+    # 1. Mock _send_command
+    raw_response_line = "C3E = C0 C1 C2 C3 C4 C5 C6 C7\n"
+    send_command_mock = AsyncMock(return_value=raw_response_line.strip())
+    signalduino_controller.commands._send_command = send_command_mock
+    
+    # 2. Dispatcher und Payload vorbereiten
+    command_path = "get/cc1101/patable"
+    mqtt_payload = '{"req_id": "test_patable"}'
+    
+    dispatcher = MqttCommandDispatcher(controller=signalduino_controller)
+
     async with signalduino_controller:
-        await run_mqtt_command_test(
-            signalduino_controller,
-            mock_aiomqtt_client_cls,
-            mqtt_cmd="ccpatable",
-            raw_cmd="C3E",
-            expected_response_line="C3E = C0 C1 C2 C3 C4 C5 C6 C7\n"
+        result = await dispatcher.dispatch(command_path, mqtt_payload)
+        
+        # 3. Assertions
+        assert result['status'] == "OK"
+        assert result['req_id'] == "test_patable"
+        # Erwartet den gekapselten String
+        assert result['data'] == {'pa_table_hex': 'C3E = C0 C1 C2 C3 C4 C5 C6 C7'}
+        
+        # 4. Überprüfe, ob send_command mit dem korrekten Befehl und Pattern aufgerufen wurde
+        expected_pattern = re.compile(r'^\s*C3E\s*=\s*.*\s*$', re.IGNORECASE)
+        send_command_mock.assert_called_once_with(
+            command='C3E',
+            expect_response=True,
+            timeout=SDUINO_CMD_TIMEOUT,
+            response_pattern=expected_pattern
         )
 
 @pytest.mark.asyncio
@@ -287,16 +396,16 @@ async def test_controller_handles_get_frequency(signalduino_controller, mock_aio
         assert result['status'] == "OK"
         assert result['req_id'] == "test_freq"
         # Überprüfe den berechneten Frequenzwert
-        # result['data'] ist jetzt {'frequency_mhz': float}, da commands.get_frequency geändert wurde.
-        assert result['data']['frequency_mhz'] == expected_frequency_rounded
+        # result['data'] ist jetzt {'frequency': float}, da commands.get_frequency geändert wurde.
+        assert result['data']['frequency'] == expected_frequency_rounded
         
         # Überprüfe, ob send_command mit den korrekten Argumenten aufgerufen wurde
-        expected_pattern = re.compile(r'C[A-Fa-f0-9]{2}\s=\s[0-9A-Fa-f]+$|ccreg 00:')
+        expected_pattern = re.compile(r'^\s*(C[a-f0-9]{2}\s*=\s*[a-f0-9]+|ccreg [a-f0-9]{2}:.*)\s*$', re.IGNORECASE)
 
         send_command_mock.assert_has_calls([
-            call(command='C0D', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
-            call(command='C0E', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
-            call(command='C0F', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
+            call(command='C0D', expect_response=True, timeout=SDUINO_CMD_TIMEOUT, response_pattern=expected_pattern),
+            call(command='C0E', expect_response=True, timeout=SDUINO_CMD_TIMEOUT, response_pattern=expected_pattern),
+            call(command='C0F', expect_response=True, timeout=SDUINO_CMD_TIMEOUT, response_pattern=expected_pattern),
         ])
 
 @pytest.mark.asyncio
@@ -345,15 +454,15 @@ async def test_controller_handles_get_frequency_without_req_id(signalduino_contr
         
         assert result['status'] == "OK"
         assert result['req_id'] is None # <- CRITICAL: Überprüfe, dass req_id None ist
-        assert result['data']['frequency_mhz'] == expected_frequency_rounded
+        assert result['data']['frequency'] == expected_frequency_rounded
         
         # Überprüfe, ob send_command mit den korrekten Argumenten aufgerufen wurde (gleiche Calls wie zuvor)
-        expected_pattern = re.compile(r'C[A-Fa-f0-9]{2}\s=\s[0-9A-Fa-f]+$|ccreg 00:')
+        expected_pattern = re.compile(r'^\s*(C[a-f0-9]{2}\s*=\s*[a-f0-9]+|ccreg [a-f0-9]{2}:.*)\s*$', re.IGNORECASE)
 
         send_command_mock.assert_has_calls([
-            call(command='C0D', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
-            call(command='C0E', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
-            call(command='C0F', expect_response=True, timeout=2.0, response_pattern=expected_pattern),
+            call(command='C0D', expect_response=True, timeout=SDUINO_CMD_TIMEOUT, response_pattern=expected_pattern),
+            call(command='C0E', expect_response=True, timeout=SDUINO_CMD_TIMEOUT, response_pattern=expected_pattern),
+            call(command='C0F', expect_response=True, timeout=SDUINO_CMD_TIMEOUT, response_pattern=expected_pattern),
         ])
 
 @pytest.mark.asyncio
@@ -379,11 +488,11 @@ async def test_controller_handles_set_factory_reset(signalduino_controller, mock
         assert result['data'] == {'status': 'Reset command sent', 'info': 'Factory reset triggered'}
         
         # 2. Assertions für den gesendeten Befehl (e)
-        # Der Timeout für factory_reset ist 5.0
+        # Der Timeout für factory_reset ist SDUINO_CMD_TIMEOUT
         send_command_mock.assert_called_once_with(
             command='e',
             expect_response=False,
-            timeout=5.0
+            timeout=SDUINO_CMD_TIMEOUT
         )
 
 
@@ -401,25 +510,24 @@ async def test_controller_handles_get_cc1101_settings(signalduino_controller, mo
     # Wir müssen die Methoden im Commands-Objekt überschreiben.
     
     # get_frequency gibt ein geschachteltes Dict zurück, das von get_cc1101_settings abgeflacht wird.
-    freq_mock = AsyncMock(return_value={"frequency_mhz": 868.35})
+    freq_mock = AsyncMock(return_value={"frequency": 868.35})
     signalduino_controller.commands.get_frequency = freq_mock
     
-    # 2. Bandbreiten-Mock
-    bw_mock = AsyncMock(return_value=102.0)
+    # 2. Bandbreiten-Mock (liefert jetzt Dict)
+    bw_mock = AsyncMock(return_value={"bandwidth": 102.0})
     signalduino_controller.commands.get_bandwidth = bw_mock
     
-    # 3. RAMPL-Mock
-    rampl_mock = AsyncMock(return_value=30)
+    # 3. RAMPL-Mock (liefert jetzt Dict)
+    rampl_mock = AsyncMock(return_value={"rampl": 30})
     signalduino_controller.commands.get_rampl = rampl_mock
 
-    # 4. Sensitivity-Mock
-    sens_mock = AsyncMock(return_value=12)
+    # 4. Sensitivity-Mock (liefert jetzt Dict)
+    sens_mock = AsyncMock(return_value={"sensitivity": 12})
     signalduino_controller.commands.get_sensitivity = sens_mock
     
-    # 5. Data Rate-Mock
-    dr_mock = AsyncMock(return_value=4.8)
+    # 5. Data Rate-Mock (liefert jetzt Dict)
+    dr_mock = AsyncMock(return_value={"datarate": 4.8})
     signalduino_controller.commands.get_data_rate = dr_mock
-
     # Dispatcher und Payload vorbereiten
     command_path = "get/cc1101/settings"
     mqtt_payload = '{"req_id": "test_settings"}'
@@ -438,7 +546,7 @@ async def test_controller_handles_get_cc1101_settings(signalduino_controller, mo
             "frequency_mhz": 868.35,
             "bandwidth": 102.0,
             "rampl": 30,
-            "sens": 12,
+            "sensitivity": 12,
             "datarate": 4.8,
         }
         

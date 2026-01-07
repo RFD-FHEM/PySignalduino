@@ -8,6 +8,7 @@ from typing import (
 
 from jsonschema import validate, ValidationError
 from signalduino.exceptions import CommandValidationError, SignalduinoCommandTimeout
+from .constants import SDUINO_CMD_TIMEOUT
 
 if TYPE_CHECKING:
     # Importiere SignalduinoController nur für Type Hinting zur Kompilierzeit
@@ -24,41 +25,80 @@ class SignalduinoCommands:
         self._send_command = send_command
         self.mqtt_topic_root = mqtt_topic_root
         
-    async def get_version(self, timeout: float = 2.0) -> str:
+    def _parse_decoder_config(self, response: str) -> Dict[str, int]:
+        """Parses the 'MS=1;MU=1;MC=1;Mred=1' firmware response into a dictionary of integers."""
+        config: Dict[str, int] = {}
+        for item in response.strip().split(';'):
+            if '=' in item:
+                key, val = item.split('=', 1)
+                try:
+                    # Wir gehen davon aus, dass die Werte boolesch (0 oder 1) sind.
+                    config[key.strip()] = int(val.strip())
+                except ValueError:
+                    logger.warning("Could not parse decoder config value '%s' for key '%s' as integer.", val, key)
+                    # Falls Parsing fehlschlägt, ignorieren wir den Wert, um Typkonsistenz zu wahren.
+                    pass 
+        return config
+        
+    async def get_version(self, timeout: float = SDUINO_CMD_TIMEOUT) -> str:
         """Firmware version (V)"""
         return await self._send_command(command="V", expect_response=True, timeout=timeout)
         
-    async def get_free_ram(self, timeout: float = 2.0) -> str:
+    async def get_free_ram(self, timeout: float = SDUINO_CMD_TIMEOUT) -> int:
         """Free RAM (R)"""
-        return await self._send_command(command="R", expect_response=True, timeout=timeout)
+        # Firmware typically responds with a numeric value (e.g., "1234")
+        response_pattern = re.compile(r'^(\d+)$')
+        response = await self._send_command(command="R", expect_response=True, timeout=timeout, response_pattern=response_pattern)
         
-    async def get_uptime(self, timeout: float = 2.0) -> str:
+        match = response_pattern.match(response.strip())
+        if match:
+            return int(match.group(1))
+        raise ValueError(f"Unexpected response format for Free RAM: {response}")
+
+    async def get_uptime(self, timeout: float = SDUINO_CMD_TIMEOUT) -> int:
         """System uptime (t)"""
-        return await self._send_command(command="t", expect_response=True, timeout=timeout)
+        # Firmware typically responds with a numeric value (e.g., "1234")
+        response_pattern = re.compile(r'^(\d+)$')
+        response = await self._send_command(command="t", expect_response=True, timeout=timeout, response_pattern=response_pattern)
         
-    async def get_cmds(self, timeout: float = 2.0) -> str:
+        match = response_pattern.match(response.strip())
+        if match:
+            return int(match.group(1))
+        raise ValueError(f"Unexpected response format for Uptime: {response}")
+        
+    async def get_cmds(self, timeout: float = SDUINO_CMD_TIMEOUT) -> str:
         """Available commands (?)"""
         return await self._send_command(command="?", expect_response=True, timeout=timeout)
         
-    async def ping(self, timeout: float = 2.0) -> str:
+    async def ping(self, timeout: float = SDUINO_CMD_TIMEOUT) -> str:
         """Ping (P)"""
         return await self._send_command(command="P", expect_response=True, timeout=timeout)
         
-    async def get_config(self, timeout: float = 2.0) -> str:
-        """Decoder configuration (CG)"""
-        return await self._send_command(command="CG", expect_response=True, timeout=timeout)
+    async def get_config(self, timeout: float = SDUINO_CMD_TIMEOUT) -> Dict[str, int]:
+        """Decoder configuration (CG) - Returns parsed dictionary."""
+        config_pattern = re.compile(r'^\s*([A-Za-z0-9]+=\d+;?)+\s*$', re.IGNORECASE)
+        response = await self._send_command(
+            command="CG",
+            expect_response=True,
+            timeout=timeout,
+            response_pattern=config_pattern
+        )
+        return self._parse_decoder_config(response)
         
-    async def get_ccconf(self, timeout: float = 2.0) -> str:
-        """CC1101 configuration registers (C0DnF)"""
+    async def get_ccconf(self, timeout: float = SDUINO_CMD_TIMEOUT) -> Dict[str, str]:
+        """CC1101 configuration registers (C0DnF). Returns a dictionary with the raw string."""
         # Response-Pattern aus 00_SIGNALduino.pm, Zeile 86, angepasst an Python regex
-        return await self._send_command(command="C0DnF", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C0Dn11=[A-F0-9a-f]+'))
-    
-    async def get_ccpatable(self, timeout: float = 2.0) -> str:
+        response = await self._send_command(command="C0DnF", expect_response=True, timeout=timeout, response_pattern=re.compile(r'^\s*C0D\w*\s*=\s*.*$', re.IGNORECASE))
+        # Kapselt den rohen String, um die MQTT-Antwort konsistent als Dict zurückzugeben
+        return {"cc1101_config_string": response}
+        
+    async def get_ccpatable(self, timeout: float = SDUINO_CMD_TIMEOUT) -> Dict[str, str]:
         """CC1101 PA table (C3E)"""
         # Response-Pattern aus 00_SIGNALduino.pm, Zeile 88
-        return await self._send_command(command="C3E", expect_response=True, timeout=timeout, response_pattern=re.compile(r'^C3E\s=\s.*'))
+        response = await self._send_command(command="C3E", expect_response=True, timeout=timeout, response_pattern=re.compile(r'^\s*C3E\s*=\s*.*\s*$', re.IGNORECASE))
+        return {"pa_table_hex": response}
         
-    async def factory_reset(self, timeout: float = 5.0) -> Dict[str, str]:
+    async def factory_reset(self, timeout: float = SDUINO_CMD_TIMEOUT) -> Dict[str, str]:
         """Sets EEPROM defaults, effectively a factory reset (e).
 
         This command does not send a response unless debug mode is active. We treat the command
@@ -75,33 +115,35 @@ class SignalduinoCommands:
         """
         # Alle benötigten Getter existieren bereits in SignalduinoCommands
         freq_result = await self.get_frequency(payload)
-        bandwidth = await self.get_bandwidth(payload)
-        rampl = await self.get_rampl(payload)
-        sens = await self.get_sensitivity(payload)
-        datarate = await self.get_data_rate(payload)
+        bandwidth_result = await self.get_bandwidth(payload)
+        rampl_result = await self.get_rampl(payload)
+        sens_result = await self.get_sensitivity(payload)
+        datarate_result = await self.get_data_rate(payload)
         
         return {
-            # Flatten the frequency structure
-            "frequency_mhz": freq_result["frequency_mhz"],
-            "bandwidth": bandwidth,
-            "rampl": rampl,
-            "sens": sens,
-            "datarate": datarate,
+            "frequency_mhz": freq_result["frequency"],
+            "bandwidth": bandwidth_result["bandwidth"],
+            "rampl": rampl_result["rampl"],
+            "sensitivity": sens_result["sensitivity"],
+            "datarate": datarate_result["datarate"],
         }
 
     # --- CC1101 Hardware Status GET-Methoden (Basierend auf 00_SIGNALduino.pm) ---
 
     async def _read_register_value(self, register_address: int) -> int:
         """Liest einen CC1101-Registerwert und gibt ihn als Integer zurück."""
-        response = await self.read_cc1101_register(register_address)
-        # Stellt sicher, dass wir nur den Wert nach 'C[A-Fa-f0-9]{2} = ' extrahieren
-        match = re.search(r'C[A-Fa-f0-9]{2}\s=\s([0-9A-Fa-f]+)$', response)
+        response_dict = await self.read_cc1101_register(register_address)
+        response = response_dict["register_value"]
+        
+        # Stellt sicher, dass wir nur den Wert nach 'C[A-Fa-f0-9]{2}\s*=\s*([0-9A-Fa-f]+)' extrahieren
+        # Hinzufügen von \s* um die Werte herum, um Whitespace-Toleranz zu erhöhen.
+        match = re.search(r'C[A-Fa-f0-9]{2}\s*=\s*([0-9A-Fa-f]+)\s*', response, re.IGNORECASE)
         if match:
             return int(match.group(1), 16)
         # Fängt auch den Fall 'ccreg 00:' (default-Antwort) oder andere unerwartete Antworten ab
         raise ValueError(f"Unexpected response format for CC1101 register read: {response}")
 
-    async def get_bandwidth(self, payload: Optional[Dict[str, Any]] = None) -> float:
+    async def get_bandwidth(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
         """Liest die CC1101 Bandbreitenregister (MDMCFG4/0x10) und berechnet die Bandbreite in kHz."""
         r10 = await self._read_register_value(0x10) # MDMCFG4
         
@@ -112,9 +154,9 @@ class SignalduinoCommands:
         # Frequenz (FXOSC) ist 26 MHz (26000 kHz)
         bandwidth_khz = 26000.0 / (8.0 * (4.0 + mant_b) * (1 << exp_b))
         
-        return round(bandwidth_khz, 3)
+        return {"bandwidth": round(bandwidth_khz, 3)}
 
-    async def get_rampl(self, payload: Optional[Dict[str, Any]] = None) -> int:
+    async def get_rampl(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, int]:
         """Liest die CC1101 Verstärkungsregister (AGCCTRL0/0x1B) und gibt die Verstärkung in dB zurück."""
         r1b = await self._read_register_value(0x1B) # AGCCTRL0
 
@@ -126,13 +168,15 @@ class SignalduinoCommands:
         index = r1b & 7
         
         if index < len(ampllist):
-            return ampllist[index]
+            rampl_db = ampllist[index]
         else:
             # Dies sollte nicht passieren, wenn die CC1101-Registerwerte korrekt sind
             logger.warning("Invalid AGC_LNA_GAIN setting found in 0x1B: %s", index)
-            return -1 # Fehlerwert
+            rampl_db = -1 # Fehlerwert
+            
+        return {"rampl": rampl_db}
 
-    async def get_sensitivity(self, payload: Optional[Dict[str, Any]] = None) -> int:
+    async def get_sensitivity(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, int]:
         """Liest die CC1101 Empfindlichkeitsregister (RSSIAGC/0x1D) und gibt die Empfindlichkeit in dB zurück."""
         r1d = await self._read_register_value(0x1D) # RSSIAGC (0x1D)
         
@@ -140,9 +184,9 @@ class SignalduinoCommands:
         # Die unteren 2 Bits enthalten den LNA-Modus (LNA_PD_BUF)
         sens_db = 4 + 4 * (r1d & 3)
         
-        return sens_db
+        return {"sensitivity": sens_db}
         
-    async def get_data_rate(self, payload: Optional[Dict[str, Any]] = None) -> float:
+    async def get_data_rate(self, payload: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
         """Liest die CC1101 Datenratenregister (MDMCFG4/0x10 und MDMCFG3/0x11) und berechnet die Datenrate in kBaud."""
         r10 = await self._read_register_value(0x10) # MDMCFG4
         r11 = await self._read_register_value(0x11) # MDMCFG3
@@ -163,7 +207,7 @@ class SignalduinoCommands:
         # Umrechnung in kBaud (kiloBaud = kiloBits pro Sekunde)
         data_rate_kbaud = data_rate_hz / 1000.0
         
-        return round(data_rate_kbaud, 2)
+        return {"datarate": round(data_rate_kbaud, 2)}
         
     def _calculate_datarate_registers(self, datarate_kbaud: float) -> tuple[int, int]:
         """
@@ -222,11 +266,17 @@ class SignalduinoCommands:
             
         return best_drate_e, best_drate_m
 
-    async def read_cc1101_register(self, register_address: int, timeout: float = 2.0) -> str:
+    async def read_cc1101_register(self, register_address: int, timeout: float = SDUINO_CMD_TIMEOUT) -> Dict[str, str]:
         """Read CC1101 register (C<reg>)"""
         hex_addr = f"{register_address:02X}"
         # Response-Pattern: ccreg 00: oder Cxx = yy (aus 00_SIGNALduino.pm, Zeile 87)
-        return await self._send_command(command=f"C{hex_addr}", expect_response=True, timeout=timeout, response_pattern=re.compile(r'C[A-Fa-f0-9]{2}\s=\s[0-9A-Fa-f]+$|ccreg 00:'))
+        # Die Regex muss an den Anfang und das Ende der Zeile gebunden werden (re.match wird verwendet)
+        # ^(C[a-f0-9]{2}\s*=\s*[a-f0-9]+|ccreg 00:.*)\s*$
+        # Hinweis: *Der Controller verwendet re.match*, was implizit ^ bindet. 
+        # Wir müssen den Regex also an das Ende binden, um Leerzeichen zu erlauben.
+        response_pattern = re.compile(r'^\s*(C[a-f0-9]{2}\s*=\s*[a-f0-9]+|ccreg [a-f0-9]{2}:.*)\s*$', re.IGNORECASE)
+        response = await self._send_command(command=f"C{hex_addr}", expect_response=True, timeout=timeout, response_pattern=response_pattern)
+        return {"register_value": response}
 
     async def _get_frequency_registers(self) -> int:
         """Liest die CC1101 Frequenzregister (FREQ2, FREQ1, FREQ0) und kombiniert sie zu einem 24-Bit-Wert (F_REG)."""
@@ -238,8 +288,8 @@ class SignalduinoCommands:
 
         # Funktion zum Extrahieren des Hex-Werts aus der Antwort: Cxx = <hex>
         def extract_hex_value(response: str) -> int:
-            # Stellt sicher, dass wir nur den Wert nach 'C[A-Fa-f0-9]{2} = ' extrahieren
-            match = re.search(r'C[A-Fa-f0-9]{2}\s=\s([0-9A-Fa-f]+)$', response)
+            # Stellt sicher, dass wir nur den Wert nach 'C[A-Fa-f0-9]{2}\s=\s([0-9A-Fa-f]+)$' extrahieren
+            match = re.search(r'C[A-Fa-f0-9]{2}\s*=\s*([0-9A-Fa-f]+)\s*$', response)
             if match:
                 return int(match.group(1), 16)
             # Fängt auch den Fall 'ccreg 00:' (default-Antwort) oder andere unerwartete Antworten ab
@@ -247,15 +297,15 @@ class SignalduinoCommands:
 
         # FREQ2 (0D)
         response2 = await self.read_cc1101_register(FREQ2)
-        freq2 = extract_hex_value(response2)
+        freq2 = extract_hex_value(response2["register_value"])
 
         # FREQ1 (0E)
         response1 = await self.read_cc1101_register(FREQ1)
-        freq1 = extract_hex_value(response1)
+        freq1 = extract_hex_value(response1["register_value"])
         
         # FREQ0 (0F)
         response0 = await self.read_cc1101_register(FREQ0)
-        freq0 = extract_hex_value(response0)
+        freq0 = extract_hex_value(response0["register_value"])
 
         # Die Register bilden eine 24-Bit-Zahl: (FREQ2 << 16) | (FREQ1 << 8) | FREQ0
         f_reg = (freq2 << 16) | (freq1 << 8) | freq0
@@ -279,14 +329,14 @@ class SignalduinoCommands:
         
         # Rückgabe des gekapselten und auf 4 Dezimalstellen gerundeten Wertes, wie in tests/test_mqtt.py erwartet.
         return {
-            "frequency_mhz": round(frequency_mhz, 4)
+            "frequency": round(frequency_mhz, 4)
         }
 
-    async def send_raw_message(self, command: str, timeout: float = 2.0) -> str:
+    async def send_raw_message(self, command: str, timeout: float = SDUINO_CMD_TIMEOUT) -> str:
         """Send raw message (M...)"""
         return await self._send_command(command=command, expect_response=True, timeout=timeout)
 
-    async def send_message(self, message: str, timeout: float = 2.0) -> None:
+    async def send_message(self, message: str, timeout: float = SDUINO_CMD_TIMEOUT) -> None:
         """Send a pre-encoded message (P...#R...). This is typically used for 'set raw' commands where the message is already fully formatted.
         
         NOTE: This sends the message AS IS, without any wrapping like 'set raw '.
@@ -501,12 +551,12 @@ SEND_MSG_SCHEMA = {
 COMMAND_MAP: Dict[str, Dict[str, Any]] = {
     # Phase 1: Einfache GET-Befehle (Core)
     'get/system/version': { 'method': 'get_version', 'schema': BASE_SCHEMA, 'description': 'Firmware version (V)' },
-    'get/system/freeram': { 'method': 'get_freeram', 'schema': BASE_SCHEMA, 'description': 'Free RAM (R)' },
+    'get/system/freeram': { 'method': 'get_free_ram', 'schema': BASE_SCHEMA, 'description': 'Free RAM (R)' },
     'get/system/uptime': { 'method': 'get_uptime', 'schema': BASE_SCHEMA, 'description': 'System uptime (t)' },
-    'get/config/decoder': { 'method': 'get_config_decoder', 'schema': BASE_SCHEMA, 'description': 'Decoder configuration (CG)' },
-    'get/cc1101/config': { 'method': 'get_cc1101_config', 'schema': BASE_SCHEMA, 'description': 'CC1101 configuration registers (C0DnF)' },
-    'get/cc1101/patable': { 'method': 'get_cc1101_patable', 'schema': BASE_SCHEMA, 'description': 'CC1101 PA table (C3E)' },
-    'get/cc1101/register': { 'method': 'get_cc1101_register', 'schema': BASE_SCHEMA, 'description': 'Read CC1101 register (C<reg>)' },
+    'get/config/decoder': { 'method': 'get_config', 'schema': BASE_SCHEMA, 'description': 'Decoder configuration (CG)' },
+    'get/cc1101/config': { 'method': 'get_ccconf', 'schema': BASE_SCHEMA, 'description': 'CC1101 configuration registers (C0DnF)' },
+    'get/cc1101/patable': { 'method': 'get_ccpatable', 'schema': BASE_SCHEMA, 'description': 'CC1101 PA table (C3E)' },
+    'get/cc1101/register': { 'method': 'read_cc1101_register', 'schema': BASE_SCHEMA, 'description': 'Read CC1101 register (C<reg>)' },
     'get/cc1101/frequency': { 'method': 'get_frequency', 'schema': BASE_SCHEMA, 'description': 'CC1101 current RF frequency' },
     'get/cc1101/settings': { 'method': 'get_cc1101_settings', 'schema': BASE_SCHEMA, 'description': 'CC1101 key configuration settings (freq, bw, rampl, sens, dr)' },
 

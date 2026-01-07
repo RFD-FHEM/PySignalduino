@@ -1,0 +1,57 @@
+= ADR-004: Strukturiertes Parsing serieller Antworten für MQTT GET-Befehle
+:revdate: 2026-01-06
+:author: Roo
+
+== 1. Kontext
+
+Die MQTT-Befehle `get/cc1101/*` (z.B. `get/cc1101/config`) und `get/config/decoder` schlagen mit Timeouts fehl, obwohl die serielle Kommunikation mit der SIGNALDuino-Firmware die Antworten empfängt. Die Ursache liegt darin, dass der `MqttCommandDispatcher` eine strukturierte JSON-Payload (ein Python-Dictionary) als `data`-Feld in der MQTT-Antwort erwartet. Die zugrundeliegenden `SignalduinoCommands` Methoden geben jedoch in diesen Fällen den *rohen* String der seriellen Firmware-Antwort zurück.
+
+Der `MqttCommandDispatcher` kann diese String-Antworten nicht direkt in das JSON-Antwortformat umwandeln, was zu einem Abbruch der Verarbeitung und damit zum Timeout führt.
+
+Betroffene Befehle und ihre Rohantwortformate:
+*   `get/config/decoder` (CG): `MS=1;MU=1;MC=1;Mred=1\n`
+*   `get/cc1101/config` (C0DnF): `C0Dn11=<Hex-Wert>\n`
+
+Zusätzlich müssen alle `get` Befehle, die einen rohen String zurückgeben, angepasst werden, um die Konsistenz des MQTT-API zu gewährleisten.
+
+== 2. Entscheidung
+
+Wir werden die `SignalduinoCommands` Methoden, die serielle GET-Befehle ausführen, so modifizieren, dass sie die rohe Firmware-Antwort parsen und ein konsistentes Python-Dictionary (`Dict[str, Any]`) zurückgeben. Dieses Dictionary wird dann vom `MqttCommandDispatcher` als JSON-Payload im `data`-Feld der MQTT-Antwort verwendet.
+
+Dies stellt sicher, dass alle erfolgreichen `GET` Anfragen über MQTT eine strukturierte und maschinenlesbare JSON-Antwort erhalten und die Timeouts vermieden werden.
+
+=== Detaillierte Logik-Anpassungen
+
+1.  **`get_config` (CG):**
+    *   Wird eine private Hilfsfunktion `_parse_decoder_config(response: str) -> Dict[str, int]` in [`signalduino/commands.py`](signalduino/commands.py) implementiert.
+    *   Diese Funktion parst den `key=value;` String in ein Dictionary (z.B. `{'MS': 1, 'MU': 1, 'MC': 1, 'Mred': 1}`).
+    *   Der Rückgabetyp von `get_config` wird von `str` auf `Dict[str, int]` geändert.
+
+2.  **`get_ccconf` (C0DnF):**
+    *   Diese Methode gibt einen String wie `C0Dn11=<Hex-Wert>` zurück.
+    *   Die Methode wird angepasst, um die rohe String-Antwort in ein Dictionary zu kapseln, z.B. `{'cc1101_config_string': response_string}`.
+    *   Der Rückgabetyp von `get_ccconf` wird von `str` auf `Dict[str, str]` geändert.
+
+3.  **Weitere einfache GET-Befehle:**
+    *   Methoden wie `get_version`, `get_free_ram`, `get_uptime` geben bereits einen geparsten Wert zurück (String oder Int), der korrekt gekapselt wird. Diese Methoden bleiben unverändert, da sie bereits einen strukturierten Wert zurückgeben, der indirekt im `data`-Feld des MQTT-Payloads landet.
+
+== 3. Konsequenzen
+
+=== Positive
+*   **Behebung der Timeouts:** Die MQTT GET-Befehle für Konfigurationen werden korrekt beantwortet und die Timeouts behoben.
+*   **API-Konsistenz:** Alle MQTT `GET` Antworten liefern nun eine konsistente, JSON-serialisierbare Struktur.
+*   **Wartbarkeit:** Der Code wird robuster, da das Parsing der seriellen Antwort in der `commands.py`-Schicht zentralisiert ist.
+
+=== Negative
+*   **Refactoring:** Es müssen kleinere Refactorings in [`signalduino/commands.py`](signalduino/commands.py) durchgeführt werden, um die Rückgabetypen der Methoden anzupassen.
+*   **Tests/Dokumentation:** Die zugehörigen Unittests in [`tests/test_mqtt_commands.py`](tests/test_mqtt_commands.py) und die MQTT API Dokumentation in [`docs/01_user_guide/mqtt_api.adoc`](docs/01_user_guide/mqtt_api.adoc) müssen aktualisiert werden.
+
+== 4. Alternativen
+
+1.  **Alternative 1: Parsing im `MqttCommandDispatcher`:** Die Rohergebnisse als `str` beibehalten und das Parsen spezifischer Befehlsantworten direkt im `MqttCommandDispatcher` durchführen.
+    *   *Nachteil:* Vermischt die Zuständigkeiten. Der Dispatcher sollte nur das Routing und die Validierung übernehmen, während die `SignalduinoCommands` die Logik für die Kommunikation und das Parsen der Firmware-spezifischen Antworten enthalten sollten.
+    *   *Abgelehnt* wegen schlechter Architektur und Verstoß gegen das Single Responsibility Principle.
+
+2.  **Alternative 2: Globaler, einfacher String-Wrapper im Dispatcher:** Jede String-Antwort global in ein einfaches Dictionary wie `{'response': <String>}` verpacken.
+    *   *Nachteil:* Führt zu einer inkonsistenten API, da einige Befehle (wie `get/config/decoder`) semantisch reiche, parsbare Daten liefern, die als roher String versteckt wären.
+    *   *Abgelehnt* zugunsten einer semantisch korrekten, strukturierten Antwort.

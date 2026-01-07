@@ -89,29 +89,49 @@ class SignalduinoController:
         # commands.get_version ist eine asynchrone Methode in SignalduinoCommands, die 'V' sendet.
         return await self.commands.get_version()
 
+    async def get_free_ram(self, payload: Dict[str, Any]) -> int:
+        """Delegates to SignalduinoCommands to get the free RAM (R)."""
+        return await self.commands.get_free_ram()
+
+    async def get_uptime(self, payload: Dict[str, Any]) -> int:
+        """Delegates to SignalduinoCommands to get the system uptime (t)."""
+        return await self.commands.get_uptime()
+
+    async def get_config(self, payload: Dict[str, Any]) -> Dict[str, int]:
+        """Delegates to SignalduinoCommands to get the decoder configuration (CG)."""
+        return await self.commands.get_config()
+        
+    async def get_ccconf(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Delegates to SignalduinoCommands to get the CC1101 config registers (C0DnF)."""
+        return await self.commands.get_ccconf()
+
+    async def get_ccpatable(self, payload: Dict[str, Any]) -> Dict[str, str]:
+        """Delegates to SignalduinoCommands to get the CC1101 PA table (C3E)."""
+        return await self.commands.get_ccpatable()
+
     async def get_frequency(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Delegates to SignalduinoCommands to get the current CC1101 frequency."""
         # Der Payload wird vom MqttCommandDispatcher übergeben, aber von commands.get_frequency ignoriert.
         return await self.commands.get_frequency(payload)
 
-    async def factory_reset(self, payload: Dict[str, Any]) -> str:
+    async def factory_reset(self, payload: Dict[str, Any]) -> Dict[str, str]:
         """Delegates to SignalduinoCommands to execute a factory reset (e)."""
         # Payload wird zur Validierung akzeptiert, aber ignoriert.
         return await self.commands.factory_reset()
 
-    async def get_bandwidth(self, payload: Dict[str, Any]) -> float:
+    async def get_bandwidth(self, payload: Dict[str, Any]) -> Dict[str, float]:
         """Delegates to SignalduinoCommands to get the current CC1101 bandwidth in kHz."""
         return await self.commands.get_bandwidth(payload)
 
-    async def get_rampl(self, payload: Dict[str, Any]) -> int:
+    async def get_rampl(self, payload: Dict[str, Any]) -> Dict[str, int]:
         """Delegates to SignalduinoCommands to get the current CC1101 receiver amplification in dB."""
         return await self.commands.get_rampl(payload)
 
-    async def get_sensitivity(self, payload: Dict[str, Any]) -> int:
+    async def get_sensitivity(self, payload: Dict[str, Any]) -> Dict[str, int]:
         """Delegates to SignalduinoCommands to get the current CC1101 sensitivity in dB."""
         return await self.commands.get_sensitivity(payload)
 
-    async def get_data_rate(self, payload: Dict[str, Any]) -> float:
+    async def get_data_rate(self, payload: Dict[str, Any]) -> Dict[str, float]:
         """Delegates to SignalduinoCommands to get the current CC1101 data rate in kBaud."""
         return await self.commands.get_data_rate(payload)
     
@@ -210,7 +230,7 @@ class SignalduinoController:
                 self.logger.debug("Reader task waiting for line...")
                 line = await self.transport.readline()
                 if line is not None:
-                    self.logger.debug(f"Reader task received line: {line}")
+                    self.logger.debug("RAW LINE from transport: %s", line)
                     await self._raw_message_queue.put(line)
                 
                 await asyncio.sleep(0.01)  # Ensure minimal yield time to prevent 100% CPU usage
@@ -335,22 +355,25 @@ class SignalduinoController:
 
     async def _handle_as_command_response(self, line: str) -> None:
         """Check if the received line matches any pending command response."""
-        self.logger.debug(f"Checking line for command response: {line}")
+        self.logger.debug("Hardware response received: %s", line)
         async with self._pending_responses_lock:
             self.logger.debug(f"Current pending responses: {len(self._pending_responses)}")
             for pending in self._pending_responses:
                 try:
-                    self.logger.debug(f"Checking pending response: {pending.payload}")
-                    if pending.response_pattern:
-                        self.logger.debug(f"Testing pattern: {pending.response_pattern}")
-                        if pending.response_pattern.match(line):
-                            self.logger.debug(f"Matched response pattern for command: {pending.payload}")
+                    self.logger.debug(f"Checking pending response for command: {pending.command.payload}. Line: {line.strip()}")
+                    
+                    pattern = pending.command.response_pattern
+                    if pattern:
+                        self.logger.debug(f"Testing pattern: {pattern.pattern}")
+                        if pattern.match(line):
+                            self.logger.debug(f"Matched response pattern for command: {pending.command.payload}")
                             pending.future.set_result(line)
                             self._pending_responses.remove(pending)
                             return
-                    self.logger.debug(f"Testing direct match for: {pending.payload}")
-                    if line.startswith(pending.payload):
-                        self.logger.debug(f"Matched direct response for command: {pending.payload}")
+                            
+                    self.logger.debug(f"Testing direct match for: {pending.command.payload}")
+                    if line.startswith(pending.command.payload):
+                        self.logger.debug(f"Matched direct response for command: {pending.command.payload}")
                         pending.future.set_result(line)
                         self._pending_responses.remove(pending)
                         return

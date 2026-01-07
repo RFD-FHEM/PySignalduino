@@ -65,6 +65,47 @@ Eine erfolgreiche Response auf `signalduino/v1/responses` hat folgende Struktur:
 }
 ----
 
+[[_cli_tool]]
+== CLI Tool zur Steuerung (`tools/sd_mqtt_cli.py`)
+
+Das Skript `tools/sd_mqtt_cli.py` dient als einfaches Python-Kommandozeilen-Tool, um Befehle an das PySignalduino MQTT-Gateway zu senden und die Antworten zu empfangen.
+
+=== Installation und Ausführung
+
+Das Tool benötigt die `paho-mqtt` Abhängigkeit, die in der `requirements-dev.txt` enthalten ist.
+
+[source,bash]
+----
+pip install paho-mqtt
+python3 tools/sd_mqtt_cli.py --help
+----
+
+=== Verfügbare Kommandos
+
+|===
+| Kommando | Beschreibung | Beispiel
+
+| `reset`
+| Führt einen Factory Reset durch (`set/factory_reset`).
+| `python3 tools/sd_mqtt_cli.py reset`
+
+| `get all-settings`
+| Fragt alle wichtigen CC1101-Einstellungen in einer aggregierten Nachricht ab.
+| `python3 tools/sd_mqtt_cli.py get all-settings`
+
+| `get hardware-status --parameter <param>`
+| Fragt einen spezifischen CC1101-Parameter ab. Parameter: `frequency`, `bandwidth`, `rampl`, `sensitivity`, `datarate`.
+| `python3 tools/sd_mqtt_cli.py get hardware-status --parameter frequency`
+
+| `get system-status --parameter <param>`
+| **NEU:** Fragt einen spezifischen System-Parameter ab. Parameter: `version`, `freeram`, `uptime`.
+| `python3 tools/sd_mqtt_cli.py get system-status --parameter freeram`
+
+| `poll`
+| **NEU:** Fragt nacheinander alle verfügbaren System- und CC1101-Parameter ab. Nützlich zur Diagnose des aktuellen Gerätezustands.
+| `python3 tools/sd_mqtt_cli.py poll`
+|===
+
 [[_get_commands]]
 == GET Commands (Status und Konfiguration abrufen)
 
@@ -79,51 +120,51 @@ GET-Befehle benötigen eine leere Payload (`{}`) oder nur eine `req_id`.
 | Firmware-Version.
 
 | `get/system/freeram`
-| `"1234"`
-| Verfügbarer RAM-Speicher.
+| `1234`
+| Verfügbarer RAM-Speicher (`int`).
 
 | `get/system/uptime`
-| `"56789"`
-| System-Laufzeit.
+| `56789`
+| System-Laufzeit (`int`).
 
 | `get/config/decoder`
-| `"MS=1;MU=1;MC=1;MN=1"`
-| Aktuelle Decoder-Konfiguration (aktivierte Protokollfamilien).
+| `{"MS": 1, "MU": 1, "MC": 1, "MN": 1}`
+| Aktuelle Decoder-Konfiguration (aktivierte Protokollfamilien) als geparstes Dictionary.
 
 | `get/cc1101/config`
-| `"C0D11=0F"`
-| CC1101 Konfigurationsregister-Dump.
+| `{"cc1101_config_string": "C0D11=0F"}`
+| CC1101 Konfigurationsregister-Dump als gekapselter String.
 
 | `get/cc1101/patable`
-| `"C3E = C0 C1 C2 C3 C4 C5 C6 C7"`
+| `{"pa_table_hex": "C3E = C0 C1 C2 C3 C4 C5 C6 C7"}`
 | CC1101 PA-Tabelle.
 
 | `get/cc1101/register`
-| `"C00 = 29"`
+| `{"register_value": "C00 = 29"}`
 | Liest den Wert eines einzelnen CC1101-Registers (Adresse 0x00). Der Befehl nimmt keinen Wert in der Payload entgegen und liest standardmäßig Register 0x00.
 
 | `get/cc1101/frequency`
-| `{"frequency_mhz": 868.3500}`
+| `{"frequency": 868.3500}`
 | Aktuelle RF-Frequenz in MHz.
 
 | `get/cc1101/bandwidth`
-| `102.0`
+| `{"bandwidth": 102.0}`
 | Aktuelle IF-Bandbreite in kHz.
 
 | `get/cc1101/rampl`
-| `30`
+| `{"rampl": 30}`
 | Aktuelle Empfängerverstärkung (LNA Gain) in dB. Mögliche Werte: `24, 27, 30, 33, 36, 38, 40, 42`.
 
 | `get/cc1101/sensitivity`
-| `12`
+| `{"sensitivity": 12}`
 | Aktuelle Empfindlichkeit in dB. Mögliche Werte: `4, 8, 12, 16`.
 
 | `get/cc1101/datarate`
-| `4.8`
+| `{"datarate": 4.8}`
 | Aktuelle Datenrate in kBaud.
 
 | `get/cc1101/settings`
-| `{"frequency_mhz": 868.35, "bandwidth": 102.0, "rampl": 30, "sens": 12, "datarate": 4.8}`
+| `{"frequency": 868.35, "bandwidth": 102.0, "rampl": 30, "sensitivity": 12, "datarate": 4.8}`
 | Aggregierte Abfrage aller CC1101-Haupteinstellungen.
 |===
 
