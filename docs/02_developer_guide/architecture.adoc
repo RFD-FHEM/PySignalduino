@@ -1,4 +1,5 @@
 == Übersicht
+:sectlinks:
 
 PySignalduino ist modular aufgebaut und trennt die Protokolldefinitionen (JSON) strikt von der Verarbeitungslogik (Python).
 Seit der Migration zu asyncio (Version 0.9.0) folgt das System einer ereignisgesteuerten, asynchronen Architektur, die auf asyncio-Tasks und -Queues basiert.

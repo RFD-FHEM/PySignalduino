@@ -1,4 +1,5 @@
 === Grundlegende Nutzung
+:sectlinks:
 
 Die Hauptklasse `SDProtocols` stellt die Schnittstelle zur Protokollverarbeitung bereit.
 

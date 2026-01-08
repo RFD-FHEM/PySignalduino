@@ -8,6 +8,7 @@ Bitte synchronisieren Sie Ihren Fork regelmäßig mit dem upstream-Repository.
 Beiträge zum Projekt sind willkommen!
 
 == Workflow
+:sectlinks:
 
 . **Fork & Clone:** Projekt forken und lokal klonen.
 . **Branch:** Feature-Branch erstellen (`git checkout -b feature/mein-feature`).

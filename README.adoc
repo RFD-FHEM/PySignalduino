@@ -1,4 +1,5 @@
 = PySignalduino – Asynchrone MQTT-Bridge für SIGNALDuino
+:sectlinks:
 
 Dieses Projekt ist eine moderne Python-Implementierung der SIGNALDuino-Protokolle mit vollständiger *asyncio*-Unterstützung und integrierter *MQTT-Bridge*. Es ermöglicht die Kommunikation mit SIGNALDuino-Hardware (über serielle Schnittstelle oder TCP) und veröffentlicht empfangene Signale sowie empfängt Steuerbefehle über MQTT.
 

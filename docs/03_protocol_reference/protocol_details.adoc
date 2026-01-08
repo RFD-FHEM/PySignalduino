@@ -2,6 +2,7 @@
 PySignalduino unterstützt eine Vielzahl von Funkprotokollen im 433 MHz und 868 MHz Bereich.
 
 == Protokolldefinition
+:sectlinks:
 
 Die Datei `sd_protocols/protocols.json` ist die definitive Quelle für alle Protokollparameter (Timings, Preambles, Methoden).
 

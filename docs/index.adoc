@@ -1,6 +1,7 @@
 = SIGNALduino - Projektübersicht
 :doctype: book :homepage: index.html :description: Der SIGNALduino ist ein vielseitiges Funkmodul zum Empfangen und Senden von 433/868MHz Signalen in Smart-Home-Umgebungen wie FHEM.
 :keywords: SIGNALduino, FHEM, 433MHz, 868MHz, Smart Home, Funkprotokolle, DIY, Arduino, ESP32 :toc: left :toclevels: 2
+:sectlinks:
 :experimental:
 
 Er dient als Signal-Transceiver und Protokolldekoder.

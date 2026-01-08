@@ -1,4 +1,5 @@
 = Benutzer-Leitfaden
+:sectlinks:
 :leveloffset: 1
 
 Der Benutzer-Leitfaden enthält Anweisungen zur Installation, Konfiguration und grundlegenden Verwendung von PySignalduino.
