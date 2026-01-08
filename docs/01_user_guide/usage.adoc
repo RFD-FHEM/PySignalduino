@@ -1,6 +1,4 @@
-= Verwendung und Konfiguration
-
-== Grundlegende Nutzung
+=== Grundlegende Nutzung
 
 Die Hauptklasse `SDProtocols` stellt die Schnittstelle zur Protokollverarbeitung bereit.
 
@@ -9,11 +7,11 @@ Die Hauptklasse `SDProtocols` stellt die Schnittstelle zur Protokollverarbeitung
 include::../../sd_protocols/sd_protocols.py[lines=25..47]
 ----
 
-== Integration
+=== Integration
 
 PySignalduino ist als Bibliothek konzipiert, die beispielsweise in MQTT-Bridges oder Home-Automation-Skripten verwendet werden kann. Sie übernimmt die Erkennung und Dekodierung der Rohdaten.
 
-=== Logging
+==== Logging
 
 Für Debugging-Zwecke können Sie eine eigene Callback-Funktion registrieren:
 
@@ -22,11 +20,11 @@ Für Debugging-Zwecke können Sie eine eigene Callback-Funktion registrieren:
 include::../../sd_protocols/sd_protocols.py[lines=162..170]
 ----
 
-=== MQTT Integration
+==== MQTT Integration
 
 PySignalduino bietet eine integrierte MQTT-Integration über die Klasse `MqttPublisher`. Diese ermöglicht das Veröffentlichen dekodierter Nachrichten an einen MQTT-Broker und das Empfangen von Befehlen über MQTT-Topics.
 
-==== Einrichtung und Konfiguration
+===== Einrichtung und Konfiguration
 
 Die MQTT-Verbindung wird automatisch initialisiert, wenn die Umgebungsvariable `MQTT_HOST` gesetzt ist. Folgende Umgebungsvariablen können konfiguriert werden:
 
@@ -44,7 +42,7 @@ Der `MqttPublisher` wird innerhalb des `SignalduinoController` verwendet und ste
 include::../../main.py[lines=55..84]
 ----
 
-==== MQTT-Topics
+===== MQTT-Topics
 
 * `{topic}/messages` – JSON‑kodierte dekodierte Nachrichten (DecodedMessage)
 * `{topic}/commands/#` – Topic für eingehende Befehle (Wildcard-Subscription)
@@ -52,23 +50,23 @@ include::../../main.py[lines=55..84]
 * `{topic}/errors` – Fehlerantworten.
 * `{topic}/status` – Heartbeat‑ und Statusmeldungen (optional)
 
-==== Heartbeat-Funktionalität
+===== Heartbeat-Funktionalität
 
 Der Publisher sendet regelmäßig einen Heartbeat („online“) unter `{topic}/status`, solange die Verbindung besteht.
 Bei Verbindungsabbruch wird „offline“ gepublished.
 
-==== Beispiel: Manuelle Nutzung des MqttPublisher
+===== Beispiel: Manuelle Nutzung des MqttPublisher
 
 [source,python]
 ----
 include::../../tests/test_mqtt.py[lines=112..116]
 ----
 
-=== Command Interface
+==== Command Interface
 
 PySignalduino stellt eine umfangreiche Befehls-API zur Steuerung des SIGNALDuino-Firmware-Geräts bereit. Die Klasse `SignalduinoCommands` kapselt alle verfügbaren seriellen Befehle und bietet eine asynchrone Schnittstelle.
 
-==== Verfügbare Befehle
+===== Verfügbare Befehle
 
 Die folgenden Befehle werden unterstützt (Auswahl):
 
@@ -105,13 +103,13 @@ Die folgenden Befehle werden unterstützt (Auswahl):
   * `send_xfsk(params)` – xFSK senden (SN...)
   * `send_message(message)` – Vorkodierte Nachricht senden
 
-==== Persistenz-Funktionalität
+===== Persistenz-Funktionalität
 
 Befehle, die die Hardware-Konfiguration ändern (z.
 B. `write_register`, `set_patable`), werden in der Regel im EEPROM des SIGNALDuino persistent gespeichert.
 Die Persistenz wird durch die Firmware gewährleistet; PySignalduino sendet lediglich die entsprechenden Kommandos.
 
-==== Nutzung über MQTT
+===== Nutzung über MQTT
 
 Wenn MQTT aktiviert ist, können Befehle über das Topic `{base_topic}/commands/{command}` gesendet werden. Die Basis für Antworten ist `{base_topic}/responses` (Erfolg) oder `{base_topic}/errors` (Fehler). Das `base_topic` ist standardmäßig `signalduino/v1`.
 
@@ -186,27 +184,25 @@ mosquitto_pub -h localhost -t "signalduino/v1/commands/get/system/version" -m '{
 # Antwort empfängst du auf signalduino/v1/responses
 ----
 
-==== Code-Beispiel: Direkte Nutzung der Command-API
-
-==== Code-Beispiel: Direkte Nutzung der Command-API
+===== Code-Beispiel: Direkte Nutzung der Command-API
 
 [source,python]
 ----
 include::../../tests/test_controller.py[lines=120..130]
 ----
 
-==== Beispiel: Asynchrone Context-Manager Nutzung
+===== Beispiel: Asynchrone Context-Manager Nutzung
 
 [source,python]
 ----
 include::../../main.py[lines=55..84]
 ----
 
-== API-Referenz (Auszug)
+=== API-Referenz (Auszug)
 
 Die folgenden Klassen und Schnittstellen sind für die Integration besonders relevant:
 
-=== MqttPublisher
+==== MqttPublisher
 
 Die Klasse `signalduino.mqtt.MqttPublisher` bietet eine asynchrone Context-Manager-Schnittstelle zur Kommunikation mit einem MQTT-Broker.
 
@@ -218,7 +214,7 @@ Die Klasse `signalduino.mqtt.MqttPublisher` bietet eine asynchrone Context-Manag
 
 * **Context-Manager:** `async with MqttPublisher() as publisher:`
 
-=== SignalduinoCommands
+==== SignalduinoCommands
 
 Die Klasse `signalduino.commands.SignalduinoCommands` kapselt alle seriellen Befehle für die SIGNALDuino-Firmware.
 
@@ -226,7 +222,7 @@ Die Klasse `signalduino.commands.SignalduinoCommands` kapselt alle seriellen Bef
 * **Alle Methoden sind asynchron** (`async def`) und geben entweder `str` (Antwort) zurück oder `None` (keine Antwort erwartet)
 * **Umfang:** Systembefehle, Konfiguration, Senden von Nachrichten (siehe Abschnitt „Command Interface“)
 
-=== Asynchrone Context-Manager-Schnittstelle
+==== Asynchrone Context-Manager-Schnittstelle
 
 Sowohl `SignalduinoController` als auch `MqttPublisher` und die Transportklassen (`TcpTransport`, `SerialTransport`) implementieren das asynchrone Context-Manager-Protokoll (`__aenter__`/`__aexit__`). Dies gewährleistet eine sichere Ressourcenverwaltung (Verbindungsauf‑/abbau, Hintergrundtasks).
 
@@ -237,7 +233,7 @@ Beispiel für verschachtelte Context-Manager:
 include::../../main.py[lines=55..84]
 ----
 
-=== Weitere Klassen
+==== Weitere Klassen
 
 * `SignalduinoController` – Zentrale Steuerungsklasse, koordiniert Transport, Parser, MQTT und Befehle
 * `TcpTransport`, `SerialTransport` – Asynchrone Transportimplementierungen für TCP bzw. serielle Verbindungen
@@ -245,29 +241,29 @@ include::../../main.py[lines=55..84]
 
 Eine vollständige API-Dokumentation kann mit `pydoc` oder mittels Sphinx generiert werden.
 
-== Troubleshooting
+=== Troubleshooting
 
 Dieser Abschnitt beschreibt häufige Probleme und deren Lösungen.
 
-=== MQTT-Verbindungsprobleme
+==== MQTT-Verbindungsprobleme
 
 * **Keine Verbindung zum Broker:** Stellen Sie sicher, dass die Umgebungsvariablen `MQTT_HOST` und `MQTT_PORT` korrekt gesetzt sind. Der Broker muss erreichbar sein und keine Authentifizierung erfordern (oder Benutzername/Passwort müssen gesetzt sein).
 * **Verbindung bricht ab:** Überprüfen Sie die Netzwerkverbindung und Broker-Konfiguration. Der MQTT-Client (`aiomqtt`) versucht automatisch, die Verbindung wiederherzustellen. Falls die Verbindung dauerhaft abbricht, prüfen Sie Firewall-Einstellungen und Broker-Logs.
 * **MQTT-Nachrichten werden nicht empfangen:** Stellen Sie sicher, dass das Topic `{topic}/commands/#` abonniert ist. Der Command-Listener startet automatisch, wenn MQTT aktiviert ist. Überprüfen Sie die Log-Ausgabe auf Fehler.
 
-=== Asyncio-spezifische Probleme
+==== Asyncio-spezifische Probleme
 
 * **`RuntimeError: no running event loop`:** Tritt auf, wenn asyncio-Funktionen außerhalb eines laufenden Event-Loops aufgerufen werden. Stellen Sie sicher, dass Ihr Code innerhalb einer asyncio-Coroutine läuft und `asyncio.run()` verwendet wird. Verwenden Sie `async with` für Context-Manager.
 * **Tasks hängen oder werden nicht abgebrochen:** Alle Hintergrundtasks sollten auf das `_stop_event` reagieren. Bei manuell erstellten Tasks müssen Sie `asyncio.CancelledError` abfangen und Ressourcen freigeben.
 * **Deadlocks in Queues:** Wenn eine Queue voll ist und kein Consumer mehr liest, kann `await queue.put()` blockieren. Stellen Sie sicher, dass die Consumer-Tasks laufen und die Queue nicht überfüllt wird. Verwenden Sie `asyncio.wait_for` mit Timeout.
 
-=== Verbindungsprobleme zum SIGNALDuino-Gerät
+==== Verbindungsprobleme zum SIGNALDuino-Gerät
 
 * **Keine Antwort auf Befehle:** Überprüfen Sie die serielle oder TCP-Verbindung. Stellen Sie sicher, dass das Gerät eingeschaltet ist und die korrekte Baudrate (115200) verwendet wird. Testen Sie mit einem Terminal-Programm, ob das Gerät auf `V` (Version) antwortet.
 * **Timeout-Errors:** Die Standard-Timeout für Befehle beträgt 2 Sekunden. Bei langsamen Verbindungen kann dies erhöht werden. Falls Timeouts trotzdem auftreten, könnte die Verbindung instabil sein.
 * **Parser erkennt keine Protokolle:** Überprüfen Sie, ob die Rohdaten im erwarteten Format ankommen (z.B. `+MU;...`). Stellen Sie sicher, dass die Protokolldefinitionen (`protocols.json`) geladen werden und das Protokoll aktiviert ist.
 
-=== Logging und Debugging
+==== Logging und Debugging
 
 Aktivieren Sie Debug-Logging, um detaillierte Informationen zu erhalten:
 
@@ -278,7 +274,7 @@ include::../../main.py[lines=21..30]
 
 Die Log-Ausgabe zeigt den Status von Transport, Parser und MQTT.
 
-=== Bekannte Probleme und Workarounds
+==== Bekannte Probleme und Workarounds
 
 * **Entwicklungsstatus**: Da PySignalduino noch in aktiver Entwicklung ist, können sich Verhalten und API zwischen Commits ändern. Bei unerwartetem Verhalten prüfen Sie bitte die aktuelle Codebasis und melden Sie Issues auf GitHub.
 

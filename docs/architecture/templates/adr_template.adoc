@@ -1,17 +1,17 @@
 = ADR {Nummer}: {Titel}
 :doctype: article :encoding: utf-8 :lang: de :status: {Status} :decided-at: {Datum} :decided-by: {Entscheidungsträger}
 
-[[kontext]]
+[#adr-context]
 == Kontext
 
 {Beschreibe den technischen Kontext, der zur Entscheidung geführt hat. Was sind die aktuellen Probleme oder die neuen Anforderungen?}
 
-[[entscheidung]]
+[#adr-decision]
 == Entscheidung
 
 {Beschreibe die getroffene Entscheidung. Dies sollte klar und prägnant sein.}
 
-[[konsequenzen]]
+[#adr-consequences]
 == Konsequenzen
 
 {Beschreibe die positiven und negativen Konsequenzen der Entscheidung.}
@@ -24,6 +24,6 @@
 * 
 * 
 
-[[alternativen]]
+[#adr-alternatives]
 == Alternativen
 {Hier können kurz abgelehnte Alternativen aufgeführt werden.}

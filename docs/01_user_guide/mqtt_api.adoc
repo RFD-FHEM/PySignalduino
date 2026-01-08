@@ -1,13 +1,15 @@
-= MQTT API Reference
-:doctype: book :icons: font :toc: left :toclevels: 2
+:doctype: book
+:icons: font
+:toc: left
+:toclevels: 2
 :sectnums:
 
 [[_mqtt_introduction]]
-== Einführung
+= Einführung
 
 Die MQTT-Schnittstelle ermöglicht die Steuerung des PySignalduino-Gateways und den Empfang von dekodierten Nachrichten. Alle Befehle und Antworten verwenden das JSON-Format.
 
-=== Topics und Struktur
+== Topics und Struktur
 
 Der **Standard-Topic** für alle MQTT-Operationen ist `signalduino/v1`. 
 Dieser Wert kann über die Umgebungsvariable `MQTT_TOPIC` oder den CLI-Parameter `--mqtt-topic` angepasst werden. Wenn nur der Basis-Topic (z.B. `foo`) gesetzt wird, ist der finale Topic immer versionsspezifisch: `foo/v1`.
@@ -316,21 +318,10 @@ Eine vollständige Beispielkonfiguration finden Sie in der Datei `.devcontainer/
 [source,fhem]
 ----
 # 1. Verbindung zum Broker herstellen (falls noch nicht vorhanden)
-define mqtt_broker MQTT2_CLIENT mqtt:1883
-attr mqtt_broker autocreate simple
+include::../../.devcontainer/fhem-data/fhem_signalduino_example.cfg[tags=broker_config]
 
 # 2. PySignalduino Device definieren
-define PySignalDuino MQTT2_DEVICE
-attr PySignalDuino IODev mqtt_broker
-
-# 3. Readings für empfangene Nachrichten extrahieren
-# Wandelt JSON-Payload automatisch in Readings um
-attr PySignalDuino readingList signalduino/v1/state/messages:.* { json2nameValue($EVENT, '', $JSONMAP) }
-
-# 4. Senden von Befehlen ermöglichen
-attr PySignalDuino setList raw:textField signalduino/v1/commands/set/raw $EVTPART1 \
-cc1101_reg:textField signalduino/v1/commands/set/cc1101_reg $EVTPART1 \
-version:noArg signalduino/v1/commands/get/system/version
+include::../../.devcontainer/fhem-data/fhem_signalduino_example.cfg[tags=device_config]
 ----
 
 === Wichtige Hinweise

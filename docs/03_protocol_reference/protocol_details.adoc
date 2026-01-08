@@ -1,4 +1,3 @@
-= Protokolldetails
 
 PySignalduino unterstützt eine Vielzahl von Funkprotokollen im 433 MHz und 868 MHz Bereich.
 

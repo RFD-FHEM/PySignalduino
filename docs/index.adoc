@@ -16,7 +16,6 @@ Dadurch werden verschiedenste proprietäre Funkprotokolle für die Nutzung in Sm
 Die verfügbare Hardware-Basis reicht von einfachen Arduino/nanoCUL-Lösungen bis hin zu erweiterten Varianten wie dem Maple-SignalDuino und dem ESP32-SignalDuino, die erweiterte Funktionen (z.B. WLAN) bieten.
 
 .Übersicht: Hardware und Funktion
-
 [mermaid]
 ----
 graph TD
@@ -33,7 +32,7 @@ graph TD
 
     subgraph "PySignalduino (Software-Verarbeitung)"
         F[Empfangen / Senden]
-        G[Protokolldemodulation]
+
         H[Dekodierung Protokolle]
     end
 

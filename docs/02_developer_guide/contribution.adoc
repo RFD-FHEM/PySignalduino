@@ -1,4 +1,3 @@
-= Beitrag leisten (Contributing)
 
 [NOTE]
 ====

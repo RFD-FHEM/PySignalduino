@@ -34,14 +34,14 @@ logger = logging.getLogger(__name__)
 # Basierend auf der tatsächlichen Dokumentationsstruktur und erwarteten HTML-Dateien
 PRIORITY_MAP = {
     'index.html': 1.0,
-    'user-guide/installation.html': 0.9,
-    'user-guide/usage.html': 0.9,
-    'user-guide/index.html': 0.8,
-    'developer-guide/architecture.html': 0.8,
-    'developer-guide/contribution.html': 0.7,
-    'developer-guide/index.html': 0.8,
-    'protocol-reference/protocol-details.html': 0.7,
-    'protocol-reference/index.html': 0.8,
+    '01_user_guide/installation.html': 0.9,
+    '01_user_guide/usage.html': 0.9,
+    '01_user_guide/index.html': 0.8,
+    '02_developer_guide/architecture.html': 0.8,
+    '02_developer_guide/contribution.html': 0.7,
+    '02_developer_guide/index.html': 0.8,
+    '03_protocol_reference/protocol_details.html': 0.7,
+    '03_protocol_reference/index.html': 0.8,
     'examples/basic-usage.html': 0.6,
     'examples/mqtt-integration.html': 0.6,
     'examples/command-api-example.html': 0.5,
@@ -78,14 +78,14 @@ PRIORITY_MAP = {
 
 CHANGEFREQ_MAP = {
     'index.html': 'monthly',
-    'user-guide/installation.html': 'yearly',
-    'user-guide/usage.html': 'yearly',
-    'user-guide/index.html': 'yearly',
-    'developer-guide/architecture.html': 'yearly',
-    'developer-guide/contribution.html': 'yearly',
-    'developer-guide/index.html': 'yearly',
-    'protocol-reference/protocol-details.html': 'monthly',
-    'protocol-reference/index.html': 'monthly',
+    '01_user_guide/installation.html': 'yearly',
+    '01_user_guide/usage.html': 'yearly',
+    '01_user_guide/index.html': 'yearly',
+    '02_developer_guide/architecture.html': 'yearly',
+    '02_developer_guide/contribution.html': 'yearly',
+    '02_developer_guide/index.html': 'yearly',
+    '03_protocol_reference/protocol_details.html': 'monthly',
+    '03_protocol_reference/index.html': 'monthly',
     'examples/': 'yearly',
     'examples/bash/': 'yearly',
     'migration/': 'never',
@@ -123,11 +123,11 @@ def get_priority_for_path(file_path: str) -> float:
         return 0.2
     elif normalized.startswith('migration/'):
         return 0.1
-    elif normalized.startswith('developer-guide/'):
+    elif normalized.startswith('02_developer_guide/'):
         return 0.5
-    elif normalized.startswith('user-guide/'):
+    elif normalized.startswith('01_user_guide/'):
         return 0.7
-    elif normalized.startswith('protocol-reference/'):
+    elif normalized.startswith('03_protocol_reference/'):
         return 0.6
     else:
         return 0.5
@@ -148,11 +148,11 @@ def get_changefreq_for_path(file_path: str) -> str:
         return 'yearly'
     elif normalized.startswith('migration/'):
         return 'never'
-    elif normalized.startswith('developer-guide/'):
+    elif normalized.startswith('02_developer_guide/'):
         return 'yearly'
-    elif normalized.startswith('user-guide/'):
+    elif normalized.startswith('01_user_guide/'):
         return 'yearly'
-    elif normalized.startswith('protocol-reference/'):
+    elif normalized.startswith('03_protocol_reference/'):
         return 'monthly'
     else:
         return 'yearly'
