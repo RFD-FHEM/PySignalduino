@@ -86,6 +86,6 @@ Details finden Sie in der [DevContainer-Dokumentation](devcontainer_env.md).
 
 Nach der Installation können Sie:
 
-1. Die [Schnellstart-Anleitung](../index.adoc#_schnellstart) befolgen.
-2. Die [Konfiguration über Umgebungsvariablen](../usage.adoc#_konfiguration) einrichten.
-3. Die [MQTT-Integration](../usage.adoc#_mqtt_integration) testen.
+* Die xref:#_schnellstart[Schnellstart-Anleitung] befolgen.
+* Die xref:#_konfiguration[Konfiguration über Umgebungsvariablen] einrichten.
+* Die xref:#_mqtt_integration[MQTT-Integration] testen.

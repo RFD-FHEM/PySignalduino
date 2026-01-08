@@ -31,7 +31,7 @@ jobs:
       - name: run asciidoctor with Kroki extension
         # Registriere die Kroki-Extension (-r asciidoctor-kroki) und aktiviere sie (-a kroki=). 
         # Mermaid-Diagramme werden mit dem Kroki-Server gerendert.
-        run: asciidoctor -R docs -D build/site/html -a docinfo=shared -a toc=left -a toclevels=2 -r asciidoctor-kroki -a kroki= 'docs/index.adoc'
+        run: find docs -type f -name "*.adoc" -exec asciidoctor -D build/site/html -a docinfo=shared -a toc=left -a toclevels=2 -r asciidoctor-kroki -a kroki= {} \;
       
       - name: Setup Python for Sitemap Generation
         uses: actions/setup-python@v5
