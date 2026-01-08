@@ -55,6 +55,16 @@ Die SIGNALDuino-Firmware (Microcontroller-Code) wird in einem separaten Reposito
 *   **Ausführbares Hauptprogramm** – `main.py` bietet eine sofort einsatzbereite Lösung mit Logging, Signalbehandlung und Timeout‑Steuerung.
 *   **Komprimierte Datenübertragung** – Effiziente Payload‑Kompression für MQTT‑Nachrichten.
 
+## Demo
+
+### MQTT-CLI-Integration
+
+![PySignalduino CLI Demo](docs/pysignalduino_cli.apng)
+
+### FHEMweb-Integration
+
+![PySignalduino FHEMweb Demo](docs/pysignalduino_fhemweb.apng)
+
 ## Installation
 
 ### Voraussetzungen
