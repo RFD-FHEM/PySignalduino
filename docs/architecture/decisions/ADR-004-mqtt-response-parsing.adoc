@@ -2,7 +2,8 @@
 :revdate: 2026-01-06
 :author: Roo
 
-== 1. Kontext
+[#adr-context]
+== Kontext
 
 Die MQTT-Befehle `get/cc1101/*` (z.B. `get/cc1101/config`) und `get/config/decoder` schlagen mit Timeouts fehl, obwohl die serielle Kommunikation mit der SIGNALDuino-Firmware die Antworten empfängt. Die Ursache liegt darin, dass der `MqttCommandDispatcher` eine strukturierte JSON-Payload (ein Python-Dictionary) als `data`-Feld in der MQTT-Antwort erwartet. Die zugrundeliegenden `SignalduinoCommands` Methoden geben jedoch in diesen Fällen den *rohen* String der seriellen Firmware-Antwort zurück.
 
@@ -14,7 +15,8 @@ Betroffene Befehle und ihre Rohantwortformate:
 
 Zusätzlich müssen alle `get` Befehle, die einen rohen String zurückgeben, angepasst werden, um die Konsistenz des MQTT-API zu gewährleisten.
 
-== 2. Entscheidung
+[#adr-decision]
+== Entscheidung
 
 Wir werden die `SignalduinoCommands` Methoden, die serielle GET-Befehle ausführen, so modifizieren, dass sie die rohe Firmware-Antwort parsen und ein konsistentes Python-Dictionary (`Dict[str, Any]`) zurückgeben. Dieses Dictionary wird dann vom `MqttCommandDispatcher` als JSON-Payload im `data`-Feld der MQTT-Antwort verwendet.
 
@@ -35,7 +37,8 @@ Dies stellt sicher, dass alle erfolgreichen `GET` Anfragen über MQTT eine struk
 3.  **Weitere einfache GET-Befehle:**
     *   Methoden wie `get_version`, `get_free_ram`, `get_uptime` geben bereits einen geparsten Wert zurück (String oder Int), der korrekt gekapselt wird. Diese Methoden bleiben unverändert, da sie bereits einen strukturierten Wert zurückgeben, der indirekt im `data`-Feld des MQTT-Payloads landet.
 
-== 3. Konsequenzen
+[#adr-consequences]
+== Konsequenzen
 
 === Positive
 *   **Behebung der Timeouts:** Die MQTT GET-Befehle für Konfigurationen werden korrekt beantwortet und die Timeouts behoben.
@@ -46,7 +49,8 @@ Dies stellt sicher, dass alle erfolgreichen `GET` Anfragen über MQTT eine struk
 *   **Refactoring:** Es müssen kleinere Refactorings in [`signalduino/commands.py`](signalduino/commands.py) durchgeführt werden, um die Rückgabetypen der Methoden anzupassen.
 *   **Tests/Dokumentation:** Die zugehörigen Unittests in [`tests/test_mqtt_commands.py`](tests/test_mqtt_commands.py) und die MQTT API Dokumentation in [`docs/01_user_guide/mqtt_api.adoc`](docs/01_user_guide/mqtt_api.adoc) müssen aktualisiert werden.
 
-== 4. Alternativen
+[#adr-alternatives]
+== Alternativen
 
 1.  **Alternative 1: Parsing im `MqttCommandDispatcher`:** Die Rohergebnisse als `str` beibehalten und das Parsen spezifischer Befehlsantworten direkt im `MqttCommandDispatcher` durchführen.
     *   *Nachteil:* Vermischt die Zuständigkeiten. Der Dispatcher sollte nur das Routing und die Validierung übernehmen, während die `SignalduinoCommands` die Logik für die Kommunikation und das Parsen der Firmware-spezifischen Antworten enthalten sollten.

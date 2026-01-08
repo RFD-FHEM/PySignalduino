@@ -1,4 +1,5 @@
 = Protokoll-Referenz
+:sectlinks:
 
 Eine detaillierte Referenz aller unterstützten Protokolle, deren Implementierungsdetails und bekannten Einschränkungen.
 

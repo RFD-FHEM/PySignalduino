@@ -1,4 +1,5 @@
 = Benutzer-Leitfaden
+:sectlinks:
 :leveloffset: 1
 
 Der Benutzer-Leitfaden enthält Anweisungen zur Installation, Konfiguration und grundlegenden Verwendung von PySignalduino.
@@ -42,7 +43,37 @@ PySignalduino folgt einer modular aufgebauten Architektur:
 
 [source,plantuml]
 ----
-include::../../docs/diagrams/architecture.puml[]
+@startuml
+skinparam componentStyle uml2
+
+package "PySignalduino Core" {
+    [Controller] as ctrl
+    [Command API] as cmd
+    [Parser Layer] as parser
+    [Transport Layer] as transport
+    [Protocol Lib] as proto
+    [MQTT Client] as mqtt
+}
+
+node "Hardware" {
+    [SIGNALDuino] as hw
+}
+
+cloud "Infrastructure" {
+    [MQTT Broker] as broker
+}
+
+ctrl -down-> transport : manages
+ctrl -right-> parser : feeds raw data
+parser -right-> proto : uses for decoding
+ctrl -up-> mqtt : publishes events
+ctrl -left-> cmd : uses
+cmd -down-> transport : sends commands
+
+transport <--> hw : Serial / TCP
+mqtt <--> broker : WiFi / LAN
+
+@enduml
 ----
 
 Die Hauptkomponenten sind:
@@ -78,6 +109,6 @@ Für einen schnellen Einstieg folgen Sie diesen Schritten:
 
 Ausführliche Anleitungen finden Sie in den folgenden Kapiteln.
 
-include::installation.adoc[]
-include::usage.adoc[]
-include::mqtt_api.adoc[]
+include::installation.adoc[leveloffset=+1]
+include::usage.adoc[leveloffset=+1]
+include::mqtt_api.adoc[leveloffset=+1]

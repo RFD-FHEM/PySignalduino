@@ -1,6 +1,5 @@
-= Architektur
-
 == Übersicht
+:sectlinks:
 
 PySignalduino ist modular aufgebaut und trennt die Protokolldefinitionen (JSON) strikt von der Verarbeitungslogik (Python).
 Seit der Migration zu asyncio (Version 0.9.0) folgt das System einer ereignisgesteuerten, asynchronen Architektur, die auf asyncio-Tasks und -Queues basiert.
@@ -95,8 +94,14 @@ Alle Requests (Commands) und Responses (Responses/Errors) verwenden eine standar
 ----
 
 === Wichtige Architekturentscheidungen
-* link:../architecture/decisions/adr-001-mqtt-topic-structure.md[ADR-001: MQTT Topic Struktur und Versionierung]
-* link:../architecture/decisions/adr-002-command-dispatcher.md[ADR-002: Command Dispatcher Pattern und JSON-Schema-Validierung]
+Die vollständigen Architecture Decision Records (ADR) sind hier aufgelistet und werden im Dokument eingebettet:
+
+// ADRs 001 bis 005 werden direkt eingebunden
+include::../architecture/decisions/ADR-001-mqtt-get-frequency.adoc[leveloffset=+3]
+include::../architecture/decisions/ADR-002-mqtt-command-dispatcher.adoc[leveloffset=+3]
+include::../architecture/decisions/ADR-003-cc1101-parameter-set-logic.adoc[leveloffset=+3]
+include::../architecture/decisions/ADR-004-mqtt-response-parsing.adoc[leveloffset=+3]
+include::../architecture/decisions/ADR-005-mqtt-cc1101-response-consistency.adoc[leveloffset=+3]
 
 == Komponentendiagramm (Übersicht)
 

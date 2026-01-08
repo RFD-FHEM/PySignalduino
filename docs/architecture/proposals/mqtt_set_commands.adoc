@@ -24,8 +24,8 @@ Das Ziel ist es, eine konsistente, zuverlässige Kette vom MQTT-Topic bis zum se
 
 |`signalduino/commands.py` (`SignalduinoCommands`)
 |Niedrigstufige Kommunikation mit dem Signalduino-Gerät; Umrechnung von physikalischen Werten in CC1101-Registerwerte.
-|Implementierung neuer/vollständiger Methoden: `set_frequency`, `set_datarate`.
-|Prüfung und ggf. Vervollständigung/Anpassung von: `set_bwidth`, `set_sens`, `set_rampl`.
+|Implementierung neuer/vollständiger Methoden: `set_frequency`, `set_datarate`. +
+Prüfung und ggf. Vervollständigung/Anpassung von: `set_bwidth`, `set_sens`, `set_rampl`.
 |===
 
 == 3. Architektonischer Flow und Sequenz

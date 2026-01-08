@@ -1,7 +1,7 @@
 = ADR 002: Verwendung des MqttCommandDispatcher für die MQTT-Befehlsbehandlung
 :doctype: article :encoding: utf-8 :lang: de :status: Accepted :decided-at: 2026-01-04 :decided-by: Roo (Architekt)
 
-[[kontext]]
+[#adr-context]
 == Kontext
 
 Die MQTT-Befehlsbehandlung in `signalduino/mqtt.py` erfolgt derzeit über eine hartcodierte `if/elif`-Kette in der Methode `_handle_command` (Zeile 108). Diese Struktur ist schwer wartbar und skaliert schlecht, sobald neue Befehle hinzugefügt werden müssen, wie es für Factory Reset und das Abrufen von Hardware-Einstellungen erforderlich ist.
@@ -10,7 +10,7 @@ Der Code enthält bereits einen generischen, schema-validierenden Befehls-Dispat
 
 Die zentrale Verwaltung der Befehle und deren Validierung ist eine bewährte Methode, um die Robustheit und Erweiterbarkeit der Schnittstelle zu gewährleisten.
 
-[[entscheidung]]
+[#adr-decision]
 == Entscheidung
 
 Die hartcodierte `if/elif`-Logik in `signalduino/mqtt.py` wird durch die Verwendung des `MqttCommandDispatcher` ersetzt.
@@ -19,7 +19,7 @@ Die hartcodierte `if/elif`-Logik in `signalduino/mqtt.py` wird durch die Verwend
 . Die Methode `_handle_command` in `MqttPublisher` wird umgeschrieben, um den eingehenden Befehlspfad und Payload direkt an `MqttCommandDispatcher.dispatch()` zu übergeben.
 . Die Fehler- und Erfolgsantworten werden vom `MqttCommandDispatcher` zurückgegeben und von `MqttPublisher` an die entsprechenden MQTT-Topics (`/responses` und `/errors`) publiziert.
 
-[[konsequenzen]]
+[#adr-consequences]
 == Konsequenzen
 
 === Positive Konsequenzen
@@ -32,7 +32,7 @@ Die hartcodierte `if/elif`-Logik in `signalduino/mqtt.py` wird durch die Verwend
 * **Refactoring-Aufwand:** Die bestehende Logik in `signalduino/mqtt.py` muss entfernt und durch den Dispatcher-Aufruf ersetzt werden.
 * **Kopplung an Controller:** Der Dispatcher ist direkt an den `SignalduinoController` gekoppelt (was bereits der Fall war und akzeptiert wird).
 
-[[alternativen]]
+[#adr-alternatives]
 == Alternativen
 * **Beibehaltung der if/elif-Kette:** Dies wurde abgelehnt, da es gegen die Prinzipien der Wartbarkeit und der Single Responsibility Principle (SRP) verstößt.
 * **Anderer Dispatch-Mechanismus:** Die Verwendung des vorhandenen `MqttCommandDispatcher` ist die pragmatischste Lösung, da die Klasse bereits existiert und die Validierungsinfrastruktur bietet.

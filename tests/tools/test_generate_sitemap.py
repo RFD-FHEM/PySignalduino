@@ -37,16 +37,16 @@ class TestPriorityMapping:
         assert get_priority_for_path('index.html') == 1.0
     
     def test_user_guide_installation(self):
-        assert get_priority_for_path('user-guide/installation.html') == 0.9
+        assert get_priority_for_path('01_user_guide/installation.html') == 0.9
     
     def test_user_guide_usage(self):
-        assert get_priority_for_path('user-guide/usage.html') == 0.9
+        assert get_priority_for_path('01_user_guide/usage.html') == 0.9
     
     def test_protocol_reference_index(self):
-        assert get_priority_for_path('protocol-reference/index.html') == 0.8
+        assert get_priority_for_path('03_protocol_reference/index.html') == 0.8
     
     def test_developer_guide_architecture(self):
-        assert get_priority_for_path('developer-guide/architecture.html') == 0.8
+        assert get_priority_for_path('02_developer_guide/architecture.html') == 0.8
     
     def test_examples_general(self):
         assert get_priority_for_path('examples/some-example.html') == 0.3
@@ -64,7 +64,7 @@ class TestChangefreqMapping:
         assert get_changefreq_for_path('index.html') == 'monthly'
     
     def test_user_guide_installation(self):
-        assert get_changefreq_for_path('user-guide/installation.html') == 'yearly'
+        assert get_changefreq_for_path('01_user_guide/installation.html') == 'yearly'
     
     def test_changelog(self):
         assert get_changefreq_for_path('changelog.html') == 'weekly'
@@ -100,14 +100,14 @@ class TestScanHtmlFiles:
         assert files[0]['path'] == 'index.html'
     
     def test_nested_html_files(self):
-        (self.build_dir / 'user-guide').mkdir()
-        (self.build_dir / 'user-guide' / 'installation.html').write_text('<html></html>')
+        (self.build_dir / '01_user_guide').mkdir()
+        (self.build_dir / '01_user_guide' / 'installation.html').write_text('<html></html>')
         (self.build_dir / 'examples' / 'bash').mkdir(parents=True)
         (self.build_dir / 'examples' / 'bash' / 'coverage-report.html').write_text('<html></html>')
         
         files = scan_html_files(self.build_dir)
         paths = [f['path'] for f in files]
-        assert 'user-guide/installation.html' in paths
+        assert '01_user_guide/installation.html' in paths
         assert 'examples/bash/coverage-report.html' in paths
     
     def test_ignore_hidden_files(self):
@@ -145,27 +145,27 @@ class TestGenerateSitemapUrls:
         assert url['changefreq'] == 'monthly'
     
     def test_url_generation_nested(self):
-        self.create_test_html('user-guide/installation.html')
+        self.create_test_html('01_user_guide/installation.html')
         html_files = scan_html_files(self.build_dir)
         urls = generate_sitemap_urls(html_files, 'https://example.com')
         
         assert len(urls) == 1
         url = urls[0]
-        assert url['loc'] == 'https://example.com/user-guide/installation'
+        assert url['loc'] == 'https://example.com/01_user_guide/installation'
         assert url['priority'] == '0.9'
         assert url['changefreq'] == 'yearly'
     
     def test_url_generation_directory_index(self):
-        self.create_test_html('user-guide/index.html')
+        self.create_test_html('01_user_guide/index.html')
         html_files = scan_html_files(self.build_dir)
         urls = generate_sitemap_urls(html_files, 'https://example.com')
         
         assert len(urls) == 1
-        assert urls[0]['loc'] == 'https://example.com/user-guide'
+        assert urls[0]['loc'] == 'https://example.com/01_user_guide'
     
     def test_multiple_urls(self):
         self.create_test_html('index.html')
-        self.create_test_html('user-guide/installation.html')
+        self.create_test_html('01_user_guide/installation.html')
         self.create_test_html('examples/basic-usage.html')
         
         html_files = scan_html_files(self.build_dir)
@@ -174,7 +174,7 @@ class TestGenerateSitemapUrls:
         assert len(urls) == 3
         locs = [u['loc'] for u in urls]
         assert 'https://example.com' in locs
-        assert 'https://example.com/user-guide/installation' in locs
+        assert 'https://example.com/01_user_guide/installation' in locs
         assert 'https://example.com/examples/basic-usage' in locs
 
 class TestXmlSitemapGeneration:

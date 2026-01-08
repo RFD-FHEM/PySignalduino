@@ -2,7 +2,7 @@
 :doctype: article :encoding: utf-8 :lang: de :status: Proposed :decided-at: 2026-01-07 :decided-by: Roo
 :toc: left
 
-[[kontext]]
+[#adr-context]
 == Kontext
 
 Aktuell weichen die JSON-Antwortstrukturen für die Abfrage einzelner CC1101-Parameter via MQTT (z.B. Topic `get/cc1101/bandwidth`) von der Struktur der Gesamt-Abfrage (Topic `get/cc1101/settings`) ab.
@@ -12,7 +12,7 @@ Aktuell weichen die JSON-Antwortstrukturen für die Abfrage einzelner CC1101-Par
 
 Diese Inkonsistenz erschwert die automatisierte Verarbeitung der Antworten, da Clients je nach Abfragetyp unterschiedliche JSON-Pfade parsen müssen. Ziel ist eine konsistente Struktur, bei der die JSON-Knotennamen für die einzelnen Parameter in beiden Abfragetypen identisch sind.
 
-[[entscheidung]]
+[#adr-decision]
 == Entscheidung
 
 Die JSON-Antwortstruktur für alle CC1101-Parameter-Abfragen wird vereinheitlicht. Die Schlüsselnamen der einzelnen Parameter in der JSON-Antwort werden in beiden Abfragetypen (Einzelparameter und Gesamt-Settings) identisch verwendet. Es wird entschieden, die Schlüssel der Einzelparameter ohne umschließendes Wrapper-Objekt zu verwenden.
@@ -32,7 +32,7 @@ Die JSON-Antwortstruktur für alle CC1101-Parameter-Abfragen wird vereinheitlich
     ```
 Die `settings`-Antwort ist somit eine direkte Aggregation der Einzelparameter-Antworten.
 
-[[konsequenzen]]
+[#adr-consequences]
 == Konsequenzen
 
 === Positive Konsequenzen
@@ -43,7 +43,7 @@ Die `settings`-Antwort ist somit eine direkte Aggregation der Einzelparameter-An
 *   **Breaking Change:** Bestehende Clients, die sich auf eine Wrapper-Struktur wie `{"cc1101": {...}}` bei der Gesamt-Abfrage (`get/cc1101/settings`) verlassen, müssen angepasst werden.
 *   **Migration:** Die Server-Logik für die MQTT-Antworten in der PySignalduino-Implementierung muss entsprechend geändert werden.
 
-[[alternativen]]
+[#adr-alternatives]
 == Alternativen
 *   **Alternative A: Wrapper in Einzelabfragen beibehalten:** Man könnte die Einzelabfrage um den CC1101-Wrapper erweitern (z.B. `get/cc1101/bandwidth` -> `{"cc1101": {"bandwidth": "X kHz"}}`). Dies wurde abgelehnt, da es unnötige Verschachtelung für Einzelwerte einführt und die Lesbarkeit des Payloads verschlechtert.
 *   **Alternative B: Einzelabfragen als reiner Wert:** Die Antwort könnte nur den reinen Wert zurückgeben (z.B. `get/cc1101/bandwidth` -> `"X kHz"`). Dies wurde abgelehnt, da es das JSON-Format verlässt und der Parametername im Payload verloren ginge, was die Eindeutigkeit erschwert.

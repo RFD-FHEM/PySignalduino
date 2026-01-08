@@ -1,4 +1,5 @@
 = Entwickler-Leitfaden
+:sectlinks:
 
 Dieser Abschnitt beschreibt die Architektur, wie man zur Entwicklung beitragen kann (Contributing) und wie man Tests durchführt.
 
