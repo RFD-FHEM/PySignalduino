@@ -11,6 +11,12 @@ import paho.mqtt.client as paho_mqtt # Für topic_matches_sub
 from .types import DecodedMessage, RawFrame
 from .persistence import get_or_create_client_id
 
+# Import protocol loader helper to access preamble data
+try:
+    from sd_protocols.loader import _protocol_handler
+except ImportError:
+    _protocol_handler = None
+
 class MqttPublisher:
     """Publishes DecodedMessage objects to an MQTT server and listens for commands."""
 
@@ -30,6 +36,7 @@ class MqttPublisher:
         self.client_id = get_or_create_client_id()
         self.client: Optional[mqtt.Client] = None # Will be set in __aenter__
         self._listener_task: Optional[asyncio.Task[None]] = None # NEU: Task für den Command Listener
+        self._protocol_handler = _protocol_handler
 
         # Konfiguration: CLI/Args > ENV > Default
         self.mqtt_host = host or os.environ.get("MQTT_HOST", "localhost")
@@ -224,8 +231,7 @@ class MqttPublisher:
             )
 
 
-    @staticmethod
-    def _message_to_json(message: DecodedMessage) -> str:
+    def _message_to_json(self, message: DecodedMessage) -> str:
         """Serializes a DecodedMessage to a JSON string."""
 
         # DecodedMessage uses dataclasses, but RawFrame inside it also uses a dataclass.
@@ -242,6 +248,21 @@ class MqttPublisher:
         # Remove empty or non-useful fields for publication
         message_dict.pop("raw", None) # Do not publish raw frame data by default
         
+        # Append preamble to payload for FHEM compatibility (PreambleProtocolID#HexData)
+        preamble = ""
+        if self._protocol_handler:
+            try:
+                # check_property returns the value or default
+                preamble = self._protocol_handler.check_property(message.protocol_id, 'preamble', '')
+            except Exception as e:
+                self.logger.warning("Failed to get preamble: %s", e)
+
+        # Add new 'preamble' field
+        message_dict["preamble"] = preamble
+        
+        # Ensure payload is uppercase, but DO NOT prepend preamble anymore
+        message_dict["payload"] = message.payload.upper()
+
         return json.dumps(message_dict, indent=4)
 
     async def publish_simple(self, subtopic: str, payload: str, retain: bool = False) -> None:
@@ -270,5 +291,3 @@ class MqttPublisher:
             self.logger.debug("Published message for protocol %s to %s", message.protocol_id, topic)
         except Exception:
             self.logger.error("Failed to publish message", exc_info=True)
-
-            
