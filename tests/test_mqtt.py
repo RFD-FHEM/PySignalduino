@@ -27,12 +27,12 @@ def mock_controller():
 def mock_decoded_message() -> DecodedMessage:
     return DecodedMessage(
         protocol_id="1",
-        payload="RSL: ID=01, SWITCH=01, CMD=OFF",
+        payload="9374A400",
         raw=RawFrame(
-            line="+MU;...",
+            line="MS;P1=1154;P2=-697;P3=559;P4=-1303;P5=-7173;D=351234341234341212341212123412343412341234341234343434343434343434;CP=3;SP=5;R=247;O;",
             rssi=-80,
             freq_afc=433.92,
-            message_type="MU",
+            message_type="MS",
         ),
         metadata={
             "protocol_name": "Conrad RSL v1",
@@ -135,6 +135,12 @@ async def test_mqtt_publisher_publish_success(MockClient, mock_decoded_message, 
     
     payload_dict = json.loads(published_payload)
     assert payload_dict["protocol_id"] == "1"
+    
+    # Payload sollte KEINE Preamble mehr enthalten, aber das neue Feld "preamble" schon
+    # Protocol 1 (Conrad RSL v1) hat Preamble "P1#"
+    assert payload_dict["payload"] == "9374A400"
+    assert payload_dict["preamble"] == "P1#"
+    
     assert "raw" not in payload_dict # raw sollte entfernt werden
     assert call_kwargs == {} # assert {} da keine kwargs im Code von MqttPublisher.publish übergeben werden
 
