@@ -62,7 +62,7 @@ def test_mc_parser_valid_message(mc_parser, mock_protocols, line, expected_proto
     assert len(result) == 1
     
     # Neue/geänderte Assertions
-    assert result[0].protocol_id == expected_protocol
+    assert result[0].protocol["id"] == expected_protocol
     assert result[0].data == expected_payload  # Erwartet die bereinigte Payload
     assert result[0].raw == line
     

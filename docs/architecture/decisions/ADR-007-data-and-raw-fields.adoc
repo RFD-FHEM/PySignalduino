@@ -27,25 +27,7 @@ Wir passen das in ADR-006 definierte Schema wie folgt an:
 
 === Aktualisierte Datenstruktur
 
-[source,json]
-----
-{
-  "data": "30E0A1AA4241DE6C000200000BC5",   // Ehemals "payload"
-  "raw": "MC;LL=-1017;LH=932;...",          // Der originale Input-String
-  "protocol_id": "125",
-  "metadata": {
-    "rssi": -74,
-    "freq_afc": 123
-  },
-  "protocol": {
-    "name": "WH31",
-    "id": "125",
-    "preamble": "W125#",
-    "format": "2-FSK",
-    "clock": 17257
-  }
-}
-----
+include::../snippets/json_output_schema_example.adoc[]
 
 [#adr-consequences]
 == Konsequenzen

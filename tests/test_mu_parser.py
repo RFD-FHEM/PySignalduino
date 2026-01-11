@@ -48,7 +48,7 @@ def test_mu_parser_valid_messages(mu_parser, mock_protocols, line, expected_prot
     assert len(result) == 1
     
     # Neue/geänderte Assertions
-    assert result[0].protocol_id == expected_protocol
+    assert result[0].protocol["id"] == expected_protocol
     assert result[0].data == expected_clean_payload
     assert result[0].raw == line
     

@@ -253,8 +253,10 @@ class MqttPublisher:
         preamble = ""
         if self._protocol_handler:
             try:
-                # check_property returns the value or default
-                preamble = self._protocol_handler.check_property(message.protocol_id, 'preamble', '')
+                protocol_id = message.protocol.get('id')
+                if protocol_id:
+                    # check_property returns the value or default
+                    preamble = self._protocol_handler.check_property(protocol_id, 'preamble', '')
             except Exception as e:
                 self.logger.warning("Failed to get preamble: %s", e)
 
@@ -289,6 +291,7 @@ class MqttPublisher:
             topic = f"{self.base_topic}/state/messages"
             payload = self._message_to_json(message)
             await self.client.publish(topic, payload)
-            self.logger.debug("Published message for protocol %s to %s", message.protocol_id, topic)
+            protocol_id = message.protocol.get('id', 'N/A')
+            self.logger.debug("Published message for protocol %s to %s", protocol_id, topic)
         except Exception:
             self.logger.error("Failed to publish message", exc_info=True)

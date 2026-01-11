@@ -1,0 +1,18 @@
+[source,json]
+----
+{
+  "data": "30E0A1AA4241DE6C000200000BC5",
+  "raw": "MC;LL=-1017;LH=932;...",
+  "metadata": {
+    "rssi": -74,
+    "freq_afc": 123
+  },
+  "protocol": {
+    "name": "WH31",
+    "id": "125",
+    "preamble": "W125#",
+    "format": "2-FSK",
+    "clock": 17257
+  }
+}
+----

@@ -30,7 +30,7 @@ def test_bresser_lightning_decoding(caplog):
     assert len(messages) == 1
     msg = messages[0]
     
-    assert msg.protocol_id == expected_protocol_id
+    assert msg.protocol["id"] == expected_protocol_id
     assert msg.data == expected_payload
     assert msg.raw == line
     assert msg.metadata["rfmode"] == "Bresser_lightning"

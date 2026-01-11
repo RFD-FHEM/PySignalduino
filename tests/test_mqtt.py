@@ -26,7 +26,6 @@ def mock_controller():
 @pytest.fixture
 def mock_decoded_message() -> DecodedMessage:
     return DecodedMessage(
-        protocol_id="1",
         data="9374A400",
         raw="MS;P1=1154;P2=-697;P3=559;P4=-1303;P5=-7173;D=351234341234341212341212123412343412341234341234343434343434343434;CP=3;SP=5;R=247;O;",
         metadata={
@@ -35,6 +34,7 @@ def mock_decoded_message() -> DecodedMessage:
             "message_bits": "101010101011101111001100",
             "is_repeat": False,
         },
+        protocol={"id": "1"}, # Hinzugefügtes Protokoll-ID-Feld
     )
 
 @pytest.fixture
@@ -129,7 +129,7 @@ async def test_mqtt_publisher_publish_success(MockClient, mock_decoded_message, 
     assert isinstance(published_payload, str)
     
     payload_dict = json.loads(published_payload)
-    assert payload_dict["protocol_id"] == "1"
+    assert payload_dict["protocol"]["id"] == "1"
     
     # Payload sollte KEINE Preamble mehr enthalten, aber das neue Feld "preamble" schon
     # Protocol 1 (Conrad RSL v1) hat Preamble "P1#"

@@ -110,7 +110,7 @@ def test_mn_parser_messages(
         if not raises_exception:
             assert len(result) == expected_message_count
             if result:
-                assert result[0].protocol_id == expected_protocol_id
+                assert result[0].protocol["id"] == expected_protocol_id
         else:
             assert not result
     else:
@@ -202,7 +202,7 @@ def test_mn_parser_messages_perl_migration(
     if expected_message_count > 0:
         # Verify first message's protocol ID only if expected_protocol_id is set
         if expected_protocol_id is not None:
-            assert result[0].protocol_id == expected_protocol_id
+            assert result[0].protocol["id"] == expected_protocol_id
         
         # Verify freq_afc if expected
         if expected_freq_afc is not None:

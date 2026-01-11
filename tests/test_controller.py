@@ -194,7 +194,7 @@ async def test_send_command_timeout(mock_transport, mock_parser, mock_controller
 async def test_message_callback(mock_transport, mock_parser, mock_controller_initialize):
     """Test message callback invocation."""
     callback_mock = Mock()
-    decoded_msg = DecodedMessage(protocol_id="1", data="test", raw="")
+    decoded_msg = DecodedMessage(data="test", raw="", protocol={"id": "1"})
     mock_parser.parse_line.return_value = [decoded_msg]
     
     # Use side_effect to return the line once, then fall back to the fixture's yielding None

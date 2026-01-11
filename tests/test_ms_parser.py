@@ -57,5 +57,5 @@ class TestMSParser:
         assert len(results) > 0
         
         # Optional: Check if it matched Protocol 0
-        p0_match = any(r.protocol_id == '0' for r in results)
+        p0_match = any(r.protocol.get('id') == '0' for r in results)
         assert p0_match

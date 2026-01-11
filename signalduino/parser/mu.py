@@ -92,7 +92,6 @@ class MUParser:
             payload = raw_payload[preamble_len:]
 
             yield DecodedMessage(
-                protocol_id=protocol_id_str,
                 data=payload,
                 raw=frame.line,
                 metadata=decoded.get("meta", {}),
