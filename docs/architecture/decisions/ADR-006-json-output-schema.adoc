@@ -1,0 +1,70 @@
+= ADR-006: JSON Output Schema Refinement
+:toc: macro
+:toc-title: Inhaltsverzeichnis
+
+== Status
+* **Status:** Proposed
+* **Datum:** 2026-01-11
+* **Architecture Owner:** Roo (Architect)
+
+== Kontext
+Das bestehende JSON-Output-Schema für decodierte Funksignale (von `DecodedMessage` abgeleitet) enthält die Protokoll-Preamble (z.B. `W125#`) als Präfix im Feld `payload`. Dies erschwert die automatische Verarbeitung durch Downstream-Systeme (wie MQTT-Clients oder andere FHEM-Module), da diese die Preamble manuell entfernen müssen, um an die reinen Nutzdaten zu gelangen. Des Weiteren fehlt eine standardisierte Möglichkeit, protokollspezifische Metadaten (wie Protokollname, Format, Taktfrequenz) im Output bereitzustellen, ohne diese in der allgemeinen `metadata`-Struktur zu verstecken.
+
+== Entscheidung
+Wir werden das JSON-Output-Schema von `DecodedMessage` wie folgt anpassen:
+1.  **Nutzdaten-Bereinigung:** Die Protokoll-Preamble wird aus dem Nutzdatenfeld entfernt. Dieses Feld enthält nur noch die vom Protokolldecoder erzeugten reinen Daten (Hex- oder Bit-String).
+2.  **Hinzufügen des `protocol` Feldes:** Ein neues Feld `protocol` vom Typ `dict` wird zur `DecodedMessage` hinzugefügt, um strukturierte, protokollspezifische Informationen zu enthalten.
+
+Die Umbenennung des Nutzdatenfeldes von `payload` zu `data` sowie die Einführung des Feldes `raw` (für die ursprüngliche Nachricht) sind in link:ADR-007-data-and-raw-fields.adoc[ADR-007] dokumentiert, das dieses Schema ergänzt und präzisiert. Dieses ADR dient als Grundlage für die Einführung des `protocol`-Feldes und die Bereinigung des Nutzdateninhalts.
+
+=== Details zur neuen Struktur (Präzisiert durch ADR-007)
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `protocol_id` | `str` | Die numerische oder alphanumerische ID des erkannten Protokolls. |
+| `data` | `str` | Die bereinigten Nutzdaten **ohne** Preamble und Postamble (ersetzt `payload`). |
+| `raw` | `str` | Die ursprüngliche, unveränderte Nachricht vom Signalduino (z.B. `MU;...`). |
+| `protocol` | `dict` | Strukturierte Metadaten des Protokolls. |
+| `protocol.id` | `str` | Die ID des Protokolls (Redundanz zur einfachen Konsumierbarkeit). |
+| `protocol.name` | `str` | Der menschenlesbare Name des Protokolls (aus `protocols.json`). |
+| `protocol.preamble` | `str` | Die Preamble des Protokolls (z.B. `W125#`). |
+| `protocol.format` | `str` | Das Format des Signals (z.B. `manchester`, `twostate`, `2-FSK`) (aus `protocols.json`). |
+| `protocol.clock` | `int`/`float` | Der Clock-Wert, der für die Demodulation verwendet wurde (entweder `clockabs` oder `clockrange` Mittelwert/demodulierter Takt). |
+| `protocol.modulation` | `str` | (Optional) Modulationsart (z.B. `2-FSK`, `GFSK`) für FSK-Protokolle. |
+
+=== Beispiel für die Datenstruktur (Präzisiert durch ADR-007)
+
+[source,json]
+----
+{
+  "data": "30E0A1AA4241DE6C000200000BC5",
+  "raw": "MC;LL=-1017;LH=932;...",
+  "protocol_id": "125",
+  "metadata": {
+    "rssi": -74,
+    "freq_afc": 123
+  },
+  "protocol": {
+    "name": "WH31",
+    "id": "125",
+    "preamble": "W125#",
+    "format": "2-FSK",
+    "clock": 17257
+  }
+}
+----
+
+== Konsequenzen
+**Positiv:**
+*   Das `data`-Feld ist jetzt "sauber" und enthält nur die Nutzdaten.
+*   Protocolspezifische Metadaten sind standardisiert im `protocol`-Feld abrufbar.
+*   Vereinfacht die Integration mit Systemen, die strukturierte Daten erwarten.
+*   Das neue `raw`-Feld (siehe link:ADR-007-data-and-raw-fields.adoc[ADR-007]) ermöglicht besseres Debugging und vollständige Nachvollziehbarkeit.
+
+**Negativ:**
+*   Dies ist ein **Breaking Change** für alle existierenden Konsumenten des `DecodedMessage`-Outputs, die darauf angewiesen sind, dass die Preamble im `payload` enthalten ist.
+*   Alle Demodulations- und Parser-Logik muss angepasst werden, um die Preamble separat zu behandeln und das `protocol`-Feld sowie das neue `raw`-Feld zu befüllen.
+
+== Alternativen
+1.  **Preamble in `metadata` verschieben:** Hätte den Nutzdatenfeld gereinigt, aber die Protokolldetails weiterhin unstrukturiert gelassen. Abgelehnt, da ein dediziertes `protocol`-Feld die semantische Klarheit verbessert.
+2.  **Beibehaltung der alten Struktur:** Hätte Abwärtskompatibilität gewährleistet, aber die Notwendigkeit für eine Nutzdatenreinigung durch jeden Konsumenten beibehalten. Abgelehnt, da die verbesserte Struktur die Wartbarkeit und zukünftige Erweiterbarkeit deutlich erhöht.

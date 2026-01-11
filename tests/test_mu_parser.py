@@ -20,15 +20,43 @@ def mu_parser(mock_protocols, logger):
 )
 def test_mu_parser_valid_messages(mu_parser, mock_protocols, line, expected_protocol, expected_rssi):
     """Test valid MU messages."""
+    
+    # Mock Protokolldaten
+    MOCKED_PROTOCOLS = {
+        "44": {"name": "IT-V1_V3", "preamble": "W44#", "format": "BITS", "clock": 250},
+        "84": {"name": "Bresser-3_1", "preamble": "W84#", "format": "BITS", "clock": 330},
+    }
+    mock_protocols.get_protocol_list.return_value = MOCKED_PROTOCOLS
+    
+    # Erwartete Payloads (Roh-Payload enthält Präambel, gereinigte Payload nicht)
+    if expected_protocol == "44":
+        raw_payload = "W44#123456"
+        expected_clean_payload = "123456"
+        expected_protocol_meta = MOCKED_PROTOCOLS["44"]
+    else: # expected_protocol == "84"
+        raw_payload = "W84#ABCDEF"
+        expected_clean_payload = "ABCDEF"
+        expected_protocol_meta = MOCKED_PROTOCOLS["84"]
+
     frame = RawFrame(line=line)
-    demodulated = [{"protocol_id": expected_protocol}]
+    demodulated = [{"protocol_id": expected_protocol, "payload": raw_payload}]
     mock_protocols.demodulate.return_value = demodulated
 
     result = list(mu_parser.parse(frame))
 
     mock_protocols.demodulate.assert_called_once()
     assert len(result) == 1
+    
+    # Neue/geänderte Assertions
     assert result[0].protocol_id == expected_protocol
+    assert result[0].data == expected_clean_payload
+    assert result[0].raw == line
+    
+    # Protokoll-Metadaten Assertions
+    assert result[0].protocol["id"] == expected_protocol
+    assert result[0].protocol["name"] == expected_protocol_meta["name"]
+    assert result[0].protocol["preamble"] == expected_protocol_meta["preamble"]
+    
     # Correct the expected RSSI value for R=217
     if expected_protocol == "84":
         assert frame.rssi == -93.5

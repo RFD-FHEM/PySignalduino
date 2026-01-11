@@ -1,0 +1,88 @@
+= Architecture Proposal: JSON Output Schema Refinement
+:toc: macro
+:toc-title: Inhaltsverzeichnis
+
+== Status
+* **Status:** Proposed
+* **Datum:** 2026-01-11
+* **Autor:** Roo (Architect)
+
+== Kontext
+Das aktuelle JSON-Nachrichtenschema für decodierte Signale vermischt Protokoll-Metadaten (die Preamble) mit den eigentlichen Nutzdaten (Payload). Zudem fehlen strukturierte Informationen über das erkannte Protokoll, die für weiterverarbeitende Systeme (z.B. Home Assistant, FHEM via MQTT) nützlich wären.
+
+Aktuelles Beispiel:
+[source,json]
+----
+{
+  "payload": "W125#30E0A1AA4241DE6C000200000BC5",
+  "metadata": { ... },
+  "protocol_id": "125"
+}
+----
+
+== Problemstellung
+1.  **Verschmutzter Payload:** Der Payload enthält die Preamble (z.B. `W125#`), was nachgelagerte Parser zwingt, diese zu entfernen.
+2.  **Fehlende Protokolldetails:** Es gibt kein dediziertes Feld, das alle relevanten statischen und dynamischen Eigenschaften des erkannten Protokolls zusammenfasst.
+
+== Lösungsvorschlag
+
+=== 1. Bereinigung des Payloads
+Die Preamble wird aus dem `payload`-Feld entfernt. Der Payload enthält nur noch die reinen Daten (Hex-String).
+
+=== 2. Erweiterung um `protocol`-Objekt
+Ein neues Feld `protocol` wird eingeführt, das strukturierte Informationen enthält.
+
+Neues Schema:
+[source,json]
+----
+{
+  "payload": "30E0A1AA4241DE6C000200000BC5",
+  "protocol_id": "125",
+  "protocol": {
+    "name": "WH31",
+    "id": "125",
+    "preamble": "W125#",
+    "format": "manchester",
+    "clock": 17257, // Optional: erkannter oder definierter Takt
+    "modulation": "2-FSK" // Optional: aus Protokolldefinition
+  },
+  "metadata": {
+    "rssi": -74,
+    "freq_afc": 123
+  }
+}
+----
+
+== Betroffene Komponenten
+
+=== `sd_protocols`
+Die Mixins für die Demodulation müssen angepasst werden, um die Preamble nicht mehr an den Payload anzuhängen, sondern separat zurückzugeben oder verfügbar zu machen.
+
+*   `sd_protocols/manchester.py`: `_demodulate_mc_data`
+*   `sd_protocols/message_synced.py`: `demodulate_ms`
+*   `sd_protocols/message_unsynced.py`: `demodulate_mu`
+*   `sd_protocols/sd_protocols.py`: `demodulate_mc`, `demodulate_mn`
+
+=== `signalduino/types.py`
+Die Klasse `DecodedMessage` muss um das Feld `protocol` erweitert werden.
+
+[source,python]
+----
+@dataclass(slots=True)
+class DecodedMessage:
+    protocol_id: str
+    payload: str
+    raw: RawFrame
+    metadata: dict = field(default_factory=dict)
+    protocol: dict = field(default_factory=dict) # Neu
+----
+
+=== `signalduino/parser`
+Die Parser-Klassen (`MCParser`, `MSParser`, `MUParser`, `MNParser`) müssen sicherstellen, dass das `protocol`-Feld korrekt aus den Rückgabewerten der Protokollschicht befüllt wird.
+
+== Migration
+Dies ist eine **Breaking Change** für Konsumenten, die erwarten, dass die Preamble Teil des Payloads ist. Die Versionsnummer sollte entsprechend (Minor oder Major, je nach Versionierungsstrategie) erhöht werden.
+
+== Alternativen
+*   **Status Quo beibehalten:** Führt zu unnötigem Parsing-Aufwand bei jedem Client.
+*   **Preamble nur in Metadata:** Löst das Payload-Problem, bietet aber keine strukturierte Sicht auf das Protokoll.

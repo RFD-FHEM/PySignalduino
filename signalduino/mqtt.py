@@ -246,9 +246,10 @@ class MqttPublisher:
             message_dict["raw"] = _raw_frame_to_dict(message_dict["raw"])
         
         # Remove empty or non-useful fields for publication
-        message_dict.pop("raw", None) # Do not publish raw frame data by default
+        # Note: 'raw' is now a string (ADR-007) and should be published.
+        # The pop operation (line 249 in original) is removed to include it.
         
-        # Append preamble to payload for FHEM compatibility (PreambleProtocolID#HexData)
+        # Append preamble to data for FHEM compatibility (PreambleProtocolID#HexData)
         preamble = ""
         if self._protocol_handler:
             try:
@@ -260,8 +261,8 @@ class MqttPublisher:
         # Add new 'preamble' field
         message_dict["preamble"] = preamble
         
-        # Ensure payload is uppercase, but DO NOT prepend preamble anymore
-        message_dict["payload"] = message.payload.upper()
+        # Ensure data (formerly payload) is uppercase
+        message_dict["data"] = message.data.upper()
 
         return json.dumps(message_dict, indent=4)
 

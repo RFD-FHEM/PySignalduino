@@ -26,9 +26,10 @@ class DecodedMessage:
     """Higher-level frame after running through the parser."""
 
     protocol_id: str
-    payload: str
-    raw: RawFrame
+    data: str
+    raw: str
     metadata: dict = field(default_factory=dict)
+    protocol: dict = field(default_factory=dict)
 
 
 @dataclass(slots=True)

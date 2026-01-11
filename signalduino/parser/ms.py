@@ -60,8 +60,8 @@ class MSParser:
 
             yield DecodedMessage(
                 protocol_id=str(decoded["protocol_id"]),
-                payload=str(decoded.get("payload", "")),
-                raw=frame,
+                data=str(decoded.get("payload", "")),
+                raw=frame.line,
                 metadata=decoded.get("meta", {}),
             )
 

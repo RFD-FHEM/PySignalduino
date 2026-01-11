@@ -6,6 +6,27 @@ PySignalduino unterstützt eine Vielzahl von Funkprotokollen im 433 MHz und 868 
 
 Die Datei `sd_protocols/protocols.json` ist die definitive Quelle für alle Protokollparameter (Timings, Preambles, Methoden).
 
+=== Dekodiertes Nachrichtenformat
+
+Die dekodierten Nachrichten sind standardisierte JSON-Objekte, die protokollspezifische Metadaten im Feld `protocol` bereitstellen, den bereinigten Daten-Payload im Feld `data` (ohne Protokoll-Preamble), sowie die unveränderte, rohe Nachrichtenzeichenkette der Firmware im Feld `raw`.
+
+[source,json]
+----
+{
+  "data": "30E0A1AA4241DE6C000200000BC5",
+  "protocol_id": "125",
+  "protocol": {
+    "name": "WH31",
+    "id": "125",
+    "preamble": "W125#",
+    "format": "2-FSK",
+    "clock": 17257
+  },
+  "metadata": { ... },
+  "raw": "MS;P0=-32001;P1=488;D=0101;CP=1;R=48;"
+}
+----
+
 == Auszug unterstützter Protokolle
 
 * **ID 10:** Oregon Scientific v2/v3 (Manchester, 433 MHz)

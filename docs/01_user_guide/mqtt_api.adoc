@@ -36,6 +36,49 @@ Alle nachfolgenden Beispiele verwenden `signalduino/v1` als Basis.
 | Dekodierte Funknachrichten.
 |===
 
+=== Empfangene Nachrichten (Output-Schema)
+
+Dekodierte Funksignale werden auf dem Topic `signalduino/v1/state/messages` publiziert.
+
+Die Payload folgt dem neuen, strukturierten Schema, bei dem protokollspezifische Metadaten im Feld `protocol` enthalten sind, das `data`-Feld die reinen, von der Protokoll-Preamble bereinigten Nutzdaten enthält, und das `raw`-Feld die unveränderte, rohe Nachrichtenzeichenkette der Firmware.
+
+[source,json]
+----
+{
+  "data": "30E0A1AA4241DE6C000200000BC5",
+  "protocol_id": "125",
+  "raw": "MS;P0=-32001;P1=488;D=0101;CP=1;R=48;",
+  "metadata": {
+    "rssi": -74,
+    "freq_afc": 123
+  },
+  "protocol": {
+    "name": "WH31",
+    "id": "125",
+    "preamble": "W125#",
+    "format": "2-FSK",
+    "clock": 17257
+  }
+}
+----
+
+==== Detailierte Felder der Output-Nachricht
+
+[cols="1,3", options="header"]
+|===
+| Feld | Beschreibung
+| `data`
+| Der dekodierte, bereinigte Payload (Hex- oder Bit-String), *ohne* Protokoll-Preamble (z.B. `W125#`).
+| `protocol_id`
+| Die numerische oder alphanumerische ID des erkannten Protokolls.
+| `raw`
+| Die ursprüngliche, unmodifizierte Nachrichtenzeichenkette (`string`), die von der Firmware empfangen wurde (z.B. `MS;P0=-32001;P1=488;D=0101;CP=1;R=48;`).
+| `metadata`
+| Allgemeine gerätespezifische Metadaten (z.B. `rssi`, `freq_afc`).
+| `protocol`
+| Ein Dictionary mit spezifischen Protokoll-Details, wie `name`, `id`, `preamble`, `format` und dem verwendeten `clock`-Wert.
+|===
+
 === Request- und Response-Format
 
 Alle Requests verwenden das folgende JSON-Format. Für einfache Befehle (meiste GETs) kann die Payload einfach `{}` sein.

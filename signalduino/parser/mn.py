@@ -180,8 +180,8 @@ class MNParser:
             
             yield DecodedMessage(
                 protocol_id=str(pid),
-                payload=final_payload,
-                raw=frame,
+                data=final_payload,
+                raw=frame.line,
                 metadata={
                     "rssi": rssi,
                     "freq_afc": freq_afc,

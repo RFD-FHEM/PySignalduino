@@ -27,13 +27,8 @@ def mock_controller():
 def mock_decoded_message() -> DecodedMessage:
     return DecodedMessage(
         protocol_id="1",
-        payload="9374A400",
-        raw=RawFrame(
-            line="MS;P1=1154;P2=-697;P3=559;P4=-1303;P5=-7173;D=351234341234341212341212123412343412341234341234343434343434343434;CP=3;SP=5;R=247;O;",
-            rssi=-80,
-            freq_afc=433.92,
-            message_type="MS",
-        ),
+        data="9374A400",
+        raw="MS;P1=1154;P2=-697;P3=559;P4=-1303;P5=-7173;D=351234341234341212341212123412343412341234341234343434343434343434;CP=3;SP=5;R=247;O;",
         metadata={
             "protocol_name": "Conrad RSL v1",
             "message_hex": "AABBCC",
@@ -138,10 +133,11 @@ async def test_mqtt_publisher_publish_success(MockClient, mock_decoded_message, 
     
     # Payload sollte KEINE Preamble mehr enthalten, aber das neue Feld "preamble" schon
     # Protocol 1 (Conrad RSL v1) hat Preamble "P1#"
-    assert payload_dict["payload"] == "9374A400"
+    assert payload_dict["data"] == "9374A400"
     assert payload_dict["preamble"] == "P1#"
     
-    assert "raw" not in payload_dict # raw sollte entfernt werden
+    # 'raw' sollte jetzt enthalten sein, da es ein String-Feld ist.
+    assert payload_dict["raw"] == "MS;P1=1154;P2=-697;P3=559;P4=-1303;P5=-7173;D=351234341234341212341212123412343412341234341234343434343434343434;CP=3;SP=5;R=247;O;"
     assert call_kwargs == {} # assert {} da keine kwargs im Code von MqttPublisher.publish übergeben werden
 
     assert "Published message for protocol 1 to test/signalduino/v1/state/messages" in caplog.text

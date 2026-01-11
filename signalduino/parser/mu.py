@@ -72,11 +72,31 @@ class MUParser:
                 self.logger.warning("Invalid result from demodulator: %s", decoded)
                 continue
 
+            protocol_id_str = str(decoded["protocol_id"])
+            
+            # Korrektur: Zugriff auf Protokolldaten über get_protocol_list()
+            protocol_data = self.protocols.get_protocol_list().get(protocol_id_str, {})
+            raw_payload = str(decoded.get("payload", ""))
+
+            # Protokollmetadaten direkt aus dem Protokolldict extrahieren
+            protocol_meta: Dict[str, Any] = {
+                "id": protocol_id_str,
+                "name": protocol_data.get("name", f"Protocol_{protocol_id_str}"), # Fallback
+                "format": protocol_data.get("format", ""),
+                "clock": protocol_data.get("clock", None),
+                "preamble": protocol_data.get("preamble", ""),
+            }
+
+            # 1. Entferne die Preamble aus der Payload
+            preamble_len = len(protocol_meta["preamble"])
+            payload = raw_payload[preamble_len:]
+
             yield DecodedMessage(
-                protocol_id=str(decoded["protocol_id"]),
-                payload=str(decoded.get("payload", "")),
-                raw=frame,
+                protocol_id=protocol_id_str,
+                data=payload,
+                raw=frame.line,
                 metadata=decoded.get("meta", {}),
+                protocol=protocol_meta,
             )
 
     def _parse_to_dict(self, line: str) -> Dict[str, Any]:

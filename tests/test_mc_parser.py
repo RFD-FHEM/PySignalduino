@@ -36,16 +36,41 @@ def mc_parser(mock_protocols, logger):
 )
 def test_mc_parser_valid_message(mc_parser, mock_protocols, line, expected_protocol, expected_payload, expected_rssi):
     """Test valid MC messages."""
+    
+    # Mock Protokolldaten
+    MOCKED_PROTOCOLS = {
+        "57": {"name": "FS20", "preamble": "W57#", "format": "HEX", "clock": 332},
+        "119": {"name": "Funkbus", "preamble": "W119#", "format": "HEX", "clock": 342},
+        "108": {"name": "Grothe", "preamble": "W108#", "format": "HEX", "clock": 500},
+    }
+    mock_protocols.get_protocol_list.return_value = MOCKED_PROTOCOLS
+    
+    # Protokoll-Metadaten extrahieren
+    protocol_meta = MOCKED_PROTOCOLS.get(expected_protocol, {"preamble": ""})
+    preamble = protocol_meta["preamble"]
+
+    # Der Mock muss die Payload MIT Präambel zurückgeben
+    raw_payload_with_preamble = f"{preamble}{expected_payload}"
+    
     frame = RawFrame(line=line)
-    demodulated = [{"protocol_id": expected_protocol, "payload": expected_payload}]
+    demodulated = [{"protocol_id": expected_protocol, "payload": raw_payload_with_preamble}]
     mock_protocols.demodulate_mc.return_value = demodulated
 
     result = list(mc_parser.parse(frame))
 
     mock_protocols.demodulate_mc.assert_called_once()
     assert len(result) == 1
+    
+    # Neue/geänderte Assertions
     assert result[0].protocol_id == expected_protocol
-    assert result[0].payload == expected_payload
+    assert result[0].data == expected_payload  # Erwartet die bereinigte Payload
+    assert result[0].raw == line
+    
+    # Protokoll-Metadaten Assertions
+    assert result[0].protocol["id"] == expected_protocol
+    assert result[0].protocol["name"] == protocol_meta["name"]
+    assert result[0].protocol["preamble"] == preamble
+    
     assert frame.rssi == expected_rssi
 
 

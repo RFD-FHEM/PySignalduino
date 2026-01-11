@@ -31,7 +31,8 @@ def test_bresser_lightning_decoding(caplog):
     msg = messages[0]
     
     assert msg.protocol_id == expected_protocol_id
-    assert msg.payload == expected_payload
+    assert msg.data == expected_payload
+    assert msg.raw == line
     assert msg.metadata["rfmode"] == "Bresser_lightning"
     # 26000000 / 16384 * -2 / 1000 = -3.1738... -> rounded to -3.0
     assert msg.metadata["freq_afc"] == -3.0 
