@@ -19,17 +19,54 @@ Die Umbenennung des Nutzdatenfeldes von `payload` zu `data` sowie die Einführun
 
 === Details zur neuen Struktur (Präzisiert durch ADR-007)
 
-| Feld | Typ | Beschreibung |
-|---|---|---|
-| `data` | `str` | Die bereinigten Nutzdaten **ohne** Preamble und Postamble (ersetzt `payload`). |
-| `raw` | `str` | Die ursprüngliche, unveränderte Nachricht vom Signalduino (z.B. `MU;...`). |
-| `protocol` | `dict` | Strukturierte Metadaten des Protokolls. |
-| `protocol.id` | `str` | Die ID des Protokolls (Redundanz zur einfachen Konsumierbarkeit). |
-| `protocol.name` | `str` | Der menschenlesbare Name des Protokolls (aus `protocols.json`). |
-| `protocol.preamble` | `str` | Die Preamble des Protokolls (z.B. `W125#`). |
-| `protocol.format` | `str` | Das Format des Signals (z.B. `manchester`, `twostate`, `2-FSK`) (aus `protocols.json`). |
-| `protocol.clock` | `int`/`float` | Der Clock-Wert, der für die Demodulation verwendet wurde (entweder `clockabs` oder `clockrange` Mittelwert/demodulierter Takt). |
-| `protocol.modulation` | `str` | (Optional) Modulationsart (z.B. `2-FSK`, `GFSK`) für FSK-Protokolle. |
+[cols="1,1,4"]
+|===
+| Feld | Typ | Beschreibung
+
+| `data`
+| `str`
+| Die bereinigten Nutzdaten (meist Hex-String) **ohne** Preamble/Postamble. Repräsentiert die protokollspezifischen Daten (ersetzt `payload`).
+
+| `raw`
+| `str`
+| Die ursprüngliche, unveränderte Nachricht vom Signalduino (z.B. `MU;...`). Dient der vollständigen Nachvollziehbarkeit.
+
+| `protocol`
+| `object`
+| Container für strukturierte Metadaten der erfolgreichen Protokolldemodulation.
+
+| `protocol.id`
+| `str`
+| Die interne ID des Protokolls (z.B. `125`).
+
+| `protocol.name`
+| `str`
+| Der menschenlesbare Name des Protokolls (aus `protocols.json`).
+
+| `protocol.preamble`
+| `str`
+| Die Preamble (z.B. `W125#`) des erkannten Protokolls.
+
+| `protocol.encoding`
+| `str`
+| Das Codierungsformat des Signals (z.B. `manchester`, `twostate`, `pulse`).
+
+| `protocol.clock`
+| `float`
+| Der Takt-Wert in Mikrosekunden (`us`), der für die Demodulation verwendet wurde.
+
+| `protocol.modulation`
+| `str`
+| (Optional) Modulationsart (z.B. `2-FSK`, `GFSK`) für FSK-Protokolle.
+
+| `protocol.bitlength`
+| `int`
+| (Optional) Die tatsächliche Bitlänge der `data`-Nutzdaten, falls vom Protokoll bekannt/erzwungen. Unterstützt z.B. die Grothe-Constraint-Prüfung.
+
+| `protocol.repeats`
+| `int`
+| (Optional) Die Anzahl der erkannten Wiederholungen dieses Pakets, relevant für Duplikaterkennung.
+|===
 
 === Beispiel für die Datenstruktur (Präzisiert durch ADR-007)
 

@@ -11,18 +11,18 @@
 
 Im Zuge der Definition des neuen JSON-Output-Schemas (siehe ADR-006) wurde Feedback gesammelt, das zwei wesentliche Verbesserungen vorschlägt:
 
-1.  **Ambiguität des Feldes `payload`:** Der Begriff `payload` wird in MQTT- und Messaging-Kontexten häufig für den gesamten Nachrichteninhalt verwendet. Die Verwendung von `payload` für die spezifischen, decodierten Hex-Daten kann daher zu Verwirrung führen.
-2.  **Bedarf an Rohdaten:** Für Debugging-Zwecke und fortgeschrittene Analysen ist es notwendig, Zugriff auf die ursprüngliche, unveränderte Nachricht zu haben, wie sie vom Signalduino-Gerät empfangen wurde (z.B. der komplette `MU;...`- oder `MC;...`-String), bevor irgendeine Verarbeitung oder Parsing stattgefunden hat.
+.  **Ambiguität des Feldes `payload`:** Der Begriff `payload` wird in MQTT- und Messaging-Kontexten häufig für den gesamten Nachrichteninhalt verwendet. Die Verwendung von `payload` für die spezifischen, decodierten Hex-Daten kann daher zu Verwirrung führen.
+.  **Bedarf an Rohdaten:** Für Debugging-Zwecke und fortgeschrittene Analysen ist es notwendig, Zugriff auf die ursprüngliche, unveränderte Nachricht zu haben, wie sie vom Signalduino-Gerät empfangen wurde (z.B. der komplette `MU;...`- oder `MC;...`-String), bevor irgendeine Verarbeitung oder Parsing stattgefunden hat.
 
 [#adr-decision]
 == Entscheidung
 
 Wir passen das in ADR-006 definierte Schema wie folgt an:
 
-1.  **Umbenennung `payload` zu `data`:**
+.  **Umbenennung `payload` zu `data`:**
     Das Feld, das bisher `payload` hieß und die bereinigten Hex- oder Binärdaten (ohne Preamble) enthielt, wird in **`data`** umbenannt.
 
-2.  **Einführung des Feldes `raw`:**
+.  **Einführung des Feldes `raw`:**
     Es wird ein neues Feld **`raw`** auf der obersten Ebene des JSON-Objekts eingeführt. Dieses Feld enthält den ursprünglichen Nachrichten-String, der an den Parser übergeben wurde.
 
 === Aktualisierte Datenstruktur

@@ -45,7 +45,7 @@ Die SIGNALDuino-Firmware (Microcontroller-Code) wird in einem separaten Reposito
 Decodierte Nachrichten werden als JSON-Objekte publiziert. Die Protokoll-Metadaten sind nun im Feld `protocol` enthalten, das `data`-Feld enthält die reinen, von der Protokoll-Preamble bereinigten Nutzdaten, und das `raw`-Feld enthält die unveränderte, rohe Nachrichtenzeichenkette der Firmware.
  
 include::./docs/architecture/snippets/json_output_schema_example.adoc[]
-
+====
 
 == Demo
 
