@@ -77,6 +77,7 @@ def autopatch_mqtt_publisher():
     mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
     mock_instance.__aexit__ = AsyncMock(return_value=None)
     mock_instance.publish = AsyncMock()
+    mock_instance.publish_raw_line = AsyncMock() # NEU: Für RAW Line Publishing
     
     # Erstelle ein Mock für die Klasse, das die Mock-Instanz zurückgibt
     MqttPublisherClassMock = MagicMock(return_value=mock_instance)
@@ -274,3 +275,48 @@ async def test_stx_message_bypasses_command_response(mock_transport, mock_parser
         mock_parser.parse_line.assert_any_call(stx_msg)
         # The command response is also passed to the parser
         mock_parser.parse_line.assert_any_call(response)
+
+
+@pytest.mark.asyncio
+async def test_skip_message_with_empty_or_invalid_payload(mock_transport, mock_parser, mock_controller_initialize, autopatch_mqtt_publisher):
+    """Test that messages with empty data or data='[]' are skipped for callback and MQTT publication."""
+    
+    # Der Parser gibt drei Nachrichten zurück: eine gültige, eine mit leerer Daten, eine mit '[]'
+    valid_msg = DecodedMessage(data="0F0F0F", raw="", protocol={"id": "1"})
+    empty_data_msg = DecodedMessage(data="", raw="", protocol={"id": "2"})
+    invalid_data_msg = DecodedMessage(data="[]", raw="", protocol={"id": "131"}) # Simuliert das vom Benutzer gemeldete Problem
+
+    # Der Parser gibt alle drei DecodedMessage-Objekte zurück
+    mock_parser.parse_line.return_value = [valid_msg, empty_data_msg, invalid_data_msg]
+    
+    callback_mock = AsyncMock()
+
+    # Verwende side_effect, um die rohe Zeile einmal zurückzugeben, dann None
+    mock_transport.readline.side_effect = ["MS;P0=1;D=...;\n", None]
+
+    controller = SignalduinoController(
+        transport=mock_transport,
+        parser=mock_parser,
+        message_callback=callback_mock,
+        # Der MqttPublisher wird durch autopatch_mqtt_publisher bereitgestellt
+        mqtt_publisher=autopatch_mqtt_publisher.return_value
+    )
+    
+    async with controller:
+        # Starte Controller-Tasks, um die Verarbeitung der Raw-Line-Queue zu ermöglichen
+        # Tasks werden durch mock_controller_initialize gestartet
+        
+        # Warte kurz, um dem Reader Task Zeit zu geben, die Raw-Line aus dem Transport
+        # in die _raw_message_queue zu legen (die Raw-Line wird vom side_effect des Mocks geliefert).
+        await asyncio.sleep(0.1)
+
+        # Warte, bis die Nachrichten im Parser-Task verarbeitet wurden
+        await asyncio.sleep(0.5)
+        
+        # Nur die gültige Nachricht sollte an den Callback und den Publisher gesendet werden
+        
+        # 1. Prüfe den Callback
+        callback_mock.assert_called_once_with(valid_msg)
+        
+        # 2. Prüfe den MQTT Publisher
+        autopatch_mqtt_publisher.return_value.publish.assert_called_once_with(valid_msg)

@@ -74,7 +74,7 @@ def set_mqtt_env_vars():
     del os.environ["MQTT_TOPIC"]
     del os.environ["MQTT_USERNAME"]
     del os.environ["MQTT_PASSWORD"]
-
+    
 # Der Test verwendet `patch` auf aiomqtt.Client, um die tatsächliche
 # Netzwerkimplementierung zu vermeiden.
 @patch("signalduino.mqtt.mqtt.Client")
@@ -126,9 +126,9 @@ async def test_mqtt_publisher_publish_success(MockClient, mock_decoded_message, 
     (call_topic, published_payload), call_kwargs = mock_client_instance.publish.call_args
     
     assert call_topic == expected_topic
-    assert isinstance(published_payload, str)
+    assert isinstance(published_payload, bytes)
     
-    payload_dict = json.loads(published_payload)
+    payload_dict = json.loads(published_payload.decode("utf-8"))
     assert payload_dict["protocol"]["id"] == "1"
     
     # Payload sollte KEINE Preamble mehr enthalten, aber das neue Feld "preamble" schon
@@ -141,6 +141,46 @@ async def test_mqtt_publisher_publish_success(MockClient, mock_decoded_message, 
     assert call_kwargs == {} # assert {} da keine kwargs im Code von MqttPublisher.publish übergeben werden
 
     assert "Published message for protocol 1 to test/signalduino/v1/state/messages" in caplog.text
+
+
+@patch("signalduino.mqtt.mqtt.Client")
+@pytest.mark.asyncio
+async def test_mqtt_publisher_strips_preamble_from_data(MockClient, mock_decoded_message, caplog, mock_controller):
+    """Testet, ob die Preamble aus dem 'data' Feld entfernt wird, wenn sie vorhanden ist."""
+    caplog.set_level(logging.DEBUG)
+
+    # Konfiguriere den MockClient-Kontextmanager-Rückgabewert, um das asynchrone await-Problem zu beheben
+    mock_client_instance = MockClient.return_value
+    mock_client_instance.publish = AsyncMock()
+    mock_client_instance.subscribe = AsyncMock()
+    
+    MockClient.return_value.__aenter__ = AsyncMock(return_value=None)
+    MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+    
+    # 1. Ändere die DecodedMessage, um die Preamble im data-Feld zu simulieren
+    # Preamble für Protokoll 1 ist 'P1#'
+    mock_decoded_message.data = "P1#9374A400"
+
+    publisher = MqttPublisher(mock_controller)
+    
+    async with publisher:
+        await publisher.publish(mock_decoded_message)
+    
+    # Überprüfe den publish-Aufruf
+    expected_topic = f"{publisher.base_topic}/state/messages"
+    
+    mock_client_instance.publish.assert_called_once()
+    
+    # Überprüfe Topic und Payload des Aufrufs
+    (call_topic, published_payload), _ = mock_client_instance.publish.call_args
+    
+    assert call_topic == expected_topic
+    
+    payload_dict = json.loads(published_payload.decode("utf-8"))
+    
+    # 2. Assert, dass die Preamble aus 'data' entfernt wurde
+    assert payload_dict["data"] == "9374A400"
+    assert payload_dict["preamble"] == "P1#"
 
 
 @patch("signalduino.mqtt.mqtt.Client")
@@ -170,7 +210,7 @@ async def test_mqtt_publisher_publish_simple(MockClient, caplog, mock_controller
     (call_topic, call_payload), call_kwargs = mock_client_instance.publish.call_args
     
     assert call_topic == expected_topic
-    assert call_payload == "online"
+    assert call_payload == "online".encode("utf-8")
     assert call_kwargs['retain'] is True
     assert 'qos' not in call_kwargs # qos sollte nicht übergeben werden, um KeyError zu vermeiden
     
@@ -264,7 +304,7 @@ async def test_mqtt_publisher_handle_get_frequency_success(MockClient, caplog, m
         mock_msg.topic.__str__.return_value = "test/signalduino/v1/commands/get/cc1101/frequency"
         # Sende Payload mit req_id, um Konsistenz zu gewährleisten
         mock_msg.payload = b'{"req_id": "test_req_001"}' 
-
+    
         yield mock_msg
         # Generator endet hier
 
@@ -323,7 +363,7 @@ async def test_mqtt_publisher_handle_empty_payload_fix(MockClient, caplog, mock_
         mock_msg.topic.__str__.return_value = "test/signalduino/v1/commands/get/cc1101/frequency"
         # Sende Payload mit req_id, um Validierung zu gewährleisten
         mock_msg.payload = b'{"req_id": "test_req_empty"}' 
-
+    
         yield mock_msg
         # Generator endet hier
 
@@ -479,4 +519,122 @@ async def test_controller_parser_loop_publishes_message(
             
             # Überprüfe, ob der Publisher für die DecodedMessage aufgerufen wurde
             # Der Publish-Aufruf ist jetzt auch async
-            mock_publisher_instance.publish.assert_called_once_with(mock_decoded_message)
+            # Der Controller sendet jetzt das DecodedMessage-Objekt (keinen JSON-String mehr)
+            mock_publisher_instance.publish.assert_called_once()
+            args, _ = mock_publisher_instance.publish.call_args
+            published_payload = args[0]
+            assert isinstance(published_payload, DecodedMessage)
+            # Verify it matches the original message
+            assert published_payload == mock_decoded_message
+
+
+@patch("signalduino.controller.MqttPublisher")
+@patch("signalduino.controller.SignalParser")
+@patch.dict(os.environ, {"MQTT_HOST": "test-host"}, clear=True)
+@pytest.mark.asyncio
+async def test_controller_parser_loop_publishes_raw_line(
+    MockParser, MockMqttPublisher, caplog
+):
+    """Stellt sicher, dass nicht-zugeordnete RAW Lines veröffentlicht werden (Problem 2)."""
+    caplog.set_level(logging.DEBUG)
+    
+    mock_parser_instance = MockParser.return_value
+    mock_publisher_instance = MockMqttPublisher.return_value
+    mock_publisher_instance.publish_raw_line = AsyncMock()
+    
+    # 1. Simuliere, dass der Parser nichts dekodiert (decoded is None/empty)
+    mock_parser_instance.parse_line.return_value = []
+    
+    # 2. Wir brauchen einen MockTransport mit readline, damit initialize nicht blockiert
+    mock_transport = MockTransport()
+    
+    controller = SignalduinoController(transport=mock_transport, parser=mock_parser_instance)
+    
+    # Die Zeile, die keine Protokollnachricht und keine Command-Antwort ist
+    raw_test_line = "Dies ist eine unbekannte Statusmeldung\n"
+    
+    # Verhindere, dass _handle_as_command_response matched (ist die Standardeinstellung bei diesem Inhalt)
+    # und simuliere eine einfache Initialisierung
+    with patch.object(controller, 'initialize', new=AsyncMock()):
+        controller._main_tasks = []
+        async with controller:
+            # Stelle sicher, dass keine Pending Responses existieren (Standard nach initialize Mock)
+            
+            # Starte den Parser-Task manuell
+            parser_task = asyncio.create_task(controller._parser_task())
+            
+            # Fügen Sie die Nachricht manuell in die Queue ein
+            await controller._raw_message_queue.put(raw_test_line)
+            
+            # Geben Sie dem Parser-Task Zeit, die Nachricht zu verarbeiten
+            await asyncio.sleep(0.5)
+            
+            # Beende den Parser-Task sauber
+            controller._stop_event.set()
+            parser_task.cancel()
+            await asyncio.gather(parser_task, return_exceptions=True)
+            
+            # Überprüfe, ob der Publisher für die RAW Line aufgerufen wurde
+            # Der Payload sollte der JSON-String sein, der in publish_raw_line erstellt wird
+            mock_publisher_instance.publish_raw_line.assert_called_once_with(raw_test_line)
+            
+            # Überprüfe, dass publish für DecodedMessage NICHT aufgerufen wurde
+            mock_publisher_instance.publish.assert_not_called()
+        
+        
+        @patch("signalduino.mqtt.mqtt.Client")
+        @pytest.mark.asyncio
+        async def test_mqtt_publisher_skip_empty_payload(MockClient, mock_decoded_message, caplog, mock_controller):
+            """Testet, ob publish übersprungen wird, wenn der Payload leer ist."""
+            caplog.set_level(logging.DEBUG)
+        
+            # Konfiguriere MockClient
+            mock_client_instance = MockClient.return_value
+            mock_client_instance.publish = AsyncMock()
+            mock_client_instance.subscribe = AsyncMock()
+            MockClient.return_value.__aenter__ = AsyncMock(return_value=None)
+            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+        
+            # Simuliere leeren Payload (nach Preamble-Bereinigung)
+            # Wenn data nur aus der Preamble besteht (P1#), wird data zu ""
+            mock_decoded_message.data = "P1#"
+            
+            publisher = MqttPublisher(mock_controller)
+        
+            async with publisher:
+                await publisher.publish(mock_decoded_message)
+        
+            # Prüfe, dass publish NICHT aufgerufen wurde
+            mock_client_instance.publish.assert_not_called()
+        
+            # Prüfe Log-Nachricht
+            assert "Skipping MQTT publish due to empty payload for protocol 1" in caplog.text
+        
+        
+        @patch("signalduino.mqtt.mqtt.Client")
+        @pytest.mark.asyncio
+        async def test_mqtt_publisher_skip_empty_brackets_payload(MockClient, mock_decoded_message, caplog, mock_controller):
+            """Testet, ob publish übersprungen wird, wenn der Payload '[]' ist."""
+            caplog.set_level(logging.DEBUG)
+        
+            # Konfiguriere MockClient
+            mock_client_instance = MockClient.return_value
+            mock_client_instance.publish = AsyncMock()
+            mock_client_instance.subscribe = AsyncMock()
+            MockClient.return_value.__aenter__ = AsyncMock(return_value=None)
+            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+        
+            # Simuliere '[]' Payload
+            mock_decoded_message.data = "[]"
+            
+            publisher = MqttPublisher(mock_controller)
+        
+            async with publisher:
+                await publisher.publish(mock_decoded_message)
+        
+            # Prüfe, dass publish NICHT aufgerufen wurde
+            mock_client_instance.publish.assert_not_called()
+        
+            # Prüfe Log-Nachrichten
+            assert "Invalid data '[]' received from parser, setting to empty string." in caplog.text
+            assert "Skipping MQTT publish due to empty payload for protocol 1" in caplog.text

@@ -100,9 +100,14 @@ class MCParser:
                 "preamble": protocol_data.get("preamble", ""),
             }
 
-            # 1. Entferne die Preamble aus der Payload
-            preamble_len = len(protocol_meta["preamble"])
-            payload = raw_payload[preamble_len:]
+            # 1. Entferne die Preamble aus der Payload, falls vorhanden.
+            # Normalisiere Preamble und Payload zur korrekten Erkennung der Groß-/Kleinschreibung.
+            preamble = protocol_meta["preamble"]
+            if preamble and raw_payload.upper().startswith(preamble.upper()):
+                preamble_len = len(preamble)
+                payload = raw_payload[preamble_len:]
+            else:
+                payload = raw_payload
 
             yield DecodedMessage(
                 data=payload,

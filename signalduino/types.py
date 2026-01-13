@@ -30,6 +30,11 @@ class DecodedMessage:
     metadata: dict = field(default_factory=dict)
     protocol: dict = field(default_factory=dict)
 
+    @property
+    def protocol_id(self) -> Optional[str]:
+        """Provides backward compatibility for message.protocol_id."""
+        return self.protocol.get('id')
+
 
 @dataclass(slots=True)
 class QueuedCommand:

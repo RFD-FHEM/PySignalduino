@@ -14,6 +14,13 @@ from signalduino.mqtt import MqttPublisher
 from signalduino.transport import SerialTransport, TCPTransport
 from signalduino.types import DecodedMessage, RawFrame # NEU: RawFrame
 
+# NEU: Importiere Protokoll-Handler für Log-Bereinigung
+try:
+    from sd_protocols.loader import _protocol_handler
+except ImportError:
+    _protocol_handler = None
+
+
 # Konfiguration des Loggings
 def initialize_logging(log_level_str: str):
     """Initialisiert das Logging basierend auf dem übergebenen String."""
@@ -39,10 +46,28 @@ logger = logging.getLogger("main")
 async def message_callback(message: DecodedMessage):
     """Callback-Funktion, die aufgerufen wird, wenn eine Nachricht dekodiert wurde."""
     model = message.metadata.get("model", "Unknown")
+    
+    # NEU: Bereinige die Payload für die Log-Ausgabe, da der Parser die Preamble möglicherweise nicht entfernt hat
+    # (oder der Preamble-Eintrag im Protokoll-Handler fehlt).
+    log_payload = message.data
+    preamble = ""
+    
+    if _protocol_handler and message.protocol.get('id'):
+        try:
+            protocol_id = message.protocol['id']
+            # Abrufen der Preamble, falls vorhanden
+            preamble = _protocol_handler.check_property(protocol_id, 'preamble', '')
+        except Exception:
+            logger.debug("Konnte Preamble nicht abrufen für Protokoll %s", message.protocol.get('id'))
+    
+    if preamble and log_payload.upper().startswith(preamble.upper()):
+        # Entferne die Preamble aus der Payload für das Logging
+        log_payload = log_payload[len(preamble):]
+        
     logger.info(
         f"Decoded message received: protocol={message.protocol_id}, "
         f"model={model}, "
-        f"payload={message.payload}"
+        f"payload={log_payload}"
     )
     logger.debug(f"Full Metadata: {message.metadata}")
     # NEU: Überprüfe, ob RawFrame vorhanden ist und das Attribut 'line' hat

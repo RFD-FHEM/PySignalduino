@@ -5,6 +5,7 @@ import time
 import logging
 import asyncio
 from datetime import datetime, timedelta, timezone
+from dataclasses import asdict
 from typing import Any, Awaitable, Callable, List, Optional, Dict, Tuple, Pattern
 
 from .commands import SignalduinoCommands
@@ -250,13 +251,42 @@ class SignalduinoController:
                     # Führe die rechenintensive Parsing-Logik in einem separaten Thread aus.
                     # Dadurch wird die asyncio-Event-Schleife nicht blockiert.
                     decoded = await asyncio.to_thread(self.parser.parse_line, line)
-                    if decoded and self.message_callback:
-                        await self.message_callback(decoded[0])
-                    if self.mqtt_publisher and decoded:
-                        # Verwende die neue MqttPublisher.publish(message: DecodedMessage) Signatur
-                        await self.mqtt_publisher.publish(decoded[0])
-                    await self._handle_as_command_response(line)
-                
+                    if decoded:
+                        for message in decoded:
+                            if isinstance(message, DecodedMessage):
+                               # Überspringe die Veröffentlichung, wenn DecodedMessage keine Daten enthält.
+                               # Das Feld 'data' kann leer sein, wenn die Decodierung fehlschlägt (z.B. Checksumme)
+                               # oder ungültige Werte wie '[]' (leere JSON-Liste als String) enthält,
+                               # was auf eine nicht parsbare Nachricht hinweist, die aber als DecodedMessage
+                               # zurückgegeben wurde.
+                               if not message.data or message.data.strip() == "[]":
+                                   self.logger.info("Skipping decoded message with empty/invalid data for protocol %s: %s",
+                                                   message.protocol.get('id', 'N/A'), message)
+                                   continue
+
+                               if self.message_callback:
+                                   try:
+                                       await self.message_callback(message)
+                                   except Exception as exc:
+                                       self.logger.error("Error in message callback: %s", exc)
+                                       
+                               if self.mqtt_publisher:
+                                   try:
+                                       # message is a DecodedMessage dataclass, pass directly to publish
+                                       # The MqttPublisher handles serialization.
+                                       await self.mqtt_publisher.publish(message)
+                                   except Exception as exc:
+                                       self.logger.error("Error publishing message to MQTT: %s", exc)
+                    matched_cmd = False
+                    if not decoded:
+                        # Nur die Zeile als Befehlsantwort verarbeiten, wenn sie NICHT erfolgreich als Sensordaten geparst wurde.
+                        matched_cmd = await self._handle_as_command_response(line)
+                    
+                    # If line was not parsed as a decoded message and was not a command response,
+                    # publish it as a raw line via MQTT (Problem 2).
+                    if not decoded and not matched_cmd and self.mqtt_publisher and line.strip():
+                        await self.mqtt_publisher.publish_raw_line(line)
+                        
                 # Ensure a minimal yield time for other tasks when the queue is rapidly processed.
                 await asyncio.sleep(0.01)
             except Exception as e:
@@ -357,34 +387,69 @@ class SignalduinoController:
                 raise SignalduinoConnectionError(str(e))
             raise
 
-    async def _handle_as_command_response(self, line: str) -> None:
-        """Check if the received line matches any pending command response."""
+    async def _handle_as_command_response(self, line: str) -> bool:
+        """Check if the received line matches any pending command response.
+        
+        Returns:
+            True if a response was matched and processed, False otherwise.
+        """
         self.logger.debug("Hardware response received: %s", line)
+        matched = False
+        
         async with self._pending_responses_lock:
             self.logger.debug(f"Current pending responses: {len(self._pending_responses)}")
-            for pending in self._pending_responses:
+            
+            # Use a copy of the list for safe iteration/removal if performance allows.
+            # Since the number of pending responses is usually small, this is safe.
+            for pending in list(self._pending_responses):
                 try:
-                    self.logger.debug(f"Checking pending response for command: {pending.command.payload}. Line: {line.strip()}")
+                    cmd_payload = pending.command.payload
+                    self.logger.debug(f"Checking pending response for command: {cmd_payload}. Line: {line.strip()}")
                     
                     pattern = pending.command.response_pattern
                     if pattern:
                         self.logger.debug(f"Testing pattern: {pattern.pattern}")
                         if pattern.match(line):
-                            self.logger.debug(f"Matched response pattern for command: {pending.command.payload}")
+                            self.logger.debug(f"Matched response pattern for command: {cmd_payload}")
                             pending.future.set_result(line)
                             self._pending_responses.remove(pending)
-                            return
+                            matched = True
+                            break # Exit for-loop
                             
-                    self.logger.debug(f"Testing direct match for: {pending.command.payload}")
-                    if line.startswith(pending.command.payload):
-                        self.logger.debug(f"Matched direct response for command: {pending.command.payload}")
+                    self.logger.debug(f"Testing direct match for: {cmd_payload}")
+                    
+                    # Robust check for command match:
+                    # 1. Startswith command payload (e.g., 'V', 'SR')
+                    # 2. Response must be either exact match, or followed by a valid separator
+                    # Separators: space (V command), ';' (SR command), '=' (Config)
+                    # This ensures "V" matches "V 4.0.0", "SR" matches "SR;R=1", but "M" does NOT match "MN..."
+                    if line.startswith(cmd_payload):
+                        if len(line) == len(cmd_payload):
+                            is_direct_match = True
+                        else:
+                            separator = line[len(cmd_payload)]
+                            is_direct_match = separator.isspace() or separator in (';', '=')
+                    else:
+                        is_direct_match = False
+
+                    if is_direct_match:
+                        self.logger.debug(f"Matched direct response for command: {cmd_payload}")
                         pending.future.set_result(line)
                         self._pending_responses.remove(pending)
-                        return
+                        matched = True
+                        break # Exit for-loop
+                        
                 except Exception as e:
                     self.logger.error(f"Error processing pending response: {e}")
+                    # Remove the potentially failing pending response to prevent further errors
+                    if pending in self._pending_responses:
+                        self._pending_responses.remove(pending)
                     continue
+
+        if not matched:
             self.logger.debug("No matching pending response found")
+            
+        return matched
 
     async def _init_task_start_loop(self) -> None:
         """Main initialization task that handles version check and XQ command."""

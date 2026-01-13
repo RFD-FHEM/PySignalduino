@@ -17,6 +17,9 @@ Wir werden das JSON-Output-Schema von `DecodedMessage` wie folgt anpassen:
 
 Die Umbenennung des Nutzdatenfeldes von `payload` zu `data` sowie die Einführung des Feldes `raw` (für die ursprüngliche Nachricht) sind in link:ADR-007-data-and-raw-fields.adoc[ADR-007] dokumentiert, das dieses Schema ergänzt und präzisiert. Dieses ADR dient als Grundlage für die Einführung des `protocol`-Feldes und die Bereinigung des Nutzdateninhalts.
 
+=== Serialisierungsformat
+Der JSON-Output für MQTT-Nutzdaten muss **kompakt** (ohne Zeilenumbrüche und Einrückungen) serialisiert werden, um die Kompatibilität mit MQTT-Brokern und Downstream-Systemen zu gewährleisten, die multiline-Nutzdaten falsch interpretieren könnten. Dies wird durch das Weglassen des `indent`-Parameters beim `json.dumps`-Aufruf in `MqttPublisher` sichergestellt.
+
 === Details zur neuen Struktur (Präzisiert durch ADR-007)
 
 [cols="1,1,4"]
