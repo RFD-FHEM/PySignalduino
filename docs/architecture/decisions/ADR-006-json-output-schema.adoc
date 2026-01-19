@@ -1,0 +1,91 @@
+= ADR-006: JSON Output Schema Refinement
+:toc: macro
+:toc-title: Inhaltsverzeichnis
+
+== Status
+* **Status:** Proposed
+* **Datum:** 2026-01-11
+* **Architecture Owner:** Roo (Architect)
+
+== Kontext
+Das bestehende JSON-Output-Schema für decodierte Funksignale (von `DecodedMessage` abgeleitet) enthält die Protokoll-Preamble (z.B. `W125#`) als Präfix im Feld `payload`. Dies erschwert die automatische Verarbeitung durch Downstream-Systeme (wie MQTT-Clients oder andere FHEM-Module), da diese die Preamble manuell entfernen müssen, um an die reinen Nutzdaten zu gelangen. Des Weiteren fehlt eine standardisierte Möglichkeit, protokollspezifische Metadaten (wie Protokollname, Format, Taktfrequenz) im Output bereitzustellen, ohne diese in der allgemeinen `metadata`-Struktur zu verstecken.
+
+== Entscheidung
+Wir werden das JSON-Output-Schema von `DecodedMessage` wie folgt anpassen:
+1.  **Nutzdaten-Bereinigung:** Die Protokoll-Preamble wird aus dem Nutzdatenfeld entfernt. Dieses Feld enthält nur noch die vom Protokolldecoder erzeugten reinen Daten (Hex- oder Bit-String).
+2.  **Hinzufügen des `protocol` Feldes:** Ein neues Feld `protocol` vom Typ `dict` wird zur `DecodedMessage` hinzugefügt, um strukturierte, protokollspezifische Informationen zu enthalten.
+
+Die Umbenennung des Nutzdatenfeldes von `payload` zu `data` sowie die Einführung des Feldes `raw` (für die ursprüngliche Nachricht) sind in link:ADR-007-data-and-raw-fields.adoc[ADR-007] dokumentiert, das dieses Schema ergänzt und präzisiert. Dieses ADR dient als Grundlage für die Einführung des `protocol`-Feldes und die Bereinigung des Nutzdateninhalts.
+
+=== Serialisierungsformat
+Der JSON-Output für MQTT-Nutzdaten muss **kompakt** (ohne Zeilenumbrüche und Einrückungen) serialisiert werden, um die Kompatibilität mit MQTT-Brokern und Downstream-Systemen zu gewährleisten, die multiline-Nutzdaten falsch interpretieren könnten. Dies wird durch das Weglassen des `indent`-Parameters beim `json.dumps`-Aufruf in `MqttPublisher` sichergestellt.
+
+=== Details zur neuen Struktur (Präzisiert durch ADR-007)
+
+[cols="1,1,4"]
+|===
+| Feld | Typ | Beschreibung
+
+| `data`
+| `str`
+| Die bereinigten Nutzdaten (meist Hex-String) **ohne** Preamble/Postamble. Repräsentiert die protokollspezifischen Daten (ersetzt `payload`).
+
+| `raw`
+| `str`
+| Die ursprüngliche, unveränderte Nachricht vom Signalduino (z.B. `MU;...`). Dient der vollständigen Nachvollziehbarkeit.
+
+| `protocol`
+| `object`
+| Container für strukturierte Metadaten der erfolgreichen Protokolldemodulation.
+
+| `protocol.id`
+| `str`
+| Die interne ID des Protokolls (z.B. `125`).
+
+| `protocol.name`
+| `str`
+| Der menschenlesbare Name des Protokolls (aus `protocols.json`).
+
+| `protocol.preamble`
+| `str`
+| Die Preamble (z.B. `W125#`) des erkannten Protokolls.
+
+| `protocol.format`
+| `str`
+| Das Format bzw. die Modulationsart des Signals (z.B. `manchester`, `twostate`, `2-FSK`).
+
+| `protocol.clock`
+| `float`
+| Der Takt-Wert in Mikrosekunden (`us`), der für die Demodulation verwendet wurde.
+
+| `protocol.rfmode`
+| `str`
+| (Optional) Der RF-Modus (z.B. `Fine_Offset_WH31_868`), falls verfügbar.
+
+| `protocol.bitlength`
+| `int`
+| (Optional) Die tatsächliche Bitlänge der `data`-Nutzdaten, falls vom Protokoll bekannt/erzwungen. Unterstützt z.B. die Grothe-Constraint-Prüfung.
+
+| `protocol.repeats`
+| `int`
+| (Optional) Die Anzahl der erkannten Wiederholungen dieses Pakets, relevant für Duplikaterkennung.
+|===
+
+=== Beispiel für die Datenstruktur (Präzisiert durch ADR-007)
+
+include::../snippets/json_output_schema_example.adoc[]
+
+== Konsequenzen
+**Positiv:**
+*   Das `data`-Feld ist jetzt "sauber" und enthält nur die Nutzdaten.
+*   Protocolspezifische Metadaten sind standardisiert im `protocol`-Feld abrufbar.
+*   Vereinfacht die Integration mit Systemen, die strukturierte Daten erwarten.
+*   Das neue `raw`-Feld (siehe link:ADR-007-data-and-raw-fields.adoc[ADR-007]) ermöglicht besseres Debugging und vollständige Nachvollziehbarkeit.
+
+**Negativ:**
+*   Dies ist ein **Breaking Change** für alle existierenden Konsumenten des `DecodedMessage`-Outputs, die darauf angewiesen sind, dass die Preamble im `payload` enthalten ist.
+*   Alle Demodulations- und Parser-Logik muss angepasst werden, um die Preamble separat zu behandeln und das `protocol`-Feld sowie das neue `raw`-Feld zu befüllen.
+
+== Alternativen
+1.  **Preamble in `metadata` verschieben:** Hätte den Nutzdatenfeld gereinigt, aber die Protokolldetails weiterhin unstrukturiert gelassen. Abgelehnt, da ein dediziertes `protocol`-Feld die semantische Klarheit verbessert.
+2.  **Beibehaltung der alten Struktur:** Hätte Abwärtskompatibilität gewährleistet, aber die Notwendigkeit für eine Nutzdatenreinigung durch jeden Konsumenten beibehalten. Abgelehnt, da die verbesserte Struktur die Wartbarkeit und zukünftige Erweiterbarkeit deutlich erhöht.

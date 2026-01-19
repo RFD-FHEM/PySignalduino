@@ -59,10 +59,10 @@ class MSParser:
                 continue
 
             yield DecodedMessage(
-                protocol_id=str(decoded["protocol_id"]),
-                payload=str(decoded.get("payload", "")),
-                raw=frame,
+                data=str(decoded.get("payload", "")),
+                raw=frame.line,
                 metadata=decoded.get("meta", {}),
+                protocol={"id": str(decoded["protocol_id"]), "model": "MS"},
             )
 
     def _parse_to_dict(self, line: str) -> Dict[str, Any]:

@@ -24,7 +24,11 @@ Dies stellt sicher, dass alle erfolgreichen `GET` Anfragen über MQTT eine struk
 
 === Detaillierte Logik-Anpassungen
 
-1.  **`get_config` (CG):**
+1.  **Erweitertes Parsing (Update 2026-01-13):**
+    *   Der Response-Parser unterstützt nun `;` und `=` als Trennzeichen zusätzlich zu Leerzeichen (z.B. für `SR;R=...`).
+    *   Es wird ein striktes Prefix-Matching erzwungen, um zu verhindern, dass Befehls-Prefixe längere Nachrichtentypen matchen (z.B. darf Befehl `M` nicht `MN;...` matchen).
+
+2.  **`get_config` (CG):**
     *   Wird eine private Hilfsfunktion `_parse_decoder_config(response: str) -> Dict[str, int]` in [`signalduino/commands.py`](signalduino/commands.py) implementiert.
     *   Diese Funktion parst den `key=value;` String in ein Dictionary (z.B. `{'MS': 1, 'MU': 1, 'MC': 1, 'Mred': 1}`).
     *   Der Rückgabetyp von `get_config` wird von `str` auf `Dict[str, int]` geändert.

@@ -2,21 +2,34 @@
 
 Dieses Dokument skizziert 3 Optionen zur Integration der über MQTT publizierten JSON-Nachrichten von PySignalDuino in ein FHEM-System, das traditionell String-basierte Nachrichten via `Dispatch()` erwartet.
 
-Das Quell-Topic ist: `signalduino/v1/state/messages` (oder ähnlich, basierend auf der Konfiguration des Basis-Topics in PySignalDuino), mit einem JSON-Payload, der mindestens `id` (Protokoll-ID) und `data` (dekodierte Hex-Payload) enthält.
+Das Quell-Topic ist: `signalduino/v1/state/messages` (oder ähnlich, basierend auf der Konfiguration des Basis-Topics in PySignalDuino), mit einem JSON-Payload, der `protocol_id`, `preamble` (Protokoll-Präambel, z.B. `W126#`) und `payload` (Daten-Payload) enthält.
 
 == Lösungsoptionen
 
 === Option 1: MQTT2_DEVICE + Perl-Mapping (`json2nameValue` in `attr`)
 
-Diese Option nutzt die Standardfunktionalität des FHEM-Moduls `MQTT2_DEVICE` in Verbindung mit einem `attr` (Attribut), um das JSON-Payload zu parsen und spezifische Readings zu erstellen.
+Diese Option nutzt die Standardfunktionalität des FHEM-Moduls `MQTT2_DEVICE` in Verbindung mit einer Perl-Hilfsfunktion, um das JSON-Payload zu parsen und über den zentralen `Dispatch`-Mechanismus an die logischen Module weiterzuleiten.
+
+**Implementierungs-Detail (POC):**
+Es wurde eine Hilfsfunktion `MqttSignalduino_DispatchFromJSON($$)` in `99_MyUtils.pm` erstellt.
+
+*   **Funktion:** Nimmt den JSON-String (vom MQTT-Event) und den Gerätenamen entgegen.
+*   **Logik:** Dekodiert JSON, kombiniert `preamble` (z.B. `W126#`) und `payload` (z.B. `4001...`) und ruft `Dispatch()` mit dem Geräte-Hash auf.
+*   **FHEM-Integration:** Aufruf erfolgt z.B. über `userReadings` oder `notify`.
+
+[source,perl]
+----
+# Beispielaufruf in FHEM (z.B. userReadings oder notify)
+{ MqttSignalduino_DispatchFromJSON($EVENT, $NAME) }
+----
 
 [cols="1,3"]
 |===
 |Kriterium | Beschreibung
-|**Vorteile** | Keine neue Modul-Entwicklung in FHEM nötig. Reine Konfiguration. Nutzt FHEM-Bordmittel. Geringste Abhängigkeiten.
-|**Nachteile** | FHEM-interne `Dispatch()`-Logik wird umgangen. Es muss für jeden Sensortyp ein eigenes FHEM-Device angelegt werden, das die Readings direkt von MQTT liest. Die existierenden Module wie link:../../../.devcontainer/fhem-data/FHEM/14_SD_WS.pm[`14_SD_WS.pm`] (die auf `Dispatch()` warten) können nicht direkt verwendet werden.
-|**Implementierungsaufwand (grob)** | **Niedrig**. Konfiguration von einem `MQTT2_DEVICE` und Erstellung der `attr` mit Perl-Code zum Parsen/Dispatch.
-|**Notwendige Änderungen** | **FHEM:** Ein `MQTT2_DEVICE` muss abonniert und konfiguriert werden. Wichtig: Das Attribut `Clients` muss manuell gesetzt werden (z.B. `:SD_WS:SD_...`), damit `Dispatch` die Module findet. Es ist ein Perl-Code-Snippet in den Attributen erforderlich, um den `data`-String aus dem JSON-Objekt in das erwartete Format zu transformieren und dann die Readings zu setzen.
+|**Vorteile** | Keine volle Modul-Entwicklung nötig. Nutzt FHEM-Bordmittel (`99_MyUtils.pm`). Ermöglicht die Wiederverwendung von `Dispatch()` und bestehenden logischen Modulen.
+|**Nachteile** | Erfordert manuelle Installation der Funktion in `99_MyUtils.pm`. Das `MQTT2_DEVICE` muss korrekt konfiguriert sein (z.B. `Clients` Attribut).
+|**Implementierungsaufwand (grob)** | **Niedrig**. Erstellung der Perl-Funktion und einmalige Einrichtung.
+|**Notwendige Änderungen** | **FHEM:** Ein `MQTT2_DEVICE` muss konfiguriert werden. Die Funktion `MqttSignalduino_DispatchFromJSON` muss in `99_MyUtils.pm` verfügbar sein.
 |===
 
 
@@ -30,7 +43,7 @@ Diese Option nutzt `MQTT2_DEVICE` zum Empfang des JSONs und lagert die Parsing- 
 |**Vorteile** | Sauberer Code, aber manuelle Integration nötig. Das `MQTT2_DEVICE` wird minimalistisch gehalten. Erlaubt die Wiederverwendung von `Dispatch()`.
 |**Nachteile** | Erfordert Installation einer `.pm`-Datei (ähnlich wie Option 2, aber kein volles Modul). Erfordert einen `notify` oder einen `userReadings`-Aufruf, um die Logik auszuführen.
 |**Implementierungsaufwand (grob)** | **Niedrig bis Mittel**. Erstellung einer `.pm`-Utility-Datei mit einer Pars- und Dispatch-Funktion. Konfiguration eines `MQTT2_DEVICE`.
-|**Notwendige Änderungen** | **FHEM:** Erstellung einer `.pm`-Datei mit einer Utility-Funktion (z.B. `SDU_DispatchJSON($$)`). Diese Funktion wird direkt in der `readingList` des `MQTT2_DEVICE` aufgerufen. Wichtig: Das Attribut `Clients` muss am `MQTT2_DEVICE` manuell gepflegt werden. **PySignalDuino:** Keine Änderungen.
+|**Notwendige Änderungen** | **FHEM:** Erstellung einer `.pm`-Datei mit einer Utility-Funktion (z.B. `SDU_DispatchJSON($$)`). Diese Funktion wird direkt in der `readingList` des `MQTT2_DEVICE` aufgerufen. Wichtig: Das Attribut `Clients` muss am `MQTT2_DEVICE` manuell gepflegt werden. **PySignalDuino:** Die Payload-Generierung liefert `preamble` und `payload` separat im JSON.
 |===
 
 === Option 2: Eigenes FHEM-Modul (PySignalDuino-Bridge)
@@ -41,22 +54,22 @@ Ein neues FHEM-Modul, das die MQTT-Nachrichten von PySignalDuino abonniert und i
 |===
 |Kriterium | Beschreibung
 |**Vorteile** | **Beste Kompatibilität**. Ermöglicht die Wiederverwendung aller bestehenden FHEM-Module (z.B. link:../../../.devcontainer/fhem-data/FHEM/14_SD_WS.pm[`14_SD_WS.pm`]), da die Bridge das ursprüngliche `Dispatch()`-Verhalten emuliert. Trennung von PySignalDuino-Logik (JSON) und FHEM-Logik (String-Dispatch).
-|**Nachteile** | Erfordert die Entwicklung, Wartung und Installation eines neuen Perl-Moduls in FHEM. Komplexität in der JSON-zu-String-Konvertierung (Mapping der Protokoll-ID auf den String-Präfix, z.B. ID 49 auf "W49#...").
+|**Nachteile** | Erfordert die Entwicklung, Wartung und Installation eines neuen Perl-Moduls in FHEM.
 |**Implementierungsaufwand (grob)** | **Mittel**. Entwicklung des Bridge-Moduls in Perl, das die MQTT-Subscription und die JSON-Parsing/Dispatch-Logik implementiert.
-|**Notwendige Änderungen** | **FHEM:** Neues Perl-Modul (z.B. `98_PySignalDuinoBridge.pm` oder `00_PySignalDuinoBridge.pm`) muss erstellt werden, das den JSON-Payload parst und basierend auf der Protokoll-ID den FHEM-kompatiblen String generiert (z.B. `P<ID>#<Hex>` oder `W<ID>#<Hex>`). **PySignalDuino:** Keine Änderungen.
+|**Notwendige Änderungen** | **FHEM:** Neues Perl-Modul (z.B. `98_PySignalDuinoBridge.pm` oder `00_PySignalDuinoBridge.pm`) muss erstellt werden, das den JSON-Payload empfängt, `preamble` und `payload` verknüpft.
 |===
 
 === Option 3: Anpassung in PySignalDuino (FHEM-Mode)
 
-PySignalDuino würde eine neue Konfigurationsoption erhalten, die es ihm erlaubt, *zusätzlich* zu oder *anstelle* des Standard-JSON-Formats die traditionellen, von FHEM erwarteten Strings zu publizieren.
+PySignalDuino wurde bereits angepasst, um die Felder `preamble` und `payload` zu senden, die zusammen dem FHEM-Dispatch-Format entsprechen.
 
 [cols="1,3"]
 |===
 |Kriterium | Beschreibung
-|**Vorteile** | Höchste Performance (keine Parsing/Konvertierung in FHEM). Direkte Wiederverwendung der `00_SIGNALduino.pm` (oder `MQTT2_DEVICE` mit einfacher Regex-Subscription) zur Übergabe der Strings an `Dispatch()`.
-|**Nachteile** | **Verletzung des Architekturprinzips** (AGENTS.md: Architecture-First Development Process). PySignalDuino sollte eine reine Bridge sein und das standardisierte JSON-Format beibehalten. Ein FHEM-spezifisches Ausgabeformat erhöht die Wartungslast und die Kopplung.
-|**Implementierungsaufwand (grob)** | **Mittel**. Änderung der Python-Logik (in z.B. link:../../../signalduino/mqtt.py[`signalduino/mqtt.py`]) zur String-Formatierung basierend auf der Protokoll-ID.
-|**Notwendige Änderungen** | **PySignalDuino:** Implementierung der FHEM-String-Konvertierungslogik. Neue Umgebungsvariable (z.B. `MQTT_FHEM_MODE=true`). **FHEM:** Es kann der vorhandene `MQTT2_DEVICE` oder eine geringfügig angepasste Version von link:../../../.devcontainer/fhem-data/FHEM/00_SIGNALduino.pm[`00_SIGNALduino.pm`] verwendet werden, um den String direkt zu abonnieren und zu dispatchen.
+|**Vorteile** | Flexibles Format (JSON), das sowohl FHEM als auch andere Systeme unterstützt.
+|**Nachteile** | **Teilweise realisiert.** PySignalDuino sendet jetzt standardmäßig das Format mit `preamble` und `payload` im JSON.
+|**Implementierungsaufwand (grob)** | **Erledigt**. Änderung in `signalduino/mqtt.py` ist bereits erfolgt.
+|**Notwendige Änderungen** | **PySignalDuino:** `signalduino/mqtt.py` sendet `preamble` (z.B. `W126#`) und `payload` (Daten) separat. **FHEM:** Kombination von `preamble` und `payload` vor dem Dispatch.
 |===
 
 === Option 4: Portierung der Dekodier-Logik (Client-Module) nach PySignalDuino
@@ -101,7 +114,7 @@ Um die verschiedenen Optionen besser visualisieren zu können, folgen hier Code-
 [source,perl]
 ----
 signalduino/v1/state/messages:.* { json2nameValue($EVENT, 'sd_') }
-sd_data:.* { my ($id, $data) = ($EVTPART0 =~ /sd_id_(\d+) /g, $EVTPART0 =~ /sd_data_([0-9A-F]+)/g);; if($data) { Dispatch('signalduino', "P$id\#$data") } }
+sd_payload:.* { my $pre = ReadingsVal($NAME, "sd_preamble", ""); my $pay = ReadingsVal($NAME, "sd_payload", ""); Dispatch('signalduino', $pre . $pay) }
 ----
 
 **Flussdiagramm:**
@@ -113,11 +126,12 @@ sequenceDiagram
     participant F as FHEM (MQTT2_DEVICE)
     participant D as FHEM (Sensor Device)
 
-    P ->> M: Publish JSON Payload
+    P ->> M: Publish JSON Payload (mit "preamble": "W126#", "payload": "40...")
     M ->> F: MQTT Message
     F ->> F: readingList: json2nameValue() -> Readings
     F ->> F: userReadings (optional): Trigger Dispatch()
-    F ->> F: Dispatch("P<ID>#<DATA>")
+    F ->> F: Combine preamble + payload
+    F ->> F: Dispatch("W126#40...")
     F ->> D: Message an Dispatch()
     D ->> D: Handle Message
 ....
@@ -132,11 +146,9 @@ sub SDU_DispatchJSON($$) {
     my ($hash, $json_payload) = @_;
     use JSON;
     my $data_hash = JSON::decode_json($json_payload);
-    my $id = $data_hash->{id};
-    my $data = $data_hash->{data};
+    my $msg = $data_hash->{preamble} . $data_hash->{payload};
 
-    # Konvertierung und Dispatch
-    my $msg = "P" . $id . "\#" . $data;
+    # Dispatch
     Dispatch($hash, $msg);
     return 1;
 }
@@ -162,8 +174,7 @@ sequenceDiagram
     P ->> M: Publish JSON Payload
     M ->> F: MQTT Message
     F ->> U: readingList: SDU_DispatchJSON($hash, $EVENT)
-    U ->> U: Parse JSON
-    U ->> U: Convert to "P<ID>#<DATA>"
+    U ->> U: Parse JSON (combine "preamble" + "payload")
     U ->> F: Dispatch()
     F ->> D: Message an Dispatch()
     D ->> D: Handle Message
@@ -180,10 +191,7 @@ sub Bridge_Parse($) {
     # ... JSON-Payload abrufen ...
     use JSON;
     my $data_hash = JSON::decode_json($json_payload);
-    my $id = $data_hash->{id};
-    my $data = $data_hash->{data};
-    
-    my $msg = "P" . $id . "\#" . $data;
+    my $msg = $data_hash->{preamble} . $data_hash->{payload};
     
     # Aufruf des Standard-Dispatch
     return Dispatch($hash, $msg);
@@ -201,8 +209,8 @@ sequenceDiagram
 
     P ->> M: Publish JSON Payload
     M ->> B: MQTT Message (Subscription)
-    B ->> B: Internal Parse/Convert Logic
-    B ->> D: Dispatch("P<ID>#<DATA>")
+    B ->> B: Internal Parse (combine "preamble" + "payload")
+    B ->> D: Dispatch("W126#40...")
     D ->> D: Handle Message
 ....
 
@@ -211,15 +219,17 @@ sequenceDiagram
 **PySignalDuino-Code (in link:../../../signalduino/mqtt.py[`signalduino/mqtt.py`]):**
 [source,python]
 ----
-# Wenn FHEM-Mode aktiv:
-fhem_string = f"P{protocol_id}#{hex_data}"
-mqtt_client.publish(fhem_topic, fhem_string)
+# Implementiert: Preamble und Payload separat
+# if self._protocol_handler:
+#    preamble = self._protocol_handler.check_property(message.protocol_id, 'preamble', '')
+#    message_dict["preamble"] = preamble
+#    message_dict["payload"] = message.payload.upper()
 ----
 
 **FHEM-Konfiguration (MQTT2_DEVICE `readingList`):**
 [source,perl]
 ----
-signalduino/v1/state/messages:.* { Dispatch('signalduino', $EVENT) }
+signalduino/v1/state/messages:.* { my $h=JSON::decode_json($EVENT); Dispatch('signalduino', $h->{preamble} . $h->{payload}) }
 ----
 
 **Flussdiagramm:**
@@ -231,10 +241,10 @@ sequenceDiagram
     participant F as FHEM (MQTT2_DEVICE)
     participant D as FHEM (Sensor Device)
 
-    P ->> P: Convert to "P<ID>#<DATA>" String
-    P ->> M: Publish FHEM String Payload
+    P ->> P: Separate Preamble and Payload
+    P ->> M: Publish JSON Payload
     M ->> F: MQTT Message
-    F ->> D: readingList: Dispatch('signalduino', $EVENT)
+    F ->> D: readingList: Dispatch('signalduino', preamble + payload)
     D ->> D: Handle Message
 ....
 
@@ -256,8 +266,9 @@ def decode_protocol_49(hex_data):
 # Im MQTT-Publisher:
 decoded_values = decode_protocol_49(data)
 payload = {
-    "id": 49,
-    "data": data,
+    "protocol_id": "49",
+    "preamble": "P49#",
+    "payload": data,
     "values": decoded_values  # Neues Feld mit interpretierten Werten
 }
 mqtt_client.publish(topic, json.dumps(payload))
@@ -273,7 +284,7 @@ Dies erzeugt Readings wie `values_temperature` und `values_battery` direkt am De
 
 **Flussdiagramm:**
 [mermaid]
-....
+----
 sequenceDiagram
     participant P as PySignalDuino
     participant M as MQTT Broker
@@ -290,7 +301,7 @@ sequenceDiagram
         M ->> H: MQTT Message
         H ->> H: Auto Discovery / Sensor Update
     end
-....
+----
 
 == Detaillierte Bewertung
 
@@ -318,23 +329,22 @@ sequenceDiagram
 
 *   Dies sollte das strategische Ziel sein, um PySignalDuino zu einem echten, universellen IoT-Gateway zu machen.
 *   Es wird empfohlen, dies **schrittweise** für die populärsten Protokolle (z.B. IT, WS) umzusetzen, während die anderen Protokolle weiterhin über Option 2 (Bridge) an FHEM übergeben werden.
-*   Dies ermöglicht einen sanften Übergang: PySignalDuino liefert `data` (für die Bridge) UND `values` (wenn der Decoder schon portiert ist).
+*   Dies ermöglicht einen sanften Übergang: PySignalDuino liefert `payload` (für die Bridge) UND `values` (wenn der Decoder schon portiert ist).
 
 === Implementierungs-ToDos für Option 2 (Bridge-Modul)
 
-1.  **Erstellung des Bridge-Moduls:** Erstellen des FHEM Perl-Moduls (z.B. `98_PySignalDuinoBridge.pm` oder `00_PySignalDuinoBridge.pm`).
-2.  **MQTT-Abonnement:** Implementierung der Logik zur Subscription des Topics `signalduino/v1/state/messages` (oder konfiguriertem Topic).
-3.  **JSON-Parsing:** Implementierung der Perl-Logik zum Parsen des JSON-Payloads (z.g. mit `JSON::decode_json`).
-4.  **String-Konvertierung:** Implementierung der Logik, die `protocol_id` und `data` aus dem JSON-Objekt nimmt und den traditionellen String (z.B. `P<ID>#<Hex>` oder `W<ID>#<Hex>`) generiert.
-5.  **Dispatching:** Aufruf von `Dispatch(<msg>)` innerhalb des Moduls, um die Nachricht an das FHEM-System weiterzugeben.
-6.  **Konfiguration und Tests:** Dokumentation und Test der FHEM-Konfiguration (Definieren der Bridge).
+.  **Erstellung des Bridge-Moduls:** Erstellen des FHEM Perl-Moduls (z.B. `98_PySignalDuinoBridge.pm` oder `00_PySignalDuinoBridge.pm`).
+.  **MQTT-Abonnement:** Implementierung der Logik zur Subscription des Topics `signalduino/v1/state/messages` (oder konfiguriertem Topic).
+.  **JSON-Parsing:** Implementierung der Perl-Logik zum Parsen des JSON-Payloads (z.g. mit `JSON::decode_json`).
+.  **Dispatching:** Extraktion von `payload` aus dem JSON und Aufruf von `Dispatch(<msg>)`, um die Nachricht an das FHEM-System weiterzugeben.
+.  **Konfiguration und Tests:** Dokumentation und Test der FHEM-Konfiguration (Definieren der Bridge).
 
 == Geplanter Arbeitsablauf
 
-1.  **Phase 1 (Design/Planung):** Abschluss der Architekturanalyse und Erstellung des Plans (Abgeschlossen mit diesem Dokument).
-2.  **Phase 2 (Implementierung):**
+.  **Phase 1 (Design/Planung):** Abschluss der Architekturanalyse und Erstellung des Plans (Abgeschlossen mit diesem Dokument).
+.  **Phase 2 (Implementierung):**
     *   Erstellung des FHEM-Bridge-Moduls.
     *   Einrichtung der FHEM-Konfiguration für das Modul.
-3.  **Phase 3 (Validierung):** Testen der End-to-End-Kette (PySignalDuino publiziert JSON -> Bridge parst -> Bridge dismatched String -> FHEM Sensor-Device reagiert).
+.  **Phase 3 (Validierung):** Testen der End-to-End-Kette (PySignalDuino publiziert JSON -> Bridge parst -> Bridge dismatched String -> FHEM Sensor-Device reagiert).
 
 **Nächster Schritt:** Wechsel in den Code-Modus, um das FHEM-Bridge-Modul zu implementieren (oder mit der Implementierung zu beginnen).

@@ -38,7 +38,7 @@ services:
     environment:
       - CONFIGTYPE=fhem_signalduino_example.cfg
       - FHEM_PERM_DIR=0777
-      - FHEM_PERM_FILES=0777
+      - FHEM_PERM_FILE=0777
     volumes:
       - ./fhem-data:/opt/fhem
     depends_on:

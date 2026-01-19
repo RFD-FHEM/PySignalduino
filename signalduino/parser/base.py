@@ -6,8 +6,9 @@ import re
 from typing import Optional, List, Tuple
 
 from ..exceptions import SignalduinoParserError
+from ..constants import ASCII_STX, ASCII_ETX
 
-_STX_ETX = re.compile(r"^\x02(M[sSuUcCNOo];.*;)\x03$")
+_STX_ETX = re.compile(f"^{ASCII_STX}(M[sSuUcCNOo];.*;){ASCII_ETX}$")
 
 
 def decompress_payload(compressed_payload: str) -> str:

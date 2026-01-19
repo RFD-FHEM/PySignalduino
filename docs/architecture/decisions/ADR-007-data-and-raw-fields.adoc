@@ -1,0 +1,46 @@
+= ADR-007: Renaming Payload to Data and Adding Raw Field
+:doctype: article
+:encoding: utf-8
+:lang: de
+:status: Proposed
+:decided-at: 2026-01-11
+:decided-by: Roo (Architect)
+
+[#adr-context]
+== Kontext
+
+Im Zuge der Definition des neuen JSON-Output-Schemas (siehe ADR-006) wurde Feedback gesammelt, das zwei wesentliche Verbesserungen vorschlägt:
+
+.  **Ambiguität des Feldes `payload`:** Der Begriff `payload` wird in MQTT- und Messaging-Kontexten häufig für den gesamten Nachrichteninhalt verwendet. Die Verwendung von `payload` für die spezifischen, decodierten Hex-Daten kann daher zu Verwirrung führen.
+.  **Bedarf an Rohdaten:** Für Debugging-Zwecke und fortgeschrittene Analysen ist es notwendig, Zugriff auf die ursprüngliche, unveränderte Nachricht zu haben, wie sie vom Signalduino-Gerät empfangen wurde (z.B. der komplette `MU;...`- oder `MC;...`-String), bevor irgendeine Verarbeitung oder Parsing stattgefunden hat.
+
+[#adr-decision]
+== Entscheidung
+
+Wir passen das in ADR-006 definierte Schema wie folgt an:
+
+.  **Umbenennung `payload` zu `data`:**
+    Das Feld, das bisher `payload` hieß und die bereinigten Hex- oder Binärdaten (ohne Preamble) enthielt, wird in **`data`** umbenannt.
+
+.  **Einführung des Feldes `raw`:**
+    Es wird ein neues Feld **`raw`** auf der obersten Ebene des JSON-Objekts eingeführt. Dieses Feld enthält den ursprünglichen Nachrichten-String, der an den Parser übergeben wurde.
+
+=== Aktualisierte Datenstruktur
+
+include::../snippets/json_output_schema_example.adoc[]
+
+[#adr-consequences]
+== Konsequenzen
+
+=== Positive Konsequenzen
+*   **Klarere Semantik:** `data` ist ein neutralerer Begriff für den Dateninhalt und vermeidet die Überladung des Begriffs `payload`.
+*   **Verbesserte Debugging-Möglichkeiten:** Durch das `raw`-Feld können Entwickler und User jederzeit nachvollziehen, was genau vom Gerät empfangen wurde, und Parser-Fehler leichter diagnostizieren.
+*   **Vollständigkeit:** Keine Information geht verloren; sowohl die Rohdaten als auch die interpretierten Daten stehen zur Verfügung.
+
+=== Negative Konsequenzen
+*   **Breaking Change:** Dies ändert das gerade in ADR-006 vorgeschlagene Schema. Da ADR-006 jedoch noch neu ist, sollte der Anpassungsaufwand gering sein. Code, der bereits `payload` verwendet, muss auf `data` umgestellt werden.
+
+[#adr-alternatives]
+== Alternativen
+*   **Beibehaltung von `payload`:** Wurde verworfen, um die Ambiguität aufzulösen.
+*   **`raw` als Objekt:** Es wurde erwogen, `raw` strukturierter zu gestalten, aber für die einfache Nachvollziehbarkeit ist der originale String am wertvollsten.

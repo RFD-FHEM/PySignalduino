@@ -179,13 +179,13 @@ class MNParser:
             self.logger.info("MN Parse: Decoded matched MN Protocol id %s dmsg=%s", pid, final_payload)
             
             yield DecodedMessage(
-                protocol_id=str(pid),
-                payload=final_payload,
-                raw=frame,
+                data=final_payload,
+                raw=frame.line,
                 metadata={
                     "rssi": rssi,
                     "freq_afc": freq_afc,
                     "modulation": modulation,
                     "rfmode": proto_rfmode
                 },
+                protocol={"id": str(pid), "model": "MN"}
             )

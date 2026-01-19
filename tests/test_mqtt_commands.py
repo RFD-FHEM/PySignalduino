@@ -497,9 +497,6 @@ async def test_controller_handles_set_factory_reset(signalduino_controller, mock
         )
 
 
-
-
-
 @pytest.mark.asyncio
 async def test_controller_handles_get_cc1101_settings(signalduino_controller, mock_aiomqtt_client_cls, mock_logger):
     """
@@ -607,4 +604,3 @@ async def test_controller_handles_get_cc1101_register(signalduino_controller, mo
         # 5. Verifiziere, dass die Commands-Methode mit dem korrekten Payload aufgerufen wurde
         expected_payload_dict = json.loads(mqtt_payload)
         read_reg_mock.assert_called_once_with(expected_payload_dict, timeout=SDUINO_CMD_TIMEOUT)
-

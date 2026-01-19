@@ -1,8 +1,8 @@
 import json
 import logging
 import os
-from dataclasses import asdict
-from typing import Optional, Any, Callable, Awaitable # NEU: Awaitable für async callbacks
+from dataclasses import asdict, is_dataclass
+from typing import Optional, Any, Callable, Awaitable, Union # NEU: Awaitable für async callbacks
 
 from .commands import MqttCommandDispatcher, CommandValidationError, SignalduinoCommandTimeout # NEU: Import Dispatcher
 import aiomqtt as mqtt
@@ -10,6 +10,12 @@ import asyncio
 import paho.mqtt.client as paho_mqtt # Für topic_matches_sub
 from .types import DecodedMessage, RawFrame
 from .persistence import get_or_create_client_id
+
+# Import protocol loader helper to access preamble data
+try:
+    from sd_protocols.loader import _protocol_handler
+except ImportError:
+    _protocol_handler = None
 
 class MqttPublisher:
     """Publishes DecodedMessage objects to an MQTT server and listens for commands."""
@@ -30,6 +36,7 @@ class MqttPublisher:
         self.client_id = get_or_create_client_id()
         self.client: Optional[mqtt.Client] = None # Will be set in __aenter__
         self._listener_task: Optional[asyncio.Task[None]] = None # NEU: Task für den Command Listener
+        self._protocol_handler = _protocol_handler
 
         # Konfiguration: CLI/Args > ENV > Default
         self.mqtt_host = host or os.environ.get("MQTT_HOST", "localhost")
@@ -224,9 +231,28 @@ class MqttPublisher:
             )
 
 
-    @staticmethod
-    def _message_to_json(message: DecodedMessage) -> str:
-        """Serializes a DecodedMessage to a JSON string."""
+    def _message_to_json(self, message: Union[DecodedMessage, Any]) -> Optional[str]:
+        """Serializes a DecodedMessage or other payload to a JSON string."""
+        
+        # Check if message is a dataclass instance
+        if not is_dataclass(message):
+            # If not a dataclass, try to serialize it directly or wrap it
+            if isinstance(message, dict):
+                return json.dumps(message)
+            elif isinstance(message, str):
+                try:
+                    # Check if it's already valid JSON
+                    json.loads(message)
+                    return message
+                except json.JSONDecodeError:
+                    # Wrap string in a simple object
+                    return json.dumps({"data": message})
+            else:
+                 # Fallback for other types
+                 try:
+                     return json.dumps(message)
+                 except (TypeError, ValueError):
+                     return json.dumps({"data": str(message)})
 
         # DecodedMessage uses dataclasses, but RawFrame inside it also uses a dataclass.
         # We need a custom serializer to handle nested dataclasses like RawFrame.
@@ -240,9 +266,62 @@ class MqttPublisher:
             message_dict["raw"] = _raw_frame_to_dict(message_dict["raw"])
         
         # Remove empty or non-useful fields for publication
-        message_dict.pop("raw", None) # Do not publish raw frame data by default
+        # Note: 'raw' is now a string (ADR-007) and should be published.
+        # The pop operation (line 249 in original) is removed to include it.
         
-        return json.dumps(message_dict, indent=4)
+        preamble = ""
+        if self._protocol_handler:
+            try:
+                # Use .get only if message has a protocol attribute (it should if it's DecodedMessage)
+                protocol = getattr(message, 'protocol', {})
+                protocol_id = protocol.get('id') if isinstance(protocol, dict) else None
+                
+                if protocol_id:
+                    # check_property returns the value or default
+                    preamble = self._protocol_handler.check_property(protocol_id, 'preamble', '')
+            except Exception as e:
+                self.logger.warning("Failed to get preamble: %s", e)
+
+        # Add new 'preamble' field to protocol object
+        if "protocol" not in message_dict or message_dict["protocol"] is None:
+            message_dict["protocol"] = {}
+            
+        message_dict["protocol"]["preamble"] = preamble
+
+        # Move modulation and rfmode from metadata to protocol
+        metadata = message_dict.get("metadata", {})
+        if "modulation" in metadata:
+            message_dict["protocol"]["format"] = metadata.pop("modulation")
+        if "rfmode" in metadata:
+            message_dict["protocol"]["rfmode"] = metadata.pop("rfmode")
+        
+        # Ensure data (formerly payload) is uppercase
+        # Use getattr to be safe even if dataclass structure changed
+        message_data = getattr(message, 'data', '')
+        if isinstance(message_data, str):
+            message_data = message_data.upper()
+        else:
+            message_data = str(message_data).upper()
+
+        # REMOVE PREAMBLE FROM DATA FIELD IF PRESENT
+        # This ensures the 'data' field only contains the payload, consistent with ADR-007.
+        if preamble and message_data.startswith(preamble.upper()):
+            message_data = message_data[len(preamble):]
+        
+        # NEU: Fehlerbehebung für ungültige Parser-Rückgaben (dmsg=[])
+        # Wenn der Parser eine leere Liste als String-Literal zurückgibt, wird dies als ungültiger
+        # Datenwert interpretiert. Setze auf leeren String.
+        if message_data.strip() == "[]":
+            message_data = ""
+            self.logger.warning("Invalid data '[]' received from parser, setting to empty string.")
+
+        # Check for empty payload to prevent sending empty messages
+        if not message_data:
+            return None
+
+        message_dict["data"] = message_data
+
+        return json.dumps(message_dict)
 
     async def publish_simple(self, subtopic: str, payload: str, retain: bool = False) -> None:
         """Publishes a simple string payload to a subtopic of the main topic."""
@@ -252,10 +331,18 @@ class MqttPublisher:
             
         try:
             topic = f"{self.base_topic}/{subtopic}"
-            await self.client.publish(topic, payload, retain=retain)
+            await self.client.publish(topic, payload.encode("utf-8"), retain=retain)
             self.logger.debug("Published simple message to %s: %s", topic, payload)
         except Exception:
             self.logger.error("Failed to publish simple message to %s", subtopic, exc_info=True)
+
+    async def publish_raw_line(self, line: str) -> None:
+        """Publishes a raw, non-decoded line from the transport (e.g., non-command status messages)."""
+        await self.publish_simple(
+            subtopic="state/raw_lines",
+            payload=json.dumps({"line": line.strip()}),
+            retain=False
+        )
 
     async def publish(self, message: DecodedMessage) -> None:
         """Publishes a DecodedMessage."""
@@ -266,9 +353,14 @@ class MqttPublisher:
         try:
             topic = f"{self.base_topic}/state/messages"
             payload = self._message_to_json(message)
-            await self.client.publish(topic, payload)
-            self.logger.debug("Published message for protocol %s to %s", message.protocol_id, topic)
+            
+            if payload is None:
+                protocol_id = message.protocol.get('id', 'N/A')
+                self.logger.debug("Skipping MQTT publish due to empty payload for protocol %s", protocol_id)
+                return
+
+            await self.client.publish(topic, payload.encode("utf-8"))
+            protocol_id = message.protocol.get('id', 'N/A')
+            self.logger.debug("Published message for protocol %s to %s (Payload length: %s)", protocol_id, topic, len(payload))
         except Exception:
             self.logger.error("Failed to publish message", exc_info=True)
-
-            

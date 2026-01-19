@@ -2,13 +2,15 @@ pycache/
 *.pyc
 .venv/
 .env/
-temp_repo/
 SIGNALDuino-Firmware/
 .devcontainer/devcontainer.env
 .devcontainer/.devcontainer.env
 .devcontainer/mosquitto/data/
 .devcontainer/mosquitto/log/
 .devcontainer/fhem-data/*
+!.devcontainer/fhem-data/FHEM
+.devcontainer/fhem-data/FHEM/*
 !.devcontainer/fhem-data/fhem_signalduino_example.cfg
+!.devcontainer/fhem-data/FHEM/99_MyUtils.pm
 
 .roo/mcp.json
