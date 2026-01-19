@@ -282,8 +282,18 @@ class MqttPublisher:
             except Exception as e:
                 self.logger.warning("Failed to get preamble: %s", e)
 
-        # Add new 'preamble' field
-        message_dict["preamble"] = preamble
+        # Add new 'preamble' field to protocol object
+        if "protocol" not in message_dict or message_dict["protocol"] is None:
+            message_dict["protocol"] = {}
+            
+        message_dict["protocol"]["preamble"] = preamble
+
+        # Move modulation and rfmode from metadata to protocol
+        metadata = message_dict.get("metadata", {})
+        if "modulation" in metadata:
+            message_dict["protocol"]["format"] = metadata.pop("modulation")
+        if "rfmode" in metadata:
+            message_dict["protocol"]["rfmode"] = metadata.pop("rfmode")
         
         # Ensure data (formerly payload) is uppercase
         # Use getattr to be safe even if dataclass structure changed

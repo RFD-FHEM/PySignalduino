@@ -1,18 +1,18 @@
 [source,json]
 ----
 {
-  "data": "30E0A1AA4241DE6C000200000BC5",
-  "raw": "MC;LL=-1017;LH=932;...",
+  "data": "30E0A1DE4CE6C16C0002000012FC",
+  "raw": "MN;D=30E0A1DE4CE6C16C0002000012FC;R=193;A=-21;",
   "metadata": {
-    "rssi": -74,
-    "freq_afc": 123
+    "rssi": -105.5,
+    "freq_afc": -33
   },
   "protocol": {
-    "name": "WH31",
     "id": "125",
+    "model": "MN",
     "preamble": "W125#",
     "format": "2-FSK",
-    "clock": 17257
+    "rfmode": "Fine_Offset_WH31_868"
   }
 }
 ----

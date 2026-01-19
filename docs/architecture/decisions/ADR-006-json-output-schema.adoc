@@ -50,17 +50,17 @@ Der JSON-Output für MQTT-Nutzdaten muss **kompakt** (ohne Zeilenumbrüche und E
 | `str`
 | Die Preamble (z.B. `W125#`) des erkannten Protokolls.
 
-| `protocol.encoding`
+| `protocol.format`
 | `str`
-| Das Codierungsformat des Signals (z.B. `manchester`, `twostate`, `pulse`).
+| Das Format bzw. die Modulationsart des Signals (z.B. `manchester`, `twostate`, `2-FSK`).
 
 | `protocol.clock`
 | `float`
 | Der Takt-Wert in Mikrosekunden (`us`), der für die Demodulation verwendet wurde.
 
-| `protocol.modulation`
+| `protocol.rfmode`
 | `str`
-| (Optional) Modulationsart (z.B. `2-FSK`, `GFSK`) für FSK-Protokolle.
+| (Optional) Der RF-Modus (z.B. `Fine_Offset_WH31_868`), falls verfügbar.
 
 | `protocol.bitlength`
 | `int`
