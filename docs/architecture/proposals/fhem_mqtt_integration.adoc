@@ -59,7 +59,20 @@ Ein neues FHEM-Modul, das die MQTT-Nachrichten von PySignalDuino abonniert und i
 |**Notwendige Änderungen** | **FHEM:** Neues Perl-Modul (z.B. `98_PySignalDuinoBridge.pm` oder `00_PySignalDuinoBridge.pm`) muss erstellt werden, das den JSON-Payload empfängt, `preamble` und `payload` verknüpft.
 |===
 
-=== Option 3: Anpassung in PySignalDuino (FHEM-Mode)
+=== Option 3: Direkte SIGNALduino-Integration über MQTT-Wrapper (`SD_MQTT.pm`)
+
+PySignalDuino publiziert Nachrichten an den `MQTT-Broker`, und das `SIGNALduino`-Modul in FHEM abonniert diese Nachrichten direkt über eine interne Wrapper-Logik (`SD_MQTT.pm`), die `MQTT2_Dispatcher` nutzt, wodurch die Notwendigkeit eines separaten `MQTT2_DEVICE` entfällt.
+
+[cols="1,3"]
+|===
+|Kriterium | Beschreibung
+|**Vorteile** | **Nahtlose Integration**. Fühlt sich für den Nutzer wie ein USB/Netzwerk-Signalduino an, aber über MQTT. Kein separates `MQTT2_DEVICE` oder Bridge-Modul nötig. Nutzt die bestehende Dispatch-Logik von `SIGNALduino`.
+|**Nachteile** | Erfordert Anpassung am `SIGNALduino`-Modul (via Wrapper).
+|**Implementierungsaufwand (grob)** | **Mittel**. Implementierung des Wrappers `SD_MQTT.pm` und Integration in `00_SIGNALduino.pm`.
+|**Notwendige Änderungen** | **FHEM:** `00_SIGNALduino.pm` muss erweitert werden, um `SD_MQTT` zu laden. Konfiguration eines `MQTT2_CLIENT` (Broker).
+|===
+
+=== Option 3b: Anpassung in PySignalDuino (FHEM-Mode)
 
 PySignalDuino wurde bereits angepasst, um die Felder `preamble` und `payload` zu senden, die zusammen dem FHEM-Dispatch-Format entsprechen.
 
@@ -93,13 +106,13 @@ PySignalDuino publiziert die demodulierten Nachrichten in einem standardisierten
 [cols="1,1,1,2"]
 |===
 |Option | PySignalDuino-Payload | FHEM-spezifische Konsequenzen | Systemübergreifende Eignung (HA/Node-RED)
-|**1, 1b, 2** | Standardisiertes JSON | Konvertierung/Parsing in FHEM notwendig. | **Gut.** Diese Systeme können JSON nativ und effizient parsen, benötigen aber eigene Logik (Templates/Scripts) zur Interpretation der Rohdaten, wenn FHEM dies nicht übernimmt.
-|**3** | FHEM-spezifischer String (z.B. P49#...) | Direkte Integration in FHEM möglich. | **Schlecht.** HA/Node-RED müssten proprietäre FHEM-Strings parsen oder PySignalDuino müsste doppelt senden (JSON + String), was Bandbreite/Performance kostet.
+|**1, 1b, 2, 3** | Standardisiertes JSON | Konvertierung/Parsing in FHEM notwendig. | **Gut.** Diese Systeme können JSON nativ und effizient parsen, benötigen aber eigene Logik (Templates/Scripts) zur Interpretation der Rohdaten, wenn FHEM dies nicht übernimmt.
+|**3b** | FHEM-spezifischer String (z.B. P49#...) | Direkte Integration in FHEM möglich. | **Schlecht.** HA/Node-RED müssten proprietäre FHEM-Strings parsen oder PySignalDuino müsste doppelt senden (JSON + String), was Bandbreite/Performance kostet.
 |**4** | Dekodiertes JSON (Werte) | Keine Dispatch-Logik nötig; direkte Nutzung der Readings. | **Exzellent.** Der "Gold Standard". MQTT-Nachrichten sind selbsterklärend und sofort nutzbar. Ermöglicht Plug & Play.
 |===
 
 **Fazit:** 
-*   Varianten, die das standardisierte JSON von PySignalDuino beibehalten (Option 1, 1b, 2), sind für eine Koexistenz gut geeignet.
+*   Varianten, die das standardisierte JSON von PySignalDuino beibehalten (Option 1, 1b, 2, 3), sind für eine Koexistenz gut geeignet.
 *   **Option 4** ist der klare Gewinner für moderne IoT-Landschaften (HA, Node-RED), erfordert aber den größten Aufwand in PySignalDuino.
 
 
@@ -214,7 +227,45 @@ sequenceDiagram
     D ->> D: Handle Message
 ....
 
-=== Option 3: Anpassung in PySignalDuino (FHEM-Mode)
+=== Option 3: Direkte SIGNALduino-Integration über MQTT-Wrapper (`SD_MQTT.pm`)
+
+**FHEM-Konfiguration:**
+[source,fhem]
+----
+# tag::broker_config[]
+# 4. Define the MQTT Client (Broker Connection)
+# 'mqtt' is the hostname of the broker service in docker-compose.yml
+define mqtt_broker MQTT2_CLIENT mqtt:1883
+setuuid mqtt_broker 695e9c21-f33f-c986-e617-d7301881c4685bc6
+attr mqtt_broker autocreate simple
+attr mqtt_broker verbose 3
+# end::broker_config[]
+
+# tag::device_config[]
+# 5. Define the SignalDuino MQTT Device
+define SignalDuino_MQTT SIGNALduino mqtt
+setuuid SignalDuino_MQTT 696cb50e-f33f-c986-0810-0617456cfc539073
+attr SignalDuino_MQTT verbose 3
+# end::device_config[]
+----
+
+**Flussdiagramm:**
+[mermaid]
+....
+sequenceDiagram
+    participant P as PySignalDuino
+    participant M as MQTT Broker
+    participant S as SIGNALduino (SD_MQTT)
+    participant D as Dispatcher
+
+    P ->> M: Publish JSON Payload
+    M ->> S: MQTT Message (via IO/Select)
+    S ->> S: SD_MQTT::Read() -> Parse JSON
+    S ->> D: Dispatch(msg)
+    D ->> D: Handle Message (Logical Modules)
+....
+
+=== Option 3b: Anpassung in PySignalDuino (FHEM-Mode)
 
 **PySignalDuino-Code (in link:../../../signalduino/mqtt.py[`signalduino/mqtt.py`]):**
 [source,python]
@@ -305,15 +356,15 @@ sequenceDiagram
 
 == Detaillierte Bewertung
 
-[cols="1,1,1,1,1"]
+[cols="1,1,1,1,1,1,1"]
 |===
-|Feature | Option 1 (Mapping) | Option 1b (Utils) | Option 2 (Bridge-Modul) | Option 4 (Portierung)
-|**Architektur** | "Bastel"-Lösung, unübersichtlich in Attributen | Sauberer Code, aber manuelle Integration nötig | Volle, standardkonforme FHEM-Integration | "Gold Standard", komplette Entkopplung
-|**Dispatch-Fähigkeit** | **Kritisch:** Erfordert manuelles `Clients`-Attribut (fehleranfällig) | **Kritisch:** Erfordert manuelles `Clients`-Attribut | **Automatisch:** Integriert im Modul | Nicht nötig (Werte kommen direkt)
-|**Konfigurationsaufwand** | Hoch (komplexe Regex im Attribut) | Mittel (Datei + Attribut) | Niedrig (ein `define`) | Sehr Niedrig (Auto-Create Readings)
-|**Wartbarkeit** | Schlecht | Gut (Code ist versionierbar) | Sehr gut (gekapseltes Modul) | Sehr gut (zentral in Python)
-|**Systemübergreifend** | Neutral (JSON bleibt erhalten) | Neutral (JSON bleibt erhalten) | Neutral (JSON bleibt erhalten) | **Exzellent** (Universal nutzbar)
-|**Entwicklungsaufwand** | Niedrig | Mittel | Mittel | **Sehr Hoch**
+|Feature | Option 1 (Mapping) | Option 1b (Utils) | Option 2 (Bridge-Modul) | Option 3 (Wrapper) | Option 3b (Anpassung) | Option 4 (Portierung)
+|**Architektur** | "Bastel"-Lösung, unübersichtlich in Attributen | Sauberer Code, aber manuelle Integration nötig | Volle, standardkonforme FHEM-Integration | Wrapper-Integration in Standard-Modul | JSON-Payload-Nutzung | "Gold Standard", komplette Entkopplung
+|**Dispatch-Fähigkeit** | **Kritisch:** Erfordert manuelles `Clients`-Attribut (fehleranfällig) | **Kritisch:** Erfordert manuelles `Clients`-Attribut | **Automatisch:** Integriert im Modul | **Automatisch:** Integriert via Wrapper | **Kritisch:** Erfordert manuelles `Clients`-Attribut | Nicht nötig (Werte kommen direkt)
+|**Konfigurationsaufwand** | Hoch (komplexe Regex im Attribut) | Mittel (Datei + Attribut) | Niedrig (ein `define`) | Niedrig (zwei `define`s) | Hoch (komplexe Regex/Funktion) | Sehr Niedrig (Auto-Create Readings)
+|**Wartbarkeit** | Schlecht | Gut (Code ist versionierbar) | Sehr gut (gekapseltes Modul) | Gut (Wrapper kapselt Logik) | Schlecht | Sehr gut (zentral in Python)
+|**Systemübergreifend** | Neutral (JSON bleibt erhalten) | Neutral (JSON bleibt erhalten) | Neutral (JSON bleibt erhalten) | Neutral (JSON bleibt erhalten) | Neutral (JSON bleibt erhalten) | **Exzellent** (Universal nutzbar)
+|**Entwicklungsaufwand** | Niedrig | Mittel | Mittel | Mittel | Niedrig (Erledigt) | **Sehr Hoch**
 |===
 
 == Empfehlung
