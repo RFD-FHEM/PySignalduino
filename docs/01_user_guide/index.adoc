@@ -87,7 +87,7 @@ Die Hauptkomponenten sind:
 
 3. **Protokollbibliothek** (`sd_protocols`):
    * `SDProtocols` – Hauptklasse für Protokollerkennung und ‑dekodierung.
-   * `SDProtocolData` – Datenstrukturen für Protokolldefinitionen.
+   * `protocols.json` – Protokolldefinitionen, erzeugt aus den FHEM‑Perl‑Quellen via `tools/convert.pl`.
 
 4. **Controller** (`signalduino.controller`):
    * `SignalduinoController` – Zentrale Steuerungsklasse, koordiniert Transport, Parser und MQTT.
