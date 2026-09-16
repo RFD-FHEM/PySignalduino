@@ -1,0 +1,167 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/RFD-FHEM/PySignalduino/decoders/spec_schema.json",
+  "title": "Decoder specification",
+  "description": "Declarative description of how one protocol's payload becomes sensor values (ADR-006).",
+  "type": "object",
+  "required": ["protocol_id", "model", "fields"],
+  "additionalProperties": false,
+  "properties": {
+    "protocol_id": {
+      "type": "string",
+      "pattern": "^[0-9]+$",
+      "description": "Protocol id as used in protocols.json."
+    },
+    "model": {
+      "type": "string",
+      "description": "Model name, kept identical to the FHEM one so device ids match."
+    },
+    "sensor_type": {
+      "type": "string",
+      "description": "Human readable list of devices this covers."
+    },
+    "comment": {"type": "string"},
+    "prematch": {
+      "type": "string",
+      "format": "regex",
+      "description": "Regex the raw hex must match. Defaults to modulematch from protocols.json."
+    },
+    "id_field": {
+      "type": "string",
+      "default": "id",
+      "description": "Which decoded field identifies the physical sensor."
+    },
+    "channel_field": {
+      "type": "string",
+      "default": "channel",
+      "description": "Which decoded field carries the channel, if any."
+    },
+    "crc": {"$ref": "#/definitions/crc"},
+    "variant_selector": {"$ref": "#/definitions/field"},
+    "variants": {
+      "type": "object",
+      "description": "Keyed by the variant selector's value; each holds additional fields.",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "model": {"type": "string"},
+          "sensor_type": {"type": "string"},
+          "comment": {"type": "string"},
+          "fields": {"$ref": "#/definitions/fields"},
+          "limits": {"$ref": "#/definitions/limits"}
+        }
+      }
+    },
+    "fields": {"$ref": "#/definitions/fields"},
+    "limits": {"$ref": "#/definitions/limits"}
+  },
+  "definitions": {
+    "fields": {
+      "type": "object",
+      "description": "Reading name to extraction rule. Reading names follow the FHEM ones.",
+      "minProperties": 1,
+      "additionalProperties": {"$ref": "#/definitions/field"}
+    },
+    "field": {
+      "type": "object",
+      "required": ["source", "from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": ["bits", "hex"],
+          "description": "bits indexes the demodulated bit string, hex the payload characters."
+        },
+        "from": {"type": "integer", "minimum": 0, "description": "First index, inclusive."},
+        "to": {"type": "integer", "minimum": 0, "description": "Last index, inclusive."},
+        "type": {
+          "enum": ["int", "float", "str", "bool"],
+          "default": "int",
+          "description": "str keeps the raw slice unless the rule also asks for arithmetic (scale, offset, sign_bit, round, bcd, map, derive), in which case the computed value is stringified."
+        },
+        "bcd": {
+          "type": "boolean",
+          "default": false,
+          "description": "Read the slice as binary coded decimal."
+        },
+        "sign_bit": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Index of a separate sign bit, in the same source as the value."
+        },
+        "sign_style": {
+          "enum": ["negate", "offset", "twos_complement"],
+          "default": "negate",
+          "description": "How the sign bit turns the value negative."
+        },
+        "sign_offset": {
+          "type": "integer",
+          "description": "Subtracted from the value when sign_style is offset, e.g. 1024."
+        },
+        "sign_value": {
+          "enum": ["0", "1"],
+          "default": "1",
+          "description": "Which sign bit value means negative."
+        },
+        "offset": {"type": "number", "default": 0, "description": "Added before scaling."},
+        "scale": {"type": "number", "default": 1, "description": "Applied after the offset."},
+        "round": {"type": "integer", "minimum": 0, "description": "Decimal places of the result."},
+        "map": {
+          "type": "object",
+          "description": "Maps the raw value, as a string, onto a final value.",
+          "additionalProperties": true
+        },
+        "derive": {
+          "type": "string",
+          "description": "Name of a derivation applied after extraction, e.g. wind_dir_text."
+        },
+        "derive_from": {
+          "type": "string",
+          "description": "Field the derivation reads instead of this one's own slice."
+        },
+        "unit": {"type": "string", "description": "Unit reported alongside the value."}
+      }
+    },
+    "crc": {
+      "type": "object",
+      "required": ["algorithm", "data", "check"],
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "enum": [
+            "crc8", "crc16", "crc16lsb", "sum8", "xor8",
+            "lfsr_digest8", "lfsr_digest8_reflect"
+          ]
+        },
+        "data": {"$ref": "#/definitions/hexRange"},
+        "check": {"$ref": "#/definitions/hexRange"},
+        "params": {
+          "type": "object",
+          "description": "Algorithm parameters such as poly, init, gen or key.",
+          "additionalProperties": {"type": ["integer", "boolean"]}
+        }
+      }
+    },
+    "hexRange": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": false,
+      "description": "Inclusive character range in the raw hex payload.",
+      "properties": {
+        "from": {"type": "integer", "minimum": 0},
+        "to": {"type": "integer", "minimum": 0}
+      }
+    },
+    "limits": {
+      "type": "object",
+      "description": "Plausibility range per field. A violation discards the whole telegram.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "number"},
+        "minItems": 2,
+        "maxItems": 2
+      }
+    }
+  }
+}

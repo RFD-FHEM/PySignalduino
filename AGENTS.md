@@ -15,6 +15,33 @@ This file provides guidance to agents when working with code in this repository.
   oder um eine längere Laufzeit zu analysieren:
   `python3 main.py --timeout 30`
 
+## Testausführung im Devcontainer
+- **Tests laufen im Devcontainer des Projekts, nicht in einer selbst angelegten Umgebung.** Im
+  Repository-Wurzelverzeichnis existiert bewusst kein Virtualenv; die Abhängigkeiten und die
+  Begleitdienste (Mosquitto, FHEM) sind in `.devcontainer/` definiert. Eine ad-hoc erzeugte
+  Umgebung läuft daran vorbei, kann abweichende Paketversionen ziehen und liefert Messergebnisse,
+  die nicht die des Projekts sind.
+- In VS Code genügt "Reopen in Container"; der `postCreateCommand` aus
+  `.devcontainer/devcontainer.json` installiert `requirements-dev.txt` und `requirements.txt`.
+- Ohne VS Code lässt sich derselbe Service direkt über Compose nutzen:
+  ```bash
+  cd .devcontainer
+  docker compose up -d devcontainer
+  docker compose exec -T devcontainer bash -lc \
+    "cd /workspaces/PySignalduino && pip3 install --quiet --user -r requirements-dev.txt -r requirements.txt"
+  docker compose exec -T devcontainer bash -lc \
+    "cd /workspaces/PySignalduino && timeout 120 python3 -m pytest -q"
+  ```
+  Hinweis: Über Compose gestartet greifen die `features` aus `devcontainer.json` (Node, uv,
+  AsciiDoc) nicht, und der `postCreateCommand` läuft nicht automatisch — deshalb der explizite
+  `pip3 install`. Für die Testsuite reicht das aus.
+- Der FHEM-Dienst desselben Compose-Setups schreibt nach `.devcontainer/fhem-data/`. Das Image legt
+  diese Dateien standardmäßig unter UID/GID 6061 an, wodurch Git sie auf dem Host nicht mehr
+  ersetzen kann — ein Branch-Wechsel scheitert dann mit `unable to unlink old '<datei>':
+  Permission denied`. Abhilfe schafft, im `fhem`-Service die Variablen `FHEM_UID` und `FHEM_GID`
+  auf den eigenen Host-Benutzer zu setzen (`id -u` / `id -g`); der Dateibesitz sollte dagegen
+  nicht per `chown` umgebogen werden, da FHEM im Container sonst nicht mehr schreiben kann.
+
 ## Test Timeout Configuration
 - Für pytest wurde ein globaler Timeout von 30 Sekunden in der `pyproject.toml` konfiguriert:
   ```toml

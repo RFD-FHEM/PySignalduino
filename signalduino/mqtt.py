@@ -241,7 +241,10 @@ class MqttPublisher:
         
         # Remove empty or non-useful fields for publication
         message_dict.pop("raw", None) # Do not publish raw frame data by default
-        
+        # Stage 2 results have their own topics (sensors/, rtl433/, fhem/), so this
+        # topic keeps the exact shape consumers already rely on. See ADR-006.
+        message_dict.pop("sensor", None)
+
         return json.dumps(message_dict, indent=4)
 
     async def publish_simple(self, subtopic: str, payload: str, retain: bool = False) -> None:

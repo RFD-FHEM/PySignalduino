@@ -135,6 +135,8 @@ class ManchesterMixin:
         
         metadata = {
             "protocol_id": protocol_id,
+            "bits": bit_data,
+            "bit_length": len(bit_data),
             "rssi": None,
             "freq_afc": None,
         }

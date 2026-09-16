@@ -1,0 +1,135 @@
+= Decoder-Spezifikationen (Stufe 2)
+:sectlinks:
+
+Der Empfang läuft in zwei Stufen, wie in link:../architecture/decisions/ADR-006-sensor-decoding-layer.adoc[ADR-006] beschrieben:
+
+. *Stufe 1* — `signalduino/parser` und `sd_protocols` machen aus Pulsen eine Bitfolge und daraus einen Hex-Payload.
+. *Stufe 2* — `signalduino/decoders` macht daraus Messwerte: Temperatur, Luftfeuchte, Batteriezustand, Sensor-ID, Kanal.
+
+Dieses Kapitel beschreibt, wie man Stufe 2 um ein Protokoll erweitert.
+
+== Der Regelfall: eine JSON-Datei
+
+Die meisten Protokolle lassen sich vollständig als Daten beschreiben. Eine Spezifikation liegt unter `signalduino/decoders/specs/` und wird beim Start gegen `spec_schema.json` validiert; ein Tippfehler fällt damit sofort beim Laden auf und nicht still bei jedem Telegramm.
+
+[source,json]
+----
+{
+  "protocol_id": "900",
+  "model": "TEST_900",
+  "sensor_type": "Beispielgerät",
+  "prematch": "^12",
+  "crc": {
+    "algorithm": "crc8",
+    "data":  { "from": 0, "to": 5 },
+    "check": { "from": 6, "to": 7 }
+  },
+  "fields": {
+    "id":          { "source": "hex",  "from": 0,  "to": 1,  "type": "str" },
+    "channel":     { "source": "bits", "from": 17, "to": 19, "offset": 1 },
+    "temperature": { "source": "bits", "from": 22, "to": 31,
+                     "type": "float", "offset": -400, "scale": 0.1, "unit": "°C" }
+  },
+  "limits": { "temperature": [-40, 60] }
+}
+----
+
+Die Namen unter `fields` sind bewusst die FHEM-Readingnamen (`temperature`, `humidity`, `batteryState`, `channel`, ...). Sie sind über rund 150 Protokolle hinweg etabliert, machen den Paritätstest gegen die FHEM-Testvektoren zu einem direkten Vergleich und werden von den Ausgabeadaptern auf deren jeweilige Namen abgebildet.
+
+== Indizes
+
+`from` und `to` sind **nullbasiert und einschließlich** — `from: 18, to: 27` ist ein Zehn-Bit-Feld. Das entspricht `SD_WS_binaryToNumber($bitData, 18, 27)` in FHEM, sodass sich die Bitpositionen aus den Kommentaren der Perl-Module direkt übernehmen lassen.
+
+`source` wählt die Datenquelle:
+
+* `bits` — die demodulierte Bitfolge aus `metadata["bits"]`. Fehlt sie, etwa bei MN-Telegrammen, wird sie aus dem Hex-Payload erzeugt.
+* `hex` — die Zeichen des Hex-Payloads, ohne Präambel.
+
+== Rechenschritte eines Feldes
+
+Die Reihenfolge liegt fest und ist so gewählt, dass eine Regel sich liest wie die FHEM-Zeile, die sie ersetzt:
+
+. Bereich ausschneiden
+. `bcd` — als binär codierte Dezimalzahl lesen
+. `sign_bit` mit `sign_style` anwenden
+. `offset` addieren
+. `scale` multiplizieren
+. `round` auf Nachkommastellen kürzen
+. `map` — Rohwert über eine Wertetabelle abbilden
+. `derive` — abgeleiteten Wert berechnen
+
+[cols="1,3", options="header"]
+|===
+| Schlüssel | Bedeutung
+
+| `type`
+| `int` (Vorgabe), `float`, `str`, `bool`. `str` liefert den Rohausschnitt, solange die Regel keine Rechenoperation enthält — typisch für Sensor-IDs.
+
+| `sign_style`
+| `offset` zieht `sign_offset` ab (das FHEM-Idiom `wert - 1024`), `negate` kehrt das Vorzeichen um, `twos_complement` liest den Bereich im Zweierkomplement.
+
+| `sign_value`
+| Welcher Wert des Vorzeichenbits negativ bedeutet, Vorgabe `"1"`.
+
+| `map`
+| Bildet den Rohwert ab, z. B. `{"0": "ok", "1": "low"}` für den Batteriezustand.
+
+| `derive`
+| Abgeleiteter Wert, derzeit `wind_dir_text`. Mit `derive_from` rechnet die Regel auf einem bereits dekodierten Feld statt auf einem eigenen Bereich.
+
+| `unit`
+| Einheit, die im `SensorEvent` neben dem Wert geführt wird.
+|===
+
+== Prüfsummen
+
+`crc` verweist auf einen Algorithmus aus `signalduino/decoders/crc.py` und auf zwei Bereiche des Hex-Payloads: `data` ist der geprüfte Bereich, `check` die im Telegramm mitgesendete Prüfsumme. Beide Bereiche sind Zeichenindizes und müssen ganze Bytes umfassen.
+
+Verfügbar sind `crc8`, `crc16`, `crc16lsb`, `sum8`, `xor8`, `lfsr_digest8` und `lfsr_digest8_reflect`. Abweichende Parameter stehen unter `params`, etwa `{"poly": 49, "init": 255}`.
+
+Schlägt die Prüfung fehl, wird das Telegramm verworfen — es entsteht kein `SensorEvent`. Genauso wirkt eine Verletzung von `limits`; das entspricht dem Verhalten der FHEM-Module, die bei unplausiblen Werten ebenfalls nichts liefern.
+
+== Varianten
+
+Trägt ein Protokoll je nach Telegrammtyp unterschiedliche Felder, wählt `variant_selector` den passenden Block aus `variants` aus. Die Felder unter `fields` gelten für alle Varianten, der Variantenblock ergänzt und überschreibt sie; `model` und `sensor_type` lassen sich pro Variante anpassen.
+
+[source,json]
+----
+{
+  "variant_selector": { "source": "hex", "from": 0, "to": 1, "type": "str" },
+  "fields":   { "id": { "source": "hex", "from": 2, "to": 3, "type": "str" } },
+  "variants": {
+    "30": { "model": "SD_WS_125_TH", "fields": { "temperature": { "…": "…" } } },
+    "52": { "model": "SD_WS_125_T",  "fields": { "…": "…" } }
+  }
+}
+----
+
+== Der Ausnahmefall: ein Python-Decoder
+
+Lässt sich ein Protokoll nicht als Daten beschreiben — etwa weil Felder voneinander abhängen, die Prüfsumme über einen umsortierten Payload läuft oder der Modellname selbst aus den Daten entsteht — gehört es nach `signalduino/decoders/custom/`:
+
+[source,python]
+----
+from ..registry import register_decoder
+
+@register_decoder("115")
+def decode_bresser_5in1(message):
+    ...
+    return SensorEvent(...)
+----
+
+Ein solcher Decoder hat Vorrang vor einer gleichnamigen Spezifikation. Damit lässt sich ein Protokoll später von der einen Form in die andere überführen, ohne etwas zu löschen.
+
+== Routing
+
+Gefunden wird ein Decoder über die `protocol_id`, die in `DecodedMessage` bereits vorliegt. Die Felder aus `protocols.json` dienen dabei nur der Vorbereitung: `preamble` trennt den Hex-Teil ab, `modulematch` ist der Vorgabewert für `prematch`, und `clientmodule` gruppiert die Protokolle für Topics und Berichte.
+
+== Neues Protokoll hinzufügen
+
+. Bitlayout und Prüfsumme im zugehörigen FHEM-Client-Modul nachlesen, etwa in `14_SD_WS.pm`.
+. Spezifikation unter `signalduino/decoders/specs/` anlegen.
+. Testvektoren vorhanden? `tests/data/fhem/` enthält die FHEM-Vektoren samt erwarteter Readings; ergänzt werden sie mit `tools/fhem_testdata_import.py`.
+. Tests ausführen (siehe `AGENTS.md`, Abschnitt zur Testausführung im Devcontainer).
+
+Stufe 2 kann Stufe 1 nicht beschädigen: Jeder Fehler im Decoder führt zu `sensor = None`, während der bisherige Nachrichtenfluss unverändert weiterläuft.

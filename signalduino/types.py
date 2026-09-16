@@ -22,6 +22,32 @@ class RawFrame:
 
 
 @dataclass(slots=True)
+class SensorEvent:
+    """Interpreted measurements of a single received frame (decoding stage 2).
+
+    While DecodedMessage carries the demodulated payload, this carries what the
+    payload means: temperature, humidity, battery state and so on. The keys used
+    in ``values`` are the FHEM reading names, because those are the de facto
+    standard across the ported protocols and keep the parity tests against the
+    FHEM test vectors a plain comparison. Output adapters map them to their own
+    naming.
+    """
+
+    protocol_id: str
+    model: str
+    sensor_type: str
+    device_id: str
+    sensor_id: str
+    values: dict[str, Any] = field(default_factory=dict)
+    units: dict[str, str] = field(default_factory=dict)
+    channel: Optional[int] = None
+    raw_hex: str = ""
+    dmsg: str = ""
+    rssi: Optional[float] = None
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass(slots=True)
 class DecodedMessage:
     """Higher-level frame after running through the parser."""
 
@@ -29,6 +55,7 @@ class DecodedMessage:
     payload: str
     raw: RawFrame
     metadata: dict = field(default_factory=dict)
+    sensor: Optional[SensorEvent] = None
 
 
 @dataclass(slots=True)

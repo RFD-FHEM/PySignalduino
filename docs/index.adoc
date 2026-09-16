@@ -127,4 +127,6 @@ include::02_developer_guide/architecture.adoc[]
 
 include::02_developer_guide/contribution.adoc[]
 
+include::02_developer_guide/decoder_specs.adoc[]
+
 include::03_protocol_reference/protocol_details.adoc[]

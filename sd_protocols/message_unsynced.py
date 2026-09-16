@@ -283,6 +283,7 @@ class MessageUnsyncedMixin:
                     "protocol_id": pid,
                     "payload": final_payload,
                     "meta": {
+                        "bits": bit_str,
                         "bit_length": len(bit_str),
                         "rssi": msg_data.get('R'),
                         "clock": clock_abs

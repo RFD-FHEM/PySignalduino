@@ -61,6 +61,13 @@ PySignalDuino würde eine neue Konfigurationsoption erhalten, die es ihm erlaubt
 
 === Option 4: Portierung der Dekodier-Logik (Client-Module) nach PySignalDuino
 
+[NOTE]
+====
+*Entschieden.* Diese Option wurde mit link:../decisions/ADR-006-sensor-decoding-layer.adoc[ADR-006]
+angenommen und dort ausgearbeitet. Der dort beschriebene FHEM-Legacy-Adapter deckt zusätzlich den
+Kompatibilitätsbedarf ab, den Option 2 adressiert hätte, ohne ein eigenes Perl-Modul zu erfordern.
+====
+
 Anstatt nur Rohdaten zu senden, übernimmt PySignalDuino auch die Interpretation der Daten (z.B. Umrechnung von Hex-Werten in Temperatur, Luftfeuchtigkeit, Batteriestatus, Windgeschwindigkeit etc.). Das entspricht der Logik, die aktuell in FHEM-Modulen wie `14_SD_WS.pm` liegt.
 
 [cols="1,3"]
@@ -88,6 +95,7 @@ PySignalDuino publiziert die demodulierten Nachrichten in einem standardisierten
 **Fazit:** 
 *   Varianten, die das standardisierte JSON von PySignalDuino beibehalten (Option 1, 1b, 2), sind für eine Koexistenz gut geeignet.
 *   **Option 4** ist der klare Gewinner für moderne IoT-Landschaften (HA, Node-RED), erfordert aber den größten Aufwand in PySignalDuino.
+*   **Umgesetzt wird Option 4**, entschieden in link:../decisions/ADR-006-sensor-decoding-layer.adoc[ADR-006]. Der Aufwand wird durch eine datengetriebene Dekodier-Spezifikation beherrschbar gemacht, sodass ein neues Protokoll im Regelfall eine JSON-Datei statt Python-Code ist.
 
 
 == Grobe POC-Implementierungen

@@ -1,0 +1,173 @@
+= ADR 006: Sensorwert-Dekodierschicht (Stufe 2)
+:doctype: article :encoding: utf-8 :lang: de :status: Accepted :decided-at: 2026-09-16 :decided-by: Architecture Owner
+
+[NOTE]
+====
+Die Nummer 007 ist auf dem Branch `feat/extendRAWmqtt` bereits für das MQTT-Raw-Kommando vergeben
+und bleibt reserviert. Dieses ADR füllt bewusst die Lücke 006, damit die Nummerierung lückenlos
+bleibt.
+====
+
+[#adr-context]
+== Kontext
+
+PySignalduino deckt heute nur die erste Hälfte der Verarbeitungskette ab, die FHEM zweistufig löst:
+
+. *Stufe 1 -- Demodulation:* Pulse und Pausen werden zu einer Bitfolge und daraus zu einem
+  Hex-Payload. Das leistet PySignalduino vollständig über `signalduino/parser/` und `sd_protocols/`.
+. *Stufe 2 -- Interpretation:* Aus dem Hex-Payload werden konkrete Messwerte -- Temperatur,
+  Luftfeuchte, Batteriezustand, Sensor-ID, Kanal. Diese Stufe fehlt vollständig; in FHEM liegt sie
+  in den Client-Modulen wie `14_SD_WS.pm`.
+
+Das Ergebnis der Verarbeitung ist heute `DecodedMessage(protocol_id, payload, raw, metadata)` aus
+`signalduino/types.py`, wobei `payload` ein Hex-String ist und `metadata` lediglich `bit_length`,
+`rssi` und `clock` enthält. Ein Feld für Messwerte existiert nicht.
+`sd_protocols/postdemodulation.py` prüft zwar Prüfsummen und Parität, liefert aber weiterhin nur
+bereinigte Bits -- das ist Validierung, keine Interpretation.
+
+Daraus folgt die praktische Einschränkung, die dieses ADR auflöst: PySignalduino ist faktisch nur
+mit FHEM nutzbar, weil erst FHEM aus den Rohdaten Messwerte macht. Andere Konsumenten wie Home
+Assistant, Node-RED oder ioBroker müssten die Dekodierlogik jeweils selbst nachbauen.
+
+Vorgearbeitet wurde bereits an drei Stellen:
+
+* `sd_protocols/protocols.json` enthält für 160 Protokolle die aus FHEM übernommenen Felder
+  `clientmodule`, `preamble`, `modulematch` und `postamble` -- die Datengrundlage für das Routing
+  einer zweiten Stufe ist also vorhanden.
+* `sd_protocols/helpers.py` berechnet in `ConvLaCrosse()` bereits echte Messwerte, serialisiert sie
+  aber sofort wieder in einen FHEM-Legacy-String, sodass sie verloren gehen.
+* `docs/architecture/proposals/fhem_mqtt_integration.adoc` beschreibt dieses Vorhaben als
+  "Option 4" und bewertet es als Gold-Standard mit sehr hohem Aufwand, ohne es zu entscheiden.
+
+[#adr-decision]
+== Entscheidung
+
+Wir führen eine eigene Dekodierschicht `signalduino/decoders/` ein, die zwischen Parser und Ausgabe
+sitzt, sowie eine Adapterschicht `signalduino/output/`:
+
+----
+transport -> parser (Stufe 1: Bits/Hex) -> decoders (Stufe 2: Werte) -> output (Adapter) -> mqtt
+----
+
+*Ort der Schicht.* Die Dekodierung erfolgt weder in `sd_protocols/` noch im MQTT-Publisher.
+`sd_protocols/` ist die mechanische Portierung der Perl-Quellen und wird über `tools/convert.pl`
+regeneriert; dort abgelegter Code ginge beim nächsten Lauf verloren oder erzwänge Konfliktlösung.
+Der MQTT-Publisher scheidet aus, weil die Messwerte auch für `message_callback` und künftige
+Nicht-MQTT-Senken verfügbar sein müssen. Aufgerufen wird die Schicht in `signalduino/controller.py`
+innerhalb desselben `asyncio.to_thread`-Aufrufs wie der Parser, da es sich um CPU-gebundene
+Bitarithmetik handelt.
+
+*Datenmodell.* Eine neue Dataclass `SensorEvent` nimmt Modell, Sensortyp, Geräte-ID, Kanal, die
+Messwerte und deren Einheiten auf. `DecodedMessage` erhält genau ein zusätzliches, optionales Feld
+`sensor`. Damit bleiben alle bestehenden Signaturen und der bestehende Nachrichtenfluss unverändert.
+Die Schlüssel in `SensorEvent.values` sind die FHEM-Readingnamen (`temperature`, `humidity`,
+`batteryState`, `channel`, ...). Diese Namen sind für rund 150 Protokolle ein De-facto-Standard;
+sie als kanonische Schlüssel zu verwenden macht den Paritätstest gegen die FHEM-Testdaten zu einem
+direkten Vergleich und die Mapping-Tabellen der Ausgabeadapter wiederverwendbar.
+
+*Skalierung.* Die Dekodiervorschriften werden als validierte JSON-Spezifikationen abgelegt und von
+einem gemeinsamen Evaluator ausgewertet, statt pro Protokoll ein Python-Modul zu schreiben. Das
+Muster der FHEM-Client-Module ist überwiegend mechanisch -- Bitbereich, Skalierung, Offset,
+Vorzeichen, Wertetabelle -- und damit deklarativ abbildbar. JSON und nicht YAML, weil `jsonschema`
+bereits Abhängigkeit des Projekts ist. Für Protokolle, die sich nicht deklarativ beschreiben lassen,
+existiert eine Registrierung von Python-Dekodern als Ausweg.
+
+*Routing.* Primärschlüssel ist die `protocol_id`, die in `DecodedMessage` bereits vorliegt. FHEM
+muss den Umweg über Präambel-Strings gehen, weil seine `Dispatch()`-Funktion nur einen String kennt;
+in Python wäre das ein unnötiger Informationsverlust. Die Felder aus `protocols.json` werden
+weiterhin genutzt: `preamble` zum Abtrennen des Hex-Teils und zum Aufbau des Legacy-Strings,
+`modulematch` als Vorabprüfung, `clientmodule` zur Gruppierung.
+
+*Robustheit.* Stufe 2 darf Stufe 1 niemals beeinträchtigen. Der Dekodieraufruf ist vollständig
+gekapselt; schlägt er fehl, bleibt `sensor` leer und die bisherige Ausgabe unverändert. Für die
+überwiegende Mehrheit der Protokolle ist genau das zunächst der Normalfall.
+
+*Ausgabeformate.* Drei Adapter rendern dasselbe interne Modell in unterschiedliche Zielformate:
+FHEM-Legacy-String, rtl_433-kompatibles JSON und Home-Assistant-MQTT-Discovery. Die Adapter sind
+reine Funktionen ohne MQTT-Kenntnis und einzeln über Umgebungsvariablen zuschaltbar.
+
+*Topic-Struktur.* Die Topics trennen Ereignis von Zustand auf oberster Ebene:
+
+[cols="2,3,1", options="header"]
+|===
+| Zweck | Topic | Retain
+
+| Stufe 1 (unverändert)
+| `signalduino/v1/state/messages`
+| nein
+
+| FHEM-Legacy (Ereignis)
+| `signalduino/v1/fhem/<clientmodule>/<protocol_id>`
+| nein
+
+| rtl_433 (Ereignis)
+| `signalduino/v1/rtl433/<model>/<sensor_id>`
+| nein
+
+| Kanonischer Zustand
+| `signalduino/v1/sensors/<device_id>`
+| ja
+
+| Home-Assistant-Discovery
+| `homeassistant/<component>/pysd_<device_id>/<field>/config`
+| ja
+
+| Verfügbarkeit (LWT)
+| `signalduino/v1/status`
+| ja
+|===
+
+Ereignis-Topics tragen ein einzelnes Telegramm und werden nicht vorgehalten; Zustands-Topics tragen
+den letzten bekannten Wert eines Geräts und werden vorgehalten, damit ein neu verbundener Konsument
+sofort einen Wert sieht, statt auf das nächste Funktelegramm zu warten. Das bestehende
+`state/messages` bleibt bewusst unverändert, obwohl es nach dieser Einteilung ein Ereignis ist --
+eine Umbenennung wäre ein Bruch für bestehende Konsumenten und bleibt einer Version 2 des
+Topic-Schemas vorbehalten.
+
+[#adr-consequences]
+== Konsequenzen
+
+=== Positive Konsequenzen
+
+* PySignalduino wird eigenständig nutzbar. Konsumenten erhalten unmittelbar verwertbare
+  Schlüssel-Wert-Paare, ohne proprietäre Dekodierlogik im Zielsystem.
+* Home Assistant erkennt Sensoren über MQTT-Discovery automatisch; FHEM bleibt über den
+  Legacy-Adapter vollständig bedienbar und verliert keine Funktion.
+* Ein neues Protokoll ist im Regelfall eine JSON-Datei plus ein Testvektor, kein Python-Code. Das
+  ist die Voraussetzung dafür, perspektivisch Parität zu den FHEM-Client-Modulen zu erreichen.
+* Die FHEM-Testdaten unter `t/FHEM/<modul>/testData.json` enthalten neben den Rohtelegrammen auch
+  die erwarteten Readings und dienen damit als unmittelbare Paritätsreferenz.
+* Der bestehende Nachrichtenfluss bleibt unangetastet; der FHEM-Adapter funktioniert ab dem ersten
+  Tag für alle 160 Protokolle, weil er nicht von Stufe 2 abhängt.
+
+=== Negative Konsequenzen
+
+* Der Gesamtaufwand bis zur vollen Parität ist hoch; die Dekodierlogik von über 150 Protokollen
+  wandert schrittweise in dieses Projekt und muss dort gepflegt werden.
+* Mit der Spezifikationssprache entsteht ein projekteigenes Format, das dokumentiert, versioniert
+  und gegen ein Schema validiert werden muss.
+* Die Entscheidung, FHEM-Readingnamen als kanonische Schlüssel zu verwenden, bindet das Datenmodell
+  an eine fremde Namenskonvention. Der Nutzen für Paritätstests und Migration überwiegt, die
+  Abbildung auf andere Konventionen erfolgt in den Adaptern.
+* Solange für ein Protokoll keine Spezifikation existiert, liefert die Schicht keine Messwerte. Die
+  Abdeckung wächst schrittweise und muss als Kennzahl sichtbar gemacht werden.
+* Zusätzliche Topics und vorgehaltene Discovery-Nachrichten erhöhen die Last auf dem Broker.
+
+[#adr-alternatives]
+== Alternativen
+
+* *Dekodierung in `sd_protocols/` (abgelehnt):* Naheliegend, weil dort bereits Protokollwissen
+  liegt. Das Verzeichnis wird jedoch aus den Perl-Quellen generiert; neu geschriebener Code würde
+  bei jeder Neugenerierung zum Konflikt.
+* *Dekodierung im MQTT-Publisher (abgelehnt):* Die Messwerte stünden dann ausschließlich dem
+  MQTT-Pfad zur Verfügung und weder `message_callback` noch künftigen Senken.
+* *Ein Python-Modul pro Protokoll (abgelehnt):* Skaliert nicht auf über 150 Protokolle und führt zu
+  massiver Codeverdopplung, da sich die Dekodierung überwiegend in Bitbereichen und Skalierungen
+  erschöpft.
+* *Beibehaltung der FHEM-Bridge (Option 2 des Proposals, zurückgestellt):* Ein FHEM-Perl-Modul, das
+  das JSON zurück in Dispatch-Strings übersetzt, wäre deutlich billiger, löst aber die
+  Grundabhängigkeit von FHEM nicht auf und hilft anderen Zielsystemen nicht. Der Legacy-Adapter
+  dieses ADR deckt den Kompatibilitätsbedarf ohne zusätzliches Perl-Modul ab.
+* *Neue Topic-Wurzel `events/` mit Migration von `state/messages` (zurückgestellt):* Semantisch
+  sauberer, wäre aber ein Bruch für bestehende Konsumenten innerhalb von Version 1 des
+  Topic-Schemas. Vorgesehen für Version 2.
