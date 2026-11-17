@@ -43,35 +43,46 @@ class BaseTransport:
 
 
 class SerialTransport(BaseTransport):
-    """Placeholder for asynchronous serial transport."""
+    """Exclusive serial transport using pyserial-asyncio streams."""
 
     def __init__(self, port: str, baudrate: int = 115200, read_timeout: float = 0.5):
         self.port = port
         self.baudrate = baudrate
         self.read_timeout = read_timeout
-        self._serial: Any = None # Placeholder für asynchrones Serial-Objekt
+        self._reader = None
+        self._writer = None
 
     async def open(self) -> None:
-        # Hier wäre die Logik für `async_serial.to_serial_port()` oder ähnliches
-        raise NotImplementedError("Asynchronous serial transport is not implemented yet.")
+        import serial_asyncio
+        self._reader, self._writer = await serial_asyncio.open_serial_connection(
+            url=self.port, baudrate=self.baudrate, exclusive=True, limit=8192
+        )
 
     async def close(self) -> None:
-        # Hier wäre die Logik für das Schließen des asynchronen Ports
-        pass
+        if self._writer:
+            self._writer.close()
+            try:
+                await self._writer.wait_closed()
+            finally:
+                self._writer = None
+                self._reader = None
 
     async def write_line(self, data: str) -> None:
-        # Platzhalter: Müsste zu `await self._writer.write(payload)` werden
-        await asyncio.sleep(0) # Nicht-blockierende Wartezeit
-        raise NotImplementedError("Asynchronous serial transport is not implemented yet.")
+        if self.closed():
+            raise SignalduinoConnectionError("Serial port is closed")
+        self._writer.write((data + '\n').encode('latin-1'))
+        await self._writer.drain()
 
     async def readline(self) -> Optional[str]:
-        # Platzhalter: Müsste zu `await self._reader.readline()` werden
-        # Simuliere das Warten auf eine Zeile (blockiert effektiv)
-        await asyncio.Future() # Hängt die Coroutine auf
-        raise NotImplementedError("Asynchronous serial transport is not implemented yet.")
+        if self.closed():
+            raise SignalduinoConnectionError("Serial port is closed")
+        raw = await self._reader.readline()
+        if not raw:
+            raise SignalduinoConnectionError("Serial port disconnected")
+        return raw.decode('latin-1').strip()
 
     def closed(self) -> bool:
-        return self._serial is None
+        return self._writer is None or self._writer.is_closing()
 
         
 class TCPTransport(BaseTransport):

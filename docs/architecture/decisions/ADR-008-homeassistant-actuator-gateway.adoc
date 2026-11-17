@@ -1,0 +1,33 @@
+= ADR 008: Opt-in Home Assistant actuator gateway
+:doctype: article
+:lang: en
+:status: Proposed
+:decided-by: Pending architecture-owner review
+
+== Context
+
+ADR-006 defines native payload interpretation and pure output adapters. IT v3
+and A-OK add one-way actuators whose last motion command must not be treated as
+measured position or replayed after reconnect. ADR-007 remains reserved by the
+existing raw-command feature branch.
+
+== Proposed decision
+
+Extend ADR-006 through native custom decoders, a pure Home Assistant output
+formatter and a separately selected gateway. Preserve the existing raw/FHEM
+entry point. Persist only validated learned routing descriptors and discovery
+in the broker; publish actuator action state as non-retained. The explicit
+gateway topic tree keeps this behavior independent from the existing canonical
+sensor-state topics.
+
+See xref:../proposals/homeassistant_usb_gateway.adoc[the implementation proposal]
+for interfaces, diagrams, permissions and acceptance evidence.
+
+== Consequences and alternatives
+
+Users can reuse USB SIGNALduino hardware directly with HA MQTT discovery.
+Default library/CLI behavior and native stage-one payloads remain available.
+The optional runtime adds a small MQTT dependency on an explicitly qualified
+aiomqtt version because negative PUBACK handling uses its callback boundary.
+Retaining inferred motion state would fabricate freshness; embedding decoders
+in the publisher would couple protocol semantics to a particular output.

@@ -107,6 +107,12 @@ class TestVariantMerging:
 
 class TestRegistryLoading:
 
+    @pytest.fixture(autouse=True)
+    def specifications_only(self, monkeypatch):
+        """Synthetic spec counts must not depend on shipped custom decoders."""
+        from signalduino.decoders import registry as registry_module
+        monkeypatch.setattr(registry_module, "registered_custom", lambda: {})
+
     def test_loads_specifications_from_a_directory(self, tmp_path):
         write_spec(tmp_path, "test_999.json", MINIMAL_SPEC)
         registry = DecoderRegistry(specs_dir=tmp_path)

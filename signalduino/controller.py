@@ -206,18 +206,25 @@ class SignalduinoController:
             return None
 
     async def __aenter__(self) -> "SignalduinoController":
-        await self.transport.open()
-        if self.mqtt_publisher:
-            try:
-                await self.mqtt_publisher.__aenter__()
-            except MqttError as exc:
-                self.logger.warning("Konnte keine Verbindung zum MQTT-Broker herstellen: %s", exc)
         try:
-            await self.initialize() # Wichtig: Initialisierung nach dem Öffnen des Transports und Publishers
-        except SignalduinoConnectionError as exc:
-            self.logger.error("Verbindungsfehler während der Initialisierung, setze fort: %s", exc)
-            
-        return self
+            await self.transport.open()
+            if self.mqtt_publisher:
+                try:
+                    await self.mqtt_publisher.__aenter__()
+                except MqttError as exc:
+                    self.logger.warning("Konnte keine Verbindung zum MQTT-Broker herstellen: %s", exc)
+            try:
+                await self.initialize()
+            except SignalduinoConnectionError as exc:
+                # Preserve the upstream context contract; the HA driver verifies
+                # cached firmware identity and worker health before going online.
+                self.logger.error("Verbindungsfehler während der Initialisierung, setze fort: %s", exc)
+            return self
+        except BaseException as error:
+            # Context managers do not call __aexit__ if __aenter__ fails.
+            # In particular cancellation must release the exclusive serial port.
+            await self.__aexit__(type(error), error, error.__traceback__)
+            raise
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         self._stop_event.set()
@@ -250,11 +257,13 @@ class SignalduinoController:
                     # Führe die rechenintensive Parsing-Logik in einem separaten Thread aus.
                     # Dadurch wird die asyncio-Event-Schleife nicht blockiert.
                     decoded = await asyncio.to_thread(self.parser.parse_line, line)
-                    if decoded and self.message_callback:
-                        await self.message_callback(decoded[0])
-                    if self.mqtt_publisher and decoded:
-                        # Verwende die neue MqttPublisher.publish(message: DecodedMessage) Signatur
-                        await self.mqtt_publisher.publish(decoded[0])
+                    # A single RF burst can contain several decoded messages.
+                    # PR #14 also processes every result, using its alternate model.
+                    for message in decoded:
+                        if self.message_callback:
+                            await self.message_callback(message)
+                        if self.mqtt_publisher:
+                            await self.mqtt_publisher.publish(message)
                     await self._handle_as_command_response(line)
                 
                 # Ensure a minimal yield time for other tasks when the queue is rapidly processed.

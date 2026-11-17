@@ -1,0 +1,9 @@
+flowchart LR
+    USB[Selected SIGNALduino USB] --> Controller[Native controller / parser]
+    Controller --> Decoders[Native actuator decoders]
+    Decoders --> Event[SensorEvent]
+    Event --> Gateway[Opt-in HA gateway]
+    Gateway --> Formatter[Pure discovery formatter]
+    Gateway <--> Broker[MQTT broker / retained registry]
+    Broker <--> HA[Home Assistant MQTT discovery]
+    Gateway --> Metrics[Prometheus / heartbeat health]

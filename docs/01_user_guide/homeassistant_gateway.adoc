@@ -1,0 +1,144 @@
+= Home Assistant USB actuator gateway
+:sectlinks:
+:toc:
+
+== Supported devices and automatic discovery
+
+The opt-in gateway learns Intertechno v3 (protocol 17) switches and A-OK
+AC114-01B (protocol 56) covers from valid received telegrams. Operate an existing
+remote to provide a telegram. No FHEM process, API, definition list or preloaded
+production addresses are needed. Other SD_UT models and IT v1 are not claimed
+as supported. Other stage-one messages remain diagnostic events.
+
+Both protocols are one-way. State is inferred from an observed command, not
+physical receiver acknowledgement or measured position. For outgoing OPEN/CLOSE,
+HA immediately assumes open/closed through its native optimistic behavior,
+before firmware or physical confirmation. Received telegrams update
+opening/closing/stopped action state, with no invented
+position percentage, travel time or battery value. HA maps stopped according
+to its native optimistic-cover behavior.
+
+== Installation and selected entry point
+
+The gateway targets Python 3.12 or newer, has additional dependencies and uses MQTT5:
+
+[source,bash]
+----
+pip install '.[homeassistant]'
+export SERIAL_PORT=/dev/serial/by-id/YOUR_VERIFIED_DEVICE
+export MQTT_BROKER_HOSTNAME=mqtt.example.net
+export MQTT_BROKER_USERNAME_FILE=/private/mqtt-username
+export MQTT_BROKER_PASSWORD_FILE=/private/mqtt-password
+python -m signalduino.homeassistant
+----
+
+The existing `main.py` raw/FHEM entry point remains available. Do not set
+`MQTT_HOST` for this gateway: that would select upstream's separate publisher.
+The qualified hardware is a Radino/ATmega32U4 with CC1101 and SIGNALduino 4.0.0,
+57600 baud. Startup preserves RF frequency, PA table and decoder flags.
+
+Settings are `SERIAL_PORT` (default `/dev/signalduino`), `SERIAL_BAUD` (57600),
+`MQTT_BROKER_HOSTNAME` (localhost), `MQTT_BROKER_PORT` (1883),
+`MQTT_BROKER_USERNAME`, `MQTT_BROKER_PASSWORD` (both also accept `_FILE`),
+`MQTT_CLIENT_ID` (pysignalduino-mqtt), `MQTT_TOPIC` (signalduino) and
+`MQTT_DISCOVERY_PREFIX` (homeassistant). Give each active instance a distinct
+client identity and topic tree. Keep secret files owner-only and readable by
+the runtime UID. TCP MQTT uses the broker's authenticated LAN contract; TLS is
+not configured by this gateway.
+
+== Docker
+
+Build from the repository root:
+
+[source,bash]
+----
+docker build -f docker/homeassistant/Dockerfile -t pysignalduino-ha:local .
+docker run -d --name pysignalduino-ha \
+  --read-only --tmpfs /tmp:rw,nosuid,nodev,size=16m \
+  --cap-drop=ALL --security-opt=no-new-privileges:true \
+  --device=/dev/serial/by-id/YOUR_VERIFIED_DEVICE:/dev/signalduino:rw \
+  --group-add YOUR_SERIAL_DEVICE_GROUP_ID \
+  --env MQTT_BROKER_HOSTNAME=mqtt.example.net \
+  --env MQTT_BROKER_USERNAME_FILE=/run/secrets/username \
+  --env MQTT_BROKER_PASSWORD_FILE=/run/secrets/password \
+  --mount type=bind,src=/private/mqtt-username,dst=/run/secrets/username,readonly \
+  --mount type=bind,src=/private/mqtt-password,dst=/run/secrets/password,readonly \
+  -p 127.0.0.1:18008:8000 pysignalduino-ha:local
+----
+
+The image runs as UID/GID 1000. Inspect the device's actual group; do not use a
+privileged container or mount every USB device. An Arduino Micro USB descriptor
+is not globally unique: select and verify exactly one physical device. Only
+one controller may own it. Recreate the container after physical USB replug so
+Docker allocates the newly resolved device. An in-process reconnect cannot
+refresh the Docker device cgroup.
+
+Python 3.14.8/Alpine 3.24 is digest-pinned, with fully pinned image dependencies.
+Alpine and Trixie passed the same downstream tests and actual USB/MQTT handshake;
+available musl wheels removed any compiler/glibc requirement. Comparison images
+were about 23.5 MB and 46.5 MB respectively. These are comparison measurements,
+not a size guarantee for this upstream build. No image publication is added.
+
+== MQTT persistence and access
+
+For the default prefixes, a dedicated native broker principal needs:
+
+[source,text]
+----
+topic readwrite signalduino/#
+topic write homeassistant/switch/signalduino/+/config
+topic write homeassistant/cover/signalduino/+/config
+topic read homeassistant/status
+----
+
+Stable identity includes protocol, complete address and channel/group. The
+broker retains validated descriptors at `signalduino/devices/<identity>/config`
+and HA discovery. Its native persistence/backup contract owns recovery. Restore
+the broker or relearn devices from remotes; no gateway database/PVC is needed.
+HA birth republishes discovery, and restart restores routing without inventing
+RF reception. The gateway learns at most 256 supported identities per process;
+registry JSON is limited to 512 bytes and malformed input cannot stop learning.
+
+State and diagnostic events are non-retained at
+`signalduino/devices/<identity>/state` and `signalduino/events`. Commands at
+`signalduino/devices/<identity>/set` accept ON/OFF or OPEN/CLOSE/STOP. Never retain
+commands. MQTT5 options reject cached and live retained commands; unknown and
+malformed targets/actions are rejected. No toggle, pairing, register-write,
+frequency, factory-reset or firmware commands are exposed by MQTT. The selected
+serial device itself still grants full RF/configuration authority.
+
+== Health and recovery
+
+Logs go to stdout/stderr. `/metrics` on port 8000 exposes serial/MQTT connectivity,
+firmware heartbeat, decoded frames, learned devices, errors and acknowledged
+transmissions. A transmission counter means firmware acknowledgement only.
+
+Health uses a successful native firmware heartbeat every 15 seconds while MQTT
+is connected; its monotonic receipt expires after 45 seconds. Quiet radio traffic
+is healthy. Docker checks `python -m signalduino.homeassistant.health`.
+`signalduino/availability` is retained online/offline with LWT and clean shutdown.
+Serial/broker failures close resources and reconnect with 1–30 second backoff.
+Negative PUBACKs fail the session and trigger native MQTT5 disconnect-with-Will
+so a denied cleanup publication cannot leave retained online availability.
+
+Stop this container to release USB. Preserve broker discovery/registry for
+ordinary rollback. Retiring a device requires its exact registry/discovery
+topics and native HA entries; never clear wildcard retained data or edit HA
+`.storage`. Firmware backup/rollback is independent from this application.
+
+== Verification scope
+
+Tests live under `tests/`, including pseudo-terminal native USB, independent
+FHEM/A-OK vectors, discovery, malformed input, retained commands, negative PUBACK,
+registry restart and HA birth. Run the full suite in the documented devcontainer.
+Set `MQTT_TEST_HOST` to an isolated Mosquitto configured like the container CI
+fixture to run its three broker integration cases; never point them at a live
+broker. The CI image job runs them with an isolated pinned broker and read-only,
+non-root runtime.
+
+The downstream implementation was also tested with actual Radino RF reception
+and HA 2026.11.2: a real A-OK telegram created a device/cover automatically;
+received state and stable IDs after stop/restart were verified. Physical IT
+reception and production actuator commands remain unverified. The upstream port
+has its own native/package/container checks; downstream evidence is not presented
+as new over-the-air reception by a different build.

@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant R as Remote
+    participant S as SIGNALduino
+    participant G as HA gateway
+    participant M as MQTT broker
+    participant H as Home Assistant
+    R->>S: Real RF telegram
+    S->>G: Native raw frame
+    G->>G: Parse and validate native SensorEvent
+    G->>M: Retain descriptor and discovery
+    M->>H: Automatically create switch / cover
+    G->>M: Non-retained inferred action state
+    M->>H: Update action state
+    G->>M: Offline during shutdown
+    M->>H: Unavailable
+    G->>M: Subscribe after restart
+    M->>G: Retained validated descriptor
+    G->>M: Rediscovery and online, no invented RF event

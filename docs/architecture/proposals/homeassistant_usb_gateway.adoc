@@ -1,0 +1,90 @@
+= Proposal: USB gateway for Home Assistant switches and covers
+:doctype: article
+:lang: en
+:status: Proposed; architecture-owner review requested
+
+== Scope and architecture
+
+This implements the actuator use case of accepted ADR-006 on top of PR #15
+(`d7820836633111ae3c1bf332fcc5b8a6498029f3`). Existing FHEM/raw MQTT operation
+keeps its entry point. The opt-in gateway runs as
+`python -m signalduino.homeassistant`, with one explicitly selected USB device.
+It reuses the native controller, parser, decoder registry and `SensorEvent`.
+
+Custom IT v3/protocol 17 and A-OK AC114-01B/protocol 56 decoders belong in
+`signalduino/decoders/custom/`; validated actuator identities and native SR
+encoding belong in `signalduino/actuators.py`. The pure discovery formatter in
+`signalduino/output/homeassistant.py` has no MQTT client. Gateway orchestration
+under `signalduino/homeassistant/` owns publication, subscriptions and lifecycle.
+
+[mermaid]
+----
+include::../diagrams/homeassistant-usb-components.mmd[]
+----
+
+[mermaid]
+----
+include::../diagrams/homeassistant-usb-discovery.mmd[]
+----
+
+== Interfaces and behavior
+
+* Native stage two returns `SensorEvent` with model, address, channel/group,
+  action and received pulse clock. Invalid checksums, headers, sizes and
+  non-movement A-OK commands return no event through native error isolation.
+* `descriptor(event)` and `validate_descriptor(dict)` produce the retained
+  minimal routing identity; `identity(dict)` includes the complete channel
+  bitmap/group; `encode(dict, action)` produces one bounded native SR command.
+* `discovery_config(device, root, version)` returns a pure `(domain, config)`
+  pair. Switches expose ON/OFF; covers expose OPEN/CLOSE/STOP.
+* `Bridge` publishes retained discovery/descriptors, non-retained RF events and
+  inferred action state. It restores descriptors and republishes discovery on
+  HA birth without fabricating reception. It rejects retained, unknown and
+  malformed commands. Exactly one process owns the serial device.
+* The gateway uses MQTT5, heartbeat-based health, LWT/offline, bounded reconnect,
+  stdout logging and Prometheus metrics. A denied PUBACK fails the session;
+  native MQTT5 disconnect-with-Will prevents retained false-online state.
+
+These protocols are one-way. An observed or transmitted action does not prove
+receiver position or physical acknowledgement. No percentage/travel-time or
+battery capability is invented. Silent devices are learned by operating their
+existing remote, never from a hardcoded list of addresses.
+
+== Security, retention and alternatives
+
+The container runs as UID/GID 1000 with read-only root, dropped capabilities and
+one selected serial device. File-based credentials avoid command-line secrets.
+The device grants full serial/RF authority; typed MQTT commands are an API
+boundary, not receive-only hardware enforcement. Native broker ACLs scope
+gateway topics and the discovery node. No serial proxy, FHEM runtime, filesystem
+database, firmware update or automatic RF reconfiguration is added.
+
+The broker owns retained routing/discovery persistence. Command and inferred
+motion state are deliberately not retained: this actuator gateway must not
+replay a stale movement or present an old movement as a fresh observation.
+This is the actuator-specific extension described in proposed ADR-008.
+
+An independent demodulator would duplicate upstream's pulse definitions;
+embedding actuator semantics in the MQTT transport would violate ADR-006.
+The selected decoder/pure-output/orchestrator split reuses the existing native
+boundaries. Alpine uses available musl wheels and passed real USB/MQTT tests;
+no glibc requirement was found.
+
+== Implementation and verification plan
+
+. Complete native serial transport, distribution data and cancellation cleanup;
+  deliver every demodulated result.
+. Register native actuator decoders; port the reviewed descriptor/encoder and
+  discovery formatter without changing the wire protocol or existing CLI.
+. Package the opt-in gateway and non-root Alpine container; document settings,
+  ACLs, persistence and hardware recovery.
+. Run native pytest in the documented devcontainer, pseudo-terminal and real
+  isolated-Mosquitto regressions, installed-wheel and container checks.
+
+The downstream implementation has passed 389 upstream tests and 24 gateway
+tests. Real SIGNALduino 4.0.0/Radino reception automatically created an A-OK
+MQTT cover in Home Assistant 2026.11.2; stopping the gateway made it unavailable,
+and restarting preserved device/entity IDs through retained descriptors.
+IT decoding/encoding/discovery has automated coverage; physical IT reception
+and production actuator-command transmission were not performed. The upstream
+port is revalidated separately; owner approval is requested through the draft PR.
