@@ -1,5 +1,6 @@
 pycache/
 *.pyc
+*.egg-info/
 .venv/
 .env/
 temp_repo/

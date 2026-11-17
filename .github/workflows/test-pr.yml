@@ -2,7 +2,7 @@ name: Unittest on Pull Request
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ main, feat/sensor-decoding ]
 
 jobs:
   test:
@@ -33,3 +33,39 @@ jobs:
         name: codecov-umbrella
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
+
+  homeassistant-container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
+    - name: Verify installed gateway with isolated MQTT and pseudo-terminal serial
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker build -f docker/homeassistant/Dockerfile -t pysignalduino-ha:test .
+        test_name="pysignalduino-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        trap 'docker rm -f "$test_name-mqtt" >/dev/null 2>&1 || true; docker network rm "$test_name" >/dev/null 2>&1 || true' EXIT
+        docker network create "$test_name"
+        docker run -d --name "$test_name-mqtt" --network "$test_name" \
+          docker.io/library/eclipse-mosquitto:2.1.2-alpine@sha256:75d6662dee52c947dc9dd9c29f1d8d7ffef78ddaf38001caa09755681e8bbc98 \
+          /bin/sh -ec 'mosquitto_passwd -b -c /tmp/passwords restricted test-password; printf "listener 1883\nallow_anonymous true\npassword_file /tmp/passwords\nacl_file /tmp/acl\n" > /tmp/test.conf; printf "topic readwrite #\nuser restricted\ntopic write permitted\ntopic write permitted/availability\n" > /tmp/acl; chown mosquitto:mosquitto /tmp/test.conf /tmp/passwords /tmp/acl; chmod 600 /tmp/test.conf /tmp/passwords /tmp/acl; exec mosquitto -c /tmp/test.conf'
+        ready=false
+        for attempt in {1..20}; do
+          if docker exec "$test_name-mqtt" mosquitto_pub -h 127.0.0.1 -t readiness -m ready >/dev/null 2>&1; then
+            ready=true
+            break
+          fi
+          sleep 1
+        done
+        "$ready"
+        broker_ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$test_name-mqtt")"
+        test -n "$broker_ip"
+        docker run --rm --network "$test_name" --env MQTT_TEST_HOST="$broker_ip" \
+          --read-only --tmpfs /tmp:rw,nosuid,nodev,size=16m --cap-drop=ALL \
+          --security-opt=no-new-privileges:true \
+          --mount type=bind,src="$GITHUB_WORKSPACE/tests",dst=/tests,readonly \
+          pysignalduino-ha:test python -m unittest discover -s /tests/homeassistant -q

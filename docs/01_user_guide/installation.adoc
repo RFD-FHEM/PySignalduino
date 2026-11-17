@@ -79,6 +79,11 @@ Sie sollten eine Ausgabe mit allen verfügbaren Kommandozeilenoptionen sehen.
 
 == Docker / DevContainer
 
+Für das optionale USB-Gateway mit Home-Assistant-MQTT-Discovery siehe
+xref:homeassistant_gateway.adoc[Home Assistant actuator gateway]. Es verwendet
+den nativen Decoder und eine eigene Startoption; das bestehende Hauptprogramm
+bleibt verfügbar.
+
 Für eine konsistente Entwicklungsumgebung steht eine DevContainer-Konfiguration bereit. Öffnen Sie das Projekt in Visual Studio Code mit der Remote-Containers-Erweiterung, um automatisch alle Abhängigkeiten in einem isolierten Container zu installieren.
 
 Details finden Sie in der [DevContainer-Dokumentation](devcontainer_env.md).

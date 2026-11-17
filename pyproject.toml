@@ -11,11 +11,23 @@ dependencies = [
     "requests",
     "pyserial-asyncio",
     "aiomqtt",
-    "python-dotenv"
+    "python-dotenv",
+    "jsonschema"
+]
+
+[project.optional-dependencies]
+homeassistant = [
+    "aiomqtt==2.5.1",
+    "paho-mqtt==2.2.0",
+    "prometheus-client==0.26.0"
 ]
 
 [tool.setuptools.packages.find]
-include = ["signalduino", "sd_protocols"]
+include = ["signalduino*", "sd_protocols*"]
+
+[tool.setuptools.package-data]
+sd_protocols = ["protocols.json"]
+"signalduino.decoders" = ["spec_schema.json", "specs/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

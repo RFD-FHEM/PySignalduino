@@ -16,3 +16,5 @@ A module in this package registers itself:
 and is imported here so the registry picks it up. A custom decoder takes
 precedence over a specification with the same protocol id.
 """
+
+from . import actuators  # noqa: F401 - register native actuator decoders

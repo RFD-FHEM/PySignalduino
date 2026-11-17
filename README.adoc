@@ -37,6 +37,7 @@ Die SIGNALDuino-Firmware (Microcontroller-Code) wird in einem separaten Reposito
 * **Umfangreiche Protokollbibliothek** – Portierung der originalen FHEM‑SIGNALDuino‑Protokolle über `SDProtocols`; die Protokolldefinitionen liegen in `sd_protocols/protocols.json`.
 * **Konfiguration über Umgebungsvariablen** – Einfache Einrichtung ohne Codeänderungen.
 * **Ausführbares Hauptprogramm** – `main.py` bietet eine sofort einsatzbereite Lösung mit Logging, Signalbehandlung und Timeout‑Steuerung.
+* **Optionales Home-Assistant-Gateway** – `python -m signalduino.homeassistant` lernt IT-v3-Schalter und A-OK-AC114-Cover über empfangene Funktelegramme und MQTT-Discovery. xref:docs/01_user_guide/homeassistant_gateway.adoc[Installation, Docker-Betrieb und Protokollgrenzen].
 * **Komprimierte Datenübertragung** – Effiziente Payload‑Kompression für MQTT‑Nachrichten.
 
 == Demo

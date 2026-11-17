@@ -1,0 +1,6 @@
+.git
+.devcontainer
+.env*
+**/__pycache__
+**/*.pyc
+*.egg-info
